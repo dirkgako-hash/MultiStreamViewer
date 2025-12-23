@@ -12,27 +12,21 @@
         android:id="@+id/gridLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:columnCount="2"
-        android:rowCount="2"
         android:background="#000000">
 
-        <!-- Player 1 -->
+        <!-- Player 1 Container (será adicionado dinamicamente) -->
         <FrameLayout
             android:id="@+id/playerContainer1"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:layout_margin="1dp"
-            android:background="#000000"
-            app:layout_columnWeight="1"
-            app:layout_rowWeight="1"
-            app:layout_column="0"
-            app:layout_row="0">
+            android:background="#000000">
 
             <WebView
                 android:id="@+id/webView1"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
 
+            <!-- Overlay de loading -->
             <LinearLayout
                 android:id="@+id/loadingOverlay1"
                 android:layout_width="match_parent"
@@ -49,58 +43,93 @@
 
             </LinearLayout>
 
-            <!-- Mini controles no canto inferior direito -->
+            <!-- Painel de controle (aparece ao tocar) -->
             <LinearLayout
-                android:layout_width="wrap_content"
+                android:id="@+id/controlPanel1"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="bottom|end"
+                android:layout_gravity="top"
+                android:background="#CC1a1a1a"
                 android:orientation="horizontal"
-                android:padding="4dp">
+                android:padding="6dp"
+                android:visibility="gone">
+
+                <Button
+                    android:id="@+id/btnBack1"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
+                    android:text="◀"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btnForward1"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
+                    android:text="▶"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:layout_marginStart="4dp" />
+
+                <Button
+                    android:id="@+id/btnRefresh1"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
+                    android:text="🔄"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:layout_marginStart="4dp" />
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="#666666" />
 
                 <Button
                     android:id="@+id/btnZoomOut1"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:background="#444444"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
                     android:text="-"
                     android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
+                    android:textSize="16sp" />
 
                 <Button
                     android:id="@+id/btnZoomIn1"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:background="#444444"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
                     android:text="+"
                     android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
+                    android:textSize="16sp"
+                    android:layout_marginStart="4dp" />
 
                 <Button
                     android:id="@+id/btnFullscreen1"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
                     android:background="#1e3c72"
                     android:text="⛶"
                     android:textColor="#FFFFFF"
-                    android:textSize="10sp" />
+                    android:textSize="14sp"
+                    android:layout_marginStart="8dp" />
 
             </LinearLayout>
 
         </FrameLayout>
 
-        <!-- Player 2 -->
+        <!-- Player 2 Container -->
         <FrameLayout
             android:id="@+id/playerContainer2"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:layout_margin="1dp"
-            android:background="#000000"
-            app:layout_columnWeight="1"
-            app:layout_rowWeight="1"
-            app:layout_column="1"
-            app:layout_row="0">
+            android:background="#000000">
 
             <WebView
                 android:id="@+id/webView2"
@@ -124,56 +153,91 @@
             </LinearLayout>
 
             <LinearLayout
-                android:layout_width="wrap_content"
+                android:id="@+id/controlPanel2"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="bottom|end"
+                android:layout_gravity="top"
+                android:background="#CC1a1a1a"
                 android:orientation="horizontal"
-                android:padding="4dp">
+                android:padding="6dp"
+                android:visibility="gone">
+
+                <Button
+                    android:id="@+id/btnBack2"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
+                    android:text="◀"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btnForward2"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
+                    android:text="▶"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:layout_marginStart="4dp" />
+
+                <Button
+                    android:id="@+id/btnRefresh2"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
+                    android:text="🔄"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:layout_marginStart="4dp" />
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="#666666" />
 
                 <Button
                     android:id="@+id/btnZoomOut2"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:background="#444444"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
                     android:text="-"
                     android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
+                    android:textSize="16sp" />
 
                 <Button
                     android:id="@+id/btnZoomIn2"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:background="#444444"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
                     android:text="+"
                     android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
+                    android:textSize="16sp"
+                    android:layout_marginStart="4dp" />
 
                 <Button
                     android:id="@+id/btnFullscreen2"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
                     android:background="#1e3c72"
                     android:text="⛶"
                     android:textColor="#FFFFFF"
-                    android:textSize="10sp" />
+                    android:textSize="14sp"
+                    android:layout_marginStart="8dp" />
 
             </LinearLayout>
 
         </FrameLayout>
 
-        <!-- Player 3 -->
+        <!-- Player 3 Container -->
         <FrameLayout
             android:id="@+id/playerContainer3"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:layout_margin="1dp"
-            android:background="#000000"
-            app:layout_columnWeight="1"
-            app:layout_rowWeight="1"
-            app:layout_column="0"
-            app:layout_row="1">
+            android:background="#000000">
 
             <WebView
                 android:id="@+id/webView3"
@@ -197,56 +261,91 @@
             </LinearLayout>
 
             <LinearLayout
-                android:layout_width="wrap_content"
+                android:id="@+id/controlPanel3"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="bottom|end"
+                android:layout_gravity="top"
+                android:background="#CC1a1a1a"
                 android:orientation="horizontal"
-                android:padding="4dp">
+                android:padding="6dp"
+                android:visibility="gone">
+
+                <Button
+                    android:id="@+id/btnBack3"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
+                    android:text="◀"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btnForward3"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
+                    android:text="▶"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:layout_marginStart="4dp" />
+
+                <Button
+                    android:id="@+id/btnRefresh3"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
+                    android:text="🔄"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:layout_marginStart="4dp" />
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="#666666" />
 
                 <Button
                     android:id="@+id/btnZoomOut3"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:background="#444444"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
                     android:text="-"
                     android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
+                    android:textSize="16sp" />
 
                 <Button
                     android:id="@+id/btnZoomIn3"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:background="#444444"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
                     android:text="+"
                     android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
+                    android:textSize="16sp"
+                    android:layout_marginStart="4dp" />
 
                 <Button
                     android:id="@+id/btnFullscreen3"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
                     android:background="#1e3c72"
                     android:text="⛶"
                     android:textColor="#FFFFFF"
-                    android:textSize="10sp" />
+                    android:textSize="14sp"
+                    android:layout_marginStart="8dp" />
 
             </LinearLayout>
 
         </FrameLayout>
 
-        <!-- Player 4 -->
+        <!-- Player 4 Container -->
         <FrameLayout
             android:id="@+id/playerContainer4"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:layout_margin="1dp"
-            android:background="#000000"
-            app:layout_columnWeight="1"
-            app:layout_rowWeight="1"
-            app:layout_column="1"
-            app:layout_row="1">
+            android:background="#000000">
 
             <WebView
                 android:id="@+id/webView4"
@@ -270,40 +369,80 @@
             </LinearLayout>
 
             <LinearLayout
-                android:layout_width="wrap_content"
+                android:id="@+id/controlPanel4"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="bottom|end"
+                android:layout_gravity="top"
+                android:background="#CC1a1a1a"
                 android:orientation="horizontal"
-                android:padding="4dp">
+                android:padding="6dp"
+                android:visibility="gone">
+
+                <Button
+                    android:id="@+id/btnBack4"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
+                    android:text="◀"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btnForward4"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
+                    android:text="▶"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:layout_marginStart="4dp" />
+
+                <Button
+                    android:id="@+id/btnRefresh4"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
+                    android:text="🔄"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:layout_marginStart="4dp" />
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="#666666" />
 
                 <Button
                     android:id="@+id/btnZoomOut4"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:background="#444444"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
                     android:text="-"
                     android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
+                    android:textSize="16sp" />
 
                 <Button
                     android:id="@+id/btnZoomIn4"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:background="#444444"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="#333333"
                     android:text="+"
                     android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
+                    android:textSize="16sp"
+                    android:layout_marginStart="4dp" />
 
                 <Button
                     android:id="@+id/btnFullscreen4"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
                     android:background="#1e3c72"
                     android:text="⛶"
                     android:textColor="#FFFFFF"
-                    android:textSize="10sp" />
+                    android:textSize="14sp"
+                    android:layout_marginStart="8dp" />
 
             </LinearLayout>
 
@@ -311,82 +450,114 @@
 
     </androidx.gridlayout.widget.GridLayout>
 
-    <!-- Botões flutuantes no canto superior esquerdo -->
+    <!-- Painel inferior foldable -->
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:id="@+id/bottomPanel"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:orientation="horizontal"
-        android:padding="8dp">
+        android:layout_gravity="bottom|center_horizontal"
+        android:background="#1a1a1aCC"
+        android:orientation="vertical"
+        android:translationY="200dp"
+        android:visibility="gone">
 
+        <!-- Linha superior: botões de toggle -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="8dp"
+            android:gravity="center">
+
+            <Button
+                android:id="@+id/btnToggleMenu"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:background="#333333"
+                android:text="☰ Sidebar"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:layout_marginEnd="12dp" />
+
+            <Button
+                android:id="@+id/btnToggleOrientation"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:background="#333333"
+                android:text="📱 Landscape"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+
+        <!-- Linha inferior: checkboxes -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="8dp"
+            android:gravity="center"
+            android:background="#222222">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Active Boxes:"
+                android:textColor="#CCCCCC"
+                android:textSize="11sp"
+                android:layout_marginEnd="8dp" />
+
+            <CheckBox
+                android:id="@+id/checkBox1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:layout_marginEnd="8dp" />
+
+            <CheckBox
+                android:id="@+id/checkBox2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="2"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:layout_marginEnd="8dp" />
+
+            <CheckBox
+                android:id="@+id/checkBox3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="3"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:layout_marginEnd="8dp" />
+
+            <CheckBox
+                android:id="@+id/checkBox4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="4"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp" />
+
+        </LinearLayout>
+
+        <!-- Botão para fechar/abrir painel -->
         <Button
-            android:id="@+id/btnToggleMenu"
+            android:id="@+id/btnToggleBottomPanel"
             android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="#1e3c72CC"
-            android:text="☰"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:layout_marginEnd="4dp" />
-
-        <Button
-            android:id="@+id/btnToggleOrientation"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="#1e3c72CC"
-            android:text="📱"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp" />
-
-    </LinearLayout>
-
-    <!-- Checkboxes flutuantes no canto superior direito -->
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:orientation="horizontal"
-        android:padding="8dp"
-        android:background="#1a1a1a99">
-
-        <CheckBox
-            android:id="@+id/checkBox1"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="1"
-            android:textColor="#FFFFFF"
-            android:textSize="10sp"
-            android:layout_marginEnd="4dp" />
-
-        <CheckBox
-            android:id="@+id/checkBox2"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="2"
-            android:textColor="#FFFFFF"
-            android:textSize="10sp"
-            android:layout_marginEnd="4dp" />
-
-        <CheckBox
-            android:id="@+id/checkBox3"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="3"
-            android:textColor="#FFFFFF"
-            android:textSize="10sp"
-            android:layout_marginEnd="4dp" />
-
-        <CheckBox
-            android:id="@+id/checkBox4"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="4"
+            android:layout_height="24dp"
+            android:layout_gravity="center_horizontal"
+            android:background="#444444"
+            android:text="▲"
             android:textColor="#FFFFFF"
             android:textSize="10sp" />
 
     </LinearLayout>
 
-    <!-- Menu lateral (com scroll) -->
+    <!-- Menu lateral -->
     <LinearLayout
         android:id="@+id/sideMenu"
         android:layout_width="280dp"
@@ -397,11 +568,11 @@
         android:translationX="-280dp"
         android:visibility="gone">
 
-        <ScrollView
+        <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:padding="8dp">
+            android:padding="12dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -419,9 +590,9 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="CONTROLS"
+                        android:text="SETTINGS"
                         android:textColor="#FFFFFF"
-                        android:textSize="12sp"
+                        android:textSize="14sp"
                         android:textStyle="bold" />
 
                     <Button
@@ -431,7 +602,7 @@
                         android:background="#ff4444"
                         android:text="✕"
                         android:textColor="#FFFFFF"
-                        android:textSize="12sp" />
+                        android:textSize="14sp" />
 
                 </LinearLayout>
 
@@ -441,23 +612,23 @@
                     android:layout_height="wrap_content"
                     android:text="Layout:"
                     android:textColor="#CCCCCC"
-                    android:textSize="10sp"
+                    android:textSize="11sp"
                     android:layout_marginBottom="4dp" />
 
                 <Spinner
                     android:id="@+id/layoutSpinner"
                     android:layout_width="match_parent"
-                    android:layout_height="32dp"
+                    android:layout_height="36dp"
                     android:background="#333333"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="16dp" />
 
                 <!-- Security settings -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Security:"
+                    android:text="Security Settings:"
                     android:textColor="#CCCCCC"
-                    android:textSize="10sp"
+                    android:textSize="11sp"
                     android:layout_marginBottom="4dp" />
 
                 <LinearLayout
@@ -466,7 +637,7 @@
                     android:orientation="vertical"
                     android:background="#333333"
                     android:padding="8dp"
-                    android:layout_marginBottom="12dp">
+                    android:layout_marginBottom="16dp">
 
                     <CheckBox
                         android:id="@+id/cbAllowScripts"
@@ -474,7 +645,7 @@
                         android:layout_height="wrap_content"
                         android:text="Allow Scripts"
                         android:textColor="#FFFFFF"
-                        android:textSize="10sp" />
+                        android:textSize="11sp" />
 
                     <CheckBox
                         android:id="@+id/cbAllowForms"
@@ -482,7 +653,7 @@
                         android:layout_height="wrap_content"
                         android:text="Allow Forms"
                         android:textColor="#FFFFFF"
-                        android:textSize="10sp" />
+                        android:textSize="11sp" />
 
                     <CheckBox
                         android:id="@+id/cbAllowPopups"
@@ -490,7 +661,15 @@
                         android:layout_height="wrap_content"
                         android:text="Allow Popups"
                         android:textColor="#FFFFFF"
-                        android:textSize="10sp" />
+                        android:textSize="11sp" />
+
+                    <CheckBox
+                        android:id="@+id/cbBlockRedirects"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Block Redirects"
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp" />
 
                 </LinearLayout>
 
@@ -498,30 +677,30 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="URLs:"
+                    android:text="URL Inputs:"
                     android:textColor="#CCCCCC"
-                    android:textSize="10sp"
+                    android:textSize="11sp"
                     android:layout_marginBottom="4dp" />
 
                 <!-- Player 1 URL -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Player 1:"
+                    android:text="Box 1 URL:"
                     android:textColor="#FFFFFF"
-                    android:textSize="9sp"
+                    android:textSize="10sp"
                     android:layout_marginBottom="2dp" />
 
                 <EditText
                     android:id="@+id/urlInput1"
                     android:layout_width="match_parent"
-                    android:layout_height="28dp"
+                    android:layout_height="32dp"
                     android:background="#333333"
                     android:hint="https://..."
                     android:imeOptions="actionGo"
                     android:inputType="textUri"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
                     android:textColor="#FFFFFF"
                     android:textSize="10sp"
                     android:layout_marginBottom="8dp" />
@@ -530,21 +709,21 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Player 2:"
+                    android:text="Box 2 URL:"
                     android:textColor="#FFFFFF"
-                    android:textSize="9sp"
+                    android:textSize="10sp"
                     android:layout_marginBottom="2dp" />
 
                 <EditText
                     android:id="@+id/urlInput2"
                     android:layout_width="match_parent"
-                    android:layout_height="28dp"
+                    android:layout_height="32dp"
                     android:background="#333333"
                     android:hint="https://..."
                     android:imeOptions="actionGo"
                     android:inputType="textUri"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
                     android:textColor="#FFFFFF"
                     android:textSize="10sp"
                     android:layout_marginBottom="8dp" />
@@ -553,21 +732,21 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Player 3:"
+                    android:text="Box 3 URL:"
                     android:textColor="#FFFFFF"
-                    android:textSize="9sp"
+                    android:textSize="10sp"
                     android:layout_marginBottom="2dp" />
 
                 <EditText
                     android:id="@+id/urlInput3"
                     android:layout_width="match_parent"
-                    android:layout_height="28dp"
+                    android:layout_height="32dp"
                     android:background="#333333"
                     android:hint="https://..."
                     android:imeOptions="actionGo"
                     android:inputType="textUri"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
                     android:textColor="#FFFFFF"
                     android:textSize="10sp"
                     android:layout_marginBottom="8dp" />
@@ -576,28 +755,28 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Player 4:"
+                    android:text="Box 4 URL:"
                     android:textColor="#FFFFFF"
-                    android:textSize="9sp"
+                    android:textSize="10sp"
                     android:layout_marginBottom="2dp" />
 
                 <EditText
                     android:id="@+id/urlInput4"
                     android:layout_width="match_parent"
-                    android:layout_height="28dp"
+                    android:layout_height="32dp"
                     android:background="#333333"
                     android:hint="https://..."
                     android:imeOptions="actionGo"
                     android:inputType="textUri"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
                     android:textColor="#FFFFFF"
                     android:textSize="10sp"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="16dp" />
 
             </LinearLayout>
 
-        </ScrollView>
+        </androidx.core.widget.NestedScrollView>
 
         <!-- Botões de ação -->
         <LinearLayout
@@ -610,34 +789,34 @@
             <Button
                 android:id="@+id/btnLoadAll"
                 android:layout_width="0dp"
-                android:layout_height="32dp"
+                android:layout_height="36dp"
                 android:layout_weight="1"
                 android:background="#1e3c72"
-                android:text="LOAD"
+                android:text="LOAD ALL"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="11sp"
                 android:layout_marginEnd="4dp" />
 
             <Button
                 android:id="@+id/btnReloadAll"
                 android:layout_width="0dp"
-                android:layout_height="32dp"
+                android:layout_height="36dp"
                 android:layout_weight="1"
                 android:background="#1e3c72"
-                android:text="RELOAD"
+                android:text="RELOAD ALL"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="11sp"
                 android:layout_marginEnd="4dp" />
 
             <Button
                 android:id="@+id/btnClearAll"
                 android:layout_width="0dp"
-                android:layout_height="32dp"
+                android:layout_height="36dp"
                 android:layout_weight="1"
                 android:background="#ff4444"
-                android:text="CLEAR"
+                android:text="CLEAR ALL"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp" />
+                android:textSize="11sp" />
 
         </LinearLayout>
 
