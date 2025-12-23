@@ -1,25 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout 
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0a0a0a"
+    android:background="#000000"
     tools:context=".MainActivity">
 
-    <!-- GridLayout para os players -->
+    <!-- Grid principal para os players -->
     <androidx.gridlayout.widget.GridLayout
         android:id="@+id/gridLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_margin="2dp"
-        android:background="#1a1a1a"
         android:columnCount="2"
         android:rowCount="2"
-        android:layout_above="@+id/controlsBar">
+        android:background="#000000">
 
-        <!-- Player 1 Container (será adicionado dinamicamente) -->
+        <!-- Player 1 -->
         <FrameLayout
             android:id="@+id/playerContainer1"
             android:layout_width="0dp"
@@ -36,7 +32,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
 
-            <!-- Overlay de loading -->
             <LinearLayout
                 android:id="@+id/loadingOverlay1"
                 android:layout_width="match_parent"
@@ -47,62 +42,54 @@
                 android:visibility="gone">
 
                 <ProgressBar
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                     android:indeterminateTint="#1e3c72" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Loading..."
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp" />
 
             </LinearLayout>
 
-            <!-- Controles do player -->
+            <!-- Mini controles no canto inferior direito -->
             <LinearLayout
-                android:id="@+id/playerControls1"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="#80000000"
+                android:layout_gravity="bottom|end"
                 android:orientation="horizontal"
-                android:padding="4dp"
-                android:visibility="gone">
+                android:padding="4dp">
 
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Player 1"
+                <Button
+                    android:id="@+id/btnZoomOut1"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:background="#444444"
+                    android:text="-"
                     android:textColor="#FFFFFF"
                     android:textSize="10sp"
-                    android:textStyle="bold" />
+                    android:layout_marginEnd="2dp" />
 
                 <Button
-                    android:id="@+id/btnPrev1"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/btnZoomIn1"
+                    android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:background="#444444"
-                    android:text="◀"
+                    android:text="+"
                     android:textColor="#FFFFFF"
-                    android:textSize="8sp" />
+                    android:textSize="10sp"
+                    android:layout_marginEnd="2dp" />
 
                 <Button
-                    android:id="@+id/btnNext1"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/btnFullscreen1"
+                    android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:background="#444444"
-                    android:text="▶"
+                    android:background="#1e3c72"
+                    android:text="⛶"
                     android:textColor="#FFFFFF"
-                    android:textSize="8sp" />
+                    android:textSize="10sp" />
 
             </LinearLayout>
 
         </FrameLayout>
 
-        <!-- Player 2 Container -->
+        <!-- Player 2 -->
         <FrameLayout
             android:id="@+id/playerContainer2"
             android:layout_width="0dp"
@@ -129,61 +116,53 @@
                 android:visibility="gone">
 
                 <ProgressBar
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                     android:indeterminateTint="#1e3c72" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Loading..."
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp" />
 
             </LinearLayout>
 
             <LinearLayout
-                android:id="@+id/playerControls2"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="#80000000"
+                android:layout_gravity="bottom|end"
                 android:orientation="horizontal"
-                android:padding="4dp"
-                android:visibility="gone">
+                android:padding="4dp">
 
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Player 2"
+                <Button
+                    android:id="@+id/btnZoomOut2"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:background="#444444"
+                    android:text="-"
                     android:textColor="#FFFFFF"
                     android:textSize="10sp"
-                    android:textStyle="bold" />
+                    android:layout_marginEnd="2dp" />
 
                 <Button
-                    android:id="@+id/btnPrev2"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/btnZoomIn2"
+                    android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:background="#444444"
-                    android:text="◀"
+                    android:text="+"
                     android:textColor="#FFFFFF"
-                    android:textSize="8sp" />
+                    android:textSize="10sp"
+                    android:layout_marginEnd="2dp" />
 
                 <Button
-                    android:id="@+id/btnNext2"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/btnFullscreen2"
+                    android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:background="#444444"
-                    android:text="▶"
+                    android:background="#1e3c72"
+                    android:text="⛶"
                     android:textColor="#FFFFFF"
-                    android:textSize="8sp" />
+                    android:textSize="10sp" />
 
             </LinearLayout>
 
         </FrameLayout>
 
-        <!-- Player 3 Container -->
+        <!-- Player 3 -->
         <FrameLayout
             android:id="@+id/playerContainer3"
             android:layout_width="0dp"
@@ -210,61 +189,53 @@
                 android:visibility="gone">
 
                 <ProgressBar
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                     android:indeterminateTint="#1e3c72" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Loading..."
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp" />
 
             </LinearLayout>
 
             <LinearLayout
-                android:id="@+id/playerControls3"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="#80000000"
+                android:layout_gravity="bottom|end"
                 android:orientation="horizontal"
-                android:padding="4dp"
-                android:visibility="gone">
+                android:padding="4dp">
 
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Player 3"
+                <Button
+                    android:id="@+id/btnZoomOut3"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:background="#444444"
+                    android:text="-"
                     android:textColor="#FFFFFF"
                     android:textSize="10sp"
-                    android:textStyle="bold" />
+                    android:layout_marginEnd="2dp" />
 
                 <Button
-                    android:id="@+id/btnPrev3"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/btnZoomIn3"
+                    android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:background="#444444"
-                    android:text="◀"
+                    android:text="+"
                     android:textColor="#FFFFFF"
-                    android:textSize="8sp" />
+                    android:textSize="10sp"
+                    android:layout_marginEnd="2dp" />
 
                 <Button
-                    android:id="@+id/btnNext3"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/btnFullscreen3"
+                    android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:background="#444444"
-                    android:text="▶"
+                    android:background="#1e3c72"
+                    android:text="⛶"
                     android:textColor="#FFFFFF"
-                    android:textSize="8sp" />
+                    android:textSize="10sp" />
 
             </LinearLayout>
 
         </FrameLayout>
 
-        <!-- Player 4 Container -->
+        <!-- Player 4 -->
         <FrameLayout
             android:id="@+id/playerContainer4"
             android:layout_width="0dp"
@@ -291,55 +262,47 @@
                 android:visibility="gone">
 
                 <ProgressBar
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                     android:indeterminateTint="#1e3c72" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Loading..."
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp" />
 
             </LinearLayout>
 
             <LinearLayout
-                android:id="@+id/playerControls4"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="#80000000"
+                android:layout_gravity="bottom|end"
                 android:orientation="horizontal"
-                android:padding="4dp"
-                android:visibility="gone">
+                android:padding="4dp">
 
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Player 4"
+                <Button
+                    android:id="@+id/btnZoomOut4"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:background="#444444"
+                    android:text="-"
                     android:textColor="#FFFFFF"
                     android:textSize="10sp"
-                    android:textStyle="bold" />
+                    android:layout_marginEnd="2dp" />
 
                 <Button
-                    android:id="@+id/btnPrev4"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/btnZoomIn4"
+                    android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:background="#444444"
-                    android:text="◀"
+                    android:text="+"
                     android:textColor="#FFFFFF"
-                    android:textSize="8sp" />
+                    android:textSize="10sp"
+                    android:layout_marginEnd="2dp" />
 
                 <Button
-                    android:id="@+id/btnNext4"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/btnFullscreen4"
+                    android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:background="#444444"
-                    android:text="▶"
+                    android:background="#1e3c72"
+                    android:text="⛶"
                     android:textColor="#FFFFFF"
-                    android:textSize="8sp" />
+                    android:textSize="10sp" />
 
             </LinearLayout>
 
@@ -347,159 +310,301 @@
 
     </androidx.gridlayout.widget.GridLayout>
 
-    <!-- Barra de controles fixa na parte inferior -->
+    <!-- Botões flutuantes no canto superior esquerdo -->
     <LinearLayout
-        android:id="@+id/controlsBar"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:background="#1a1a1a"
+        android:layout_gravity="top|start"
         android:orientation="horizontal"
         android:padding="8dp">
 
         <Button
             android:id="@+id/btnToggleMenu"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="#1e3c72"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="#1e3c72CC"
             android:text="☰"
             android:textColor="#FFFFFF"
             android:textSize="14sp"
-            android:layout_marginEnd="8dp" />
+            android:layout_marginEnd="4dp" />
 
         <Button
             android:id="@+id/btnToggleOrientation"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="#1e3c72"
-            android:text="📱 Landscape"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="#1e3c72CC"
+            android:text="📱"
             android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:layout_marginEnd="8dp" />
+            android:textSize="14sp" />
 
-        <Space
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+    </LinearLayout>
 
-        <!-- Seleção de boxes -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:text="Boxes:"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:layout_marginEnd="8dp" />
+    <!-- Checkboxes flutuantes no canto superior direito -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:background="#1a1a1a99">
 
         <CheckBox
             android:id="@+id/checkBox1"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:checked="true"
             android:text="1"
             android:textColor="#FFFFFF"
-            android:textSize="10sp" />
+            android:textSize="10sp"
+            android:layout_marginEnd="4dp" />
 
         <CheckBox
             android:id="@+id/checkBox2"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:checked="true"
             android:text="2"
             android:textColor="#FFFFFF"
-            android:textSize="10sp" />
+            android:textSize="10sp"
+            android:layout_marginEnd="4dp" />
 
         <CheckBox
             android:id="@+id/checkBox3"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:checked="true"
             android:text="3"
             android:textColor="#FFFFFF"
-            android:textSize="10sp" />
+            android:textSize="10sp"
+            android:layout_marginEnd="4dp" />
 
         <CheckBox
             android:id="@+id/checkBox4"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:checked="true"
             android:text="4"
             android:textColor="#FFFFFF"
             android:textSize="10sp" />
 
     </LinearLayout>
 
-    <!-- Menu lateral (para landscape) -->
+    <!-- Menu lateral (com scroll) -->
     <LinearLayout
         android:id="@+id/sideMenu"
-        android:layout_width="300dp"
+        android:layout_width="280dp"
         android:layout_height="match_parent"
-        android:layout_alignParentStart="true"
-        android:background="#1a1a1a"
+        android:layout_gravity="start"
+        android:background="#1a1a1aEE"
         android:orientation="vertical"
-        android:padding="16dp"
-        android:translationX="-300dp"
+        android:translationX="-280dp"
         android:visibility="gone">
 
-        <!-- Cabeçalho do menu -->
-        <LinearLayout
+        <ScrollView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="16dp">
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:padding="8dp">
 
-            <TextView
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Menu"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                android:orientation="vertical">
 
-            <Button
-                android:id="@+id/btnCloseMenu"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="#ff4444"
-                android:text="✕"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp" />
+                <!-- Cabeçalho -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="16dp">
 
-        </LinearLayout>
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="CONTROLS"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
 
-        <!-- Seleção de layout -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="16dp">
+                    <Button
+                        android:id="@+id/btnCloseMenu"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="#ff4444"
+                        android:text="✕"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Layout:"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp"
-                android:layout_gravity="center_vertical"
-                android:layout_marginEnd="8dp" />
+                </LinearLayout>
 
-            <Spinner
-                android:id="@+id/layoutSpinner"
-                android:layout_width="0dp"
-                android:layout_height="32dp"
-                android:layout_weight="1"
-                android:background="#333333" />
+                <!-- Layout selection -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Layout:"
+                    android:textColor="#CCCCCC"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="4dp" />
 
-        </LinearLayout>
+                <Spinner
+                    android:id="@+id/layoutSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="32dp"
+                    android:background="#333333"
+                    android:layout_marginBottom="12dp" />
+
+                <!-- Security settings -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Security:"
+                    android:textColor="#CCCCCC"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="4dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="#333333"
+                    android:padding="8dp"
+                    android:layout_marginBottom="12dp">
+
+                    <CheckBox
+                        android:id="@+id/cbAllowScripts"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Allow Scripts"
+                        android:textColor="#FFFFFF"
+                        android:textSize="10sp" />
+
+                    <CheckBox
+                        android:id="@+id/cbAllowForms"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Allow Forms"
+                        android:textColor="#FFFFFF"
+                        android:textSize="10sp" />
+
+                    <CheckBox
+                        android:id="@+id/cbAllowPopups"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Allow Popups"
+                        android:textColor="#FFFFFF"
+                        android:textSize="10sp" />
+
+                </LinearLayout>
+
+                <!-- URL Inputs -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="URLs:"
+                    android:textColor="#CCCCCC"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="4dp" />
+
+                <!-- Player 1 URL -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Player 1:"
+                    android:textColor="#FFFFFF"
+                    android:textSize="9sp"
+                    android:layout_marginBottom="2dp" />
+
+                <EditText
+                    android:id="@+id/urlInput1"
+                    android:layout_width="match_parent"
+                    android:layout_height="28dp"
+                    android:background="#333333"
+                    android:hint="https://..."
+                    android:imeOptions="actionGo"
+                    android:inputType="textUri"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Player 2 URL -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Player 2:"
+                    android:textColor="#FFFFFF"
+                    android:textSize="9sp"
+                    android:layout_marginBottom="2dp" />
+
+                <EditText
+                    android:id="@+id/urlInput2"
+                    android:layout_width="match_parent"
+                    android:layout_height="28dp"
+                    android:background="#333333"
+                    android:hint="https://..."
+                    android:imeOptions="actionGo"
+                    android:inputType="textUri"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Player 3 URL -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Player 3:"
+                    android:textColor="#FFFFFF"
+                    android:textSize="9sp"
+                    android:layout_marginBottom="2dp" />
+
+                <EditText
+                    android:id="@+id/urlInput3"
+                    android:layout_width="match_parent"
+                    android:layout_height="28dp"
+                    android:background="#333333"
+                    android:hint="https://..."
+                    android:imeOptions="actionGo"
+                    android:inputType="textUri"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Player 4 URL -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Player 4:"
+                    android:textColor="#FFFFFF"
+                    android:textSize="9sp"
+                    android:layout_marginBottom="2dp" />
+
+                <EditText
+                    android:id="@+id/urlInput4"
+                    android:layout_width="match_parent"
+                    android:layout_height="28dp"
+                    android:background="#333333"
+                    android:hint="https://..."
+                    android:imeOptions="actionGo"
+                    android:inputType="textUri"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="12dp" />
+
+            </LinearLayout>
+
+        </ScrollView>
 
         <!-- Botões de ação -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="16dp">
+            android:padding="8dp"
+            android:background="#222222">
 
             <Button
                 android:id="@+id/btnLoadAll"
@@ -507,7 +612,7 @@
                 android:layout_height="32dp"
                 android:layout_weight="1"
                 android:background="#1e3c72"
-                android:text="LOAD ALL"
+                android:text="LOAD"
                 android:textColor="#FFFFFF"
                 android:textSize="10sp"
                 android:layout_marginEnd="4dp" />
@@ -518,7 +623,7 @@
                 android:layout_height="32dp"
                 android:layout_weight="1"
                 android:background="#1e3c72"
-                android:text="RELOAD ALL"
+                android:text="RELOAD"
                 android:textColor="#FFFFFF"
                 android:textSize="10sp"
                 android:layout_marginEnd="4dp" />
@@ -529,364 +634,7 @@
                 android:layout_height="32dp"
                 android:layout_weight="1"
                 android:background="#ff4444"
-                android:text="CLEAR ALL"
-                android:textColor="#FFFFFF"
-                android:textSize="10sp" />
-
-        </LinearLayout>
-
-        <!-- Botão Fullscreen -->
-        <Button
-            android:id="@+id/btnFullscreen"
-            android:layout_width="match_parent"
-            android:layout_height="32dp"
-            android:background="#1e3c72"
-            android:text="⛶ FULLSCREEN"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:layout_marginBottom="24dp" />
-
-        <!-- Controles individuais para cada player -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Player Controls:"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp" />
-
-        <!-- Player 1 Controls -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#333333"
-            android:padding="8dp"
-            android:layout_marginBottom="8dp">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Player 1"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="4dp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginBottom="4dp">
-
-                <Button
-                    android:id="@+id/btnMenuPrev1"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="◀ PREV"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
-
-                <Button
-                    android:id="@+id/btnMenuNext1"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="NEXT ▶"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
-
-                <Button
-                    android:id="@+id/btnRefresh1"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="🔄"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
-
-                <Button
-                    android:id="@+id/btnHome1"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="🏠"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp" />
-
-            </LinearLayout>
-
-            <EditText
-                android:id="@+id/urlInput1"
-                android:layout_width="match_parent"
-                android:layout_height="32dp"
-                android:background="#222222"
-                android:hint="URL for Player 1"
-                android:imeOptions="actionGo"
-                android:inputType="textUri"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:textColor="#FFFFFF"
-                android:textSize="10sp" />
-
-        </LinearLayout>
-
-        <!-- Player 2 Controls -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#333333"
-            android:padding="8dp"
-            android:layout_marginBottom="8dp">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Player 2"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="4dp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginBottom="4dp">
-
-                <Button
-                    android:id="@+id/btnMenuPrev2"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="◀ PREV"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
-
-                <Button
-                    android:id="@+id/btnMenuNext2"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="NEXT ▶"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
-
-                <Button
-                    android:id="@+id/btnRefresh2"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="🔄"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
-
-                <Button
-                    android:id="@+id/btnHome2"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="🏠"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp" />
-
-            </LinearLayout>
-
-            <EditText
-                android:id="@+id/urlInput2"
-                android:layout_width="match_parent"
-                android:layout_height="32dp"
-                android:background="#222222"
-                android:hint="URL for Player 2"
-                android:imeOptions="actionGo"
-                android:inputType="textUri"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:textColor="#FFFFFF"
-                android:textSize="10sp" />
-
-        </LinearLayout>
-
-        <!-- Player 3 Controls -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#333333"
-            android:padding="8dp"
-            android:layout_marginBottom="8dp">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Player 3"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="4dp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginBottom="4dp">
-
-                <Button
-                    android:id="@+id/btnMenuPrev3"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="◀ PREV"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
-
-                <Button
-                    android:id="@+id/btnMenuNext3"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="NEXT ▶"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
-
-                <Button
-                    android:id="@+id/btnRefresh3"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="🔄"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
-
-                <Button
-                    android:id="@+id/btnHome3"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="🏠"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp" />
-
-            </LinearLayout>
-
-            <EditText
-                android:id="@+id/urlInput3"
-                android:layout_width="match_parent"
-                android:layout_height="32dp"
-                android:background="#222222"
-                android:hint="URL for Player 3"
-                android:imeOptions="actionGo"
-                android:inputType="textUri"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:textColor="#FFFFFF"
-                android:textSize="10sp" />
-
-        </LinearLayout>
-
-        <!-- Player 4 Controls -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#333333"
-            android:padding="8dp"
-            android:layout_marginBottom="8dp">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Player 4"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="4dp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginBottom="4dp">
-
-                <Button
-                    android:id="@+id/btnMenuPrev4"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="◀ PREV"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
-
-                <Button
-                    android:id="@+id/btnMenuNext4"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="NEXT ▶"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
-
-                <Button
-                    android:id="@+id/btnRefresh4"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="🔄"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp"
-                    android:layout_marginEnd="2dp" />
-
-                <Button
-                    android:id="@+id/btnHome4"
-                    android:layout_width="0dp"
-                    android:layout_height="28dp"
-                    android:layout_weight="1"
-                    android:background="#444444"
-                    android:text="🏠"
-                    android:textColor="#FFFFFF"
-                    android:textSize="10sp" />
-
-            </LinearLayout>
-
-            <EditText
-                android:id="@+id/urlInput4"
-                android:layout_width="match_parent"
-                android:layout_height="32dp"
-                android:background="#222222"
-                android:hint="URL for Player 4"
-                android:imeOptions="actionGo"
-                android:inputType="textUri"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
+                android:text="CLEAR"
                 android:textColor="#FFFFFF"
                 android:textSize="10sp" />
 
@@ -894,436 +642,4 @@
 
     </LinearLayout>
 
-    <!-- Menu inferior (para portrait) -->
-    <LinearLayout
-        android:id="@+id/bottomMenu"
-        android:layout_width="match_parent"
-        android:layout_height="300dp"
-        android:layout_alignParentBottom="true"
-        android:background="#1a1a1a"
-        android:orientation="vertical"
-        android:padding="16dp"
-        android:translationY="300dp"
-        android:visibility="gone">
-
-        <!-- Cabeçalho do menu -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="16dp">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Menu"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <Button
-                android:id="@+id/btnCloseBottomMenu"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="#ff4444"
-                android:text="✕"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp" />
-
-        </LinearLayout>
-
-        <!-- Scroll para os controles -->
-        <HorizontalScrollView
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1">
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:orientation="horizontal">
-
-                <!-- Player 1 Controls -->
-                <LinearLayout
-                    android:layout_width="200dp"
-                    android:layout_height="match_parent"
-                    android:orientation="vertical"
-                    android:background="#333333"
-                    android:padding="8dp"
-                    android:layout_marginEnd="8dp">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Player 1"
-                        android:textColor="#FFFFFF"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="4dp" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="4dp">
-
-                        <Button
-                            android:id="@+id/btnMenuPrev1"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="◀"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp"
-                            android:layout_marginEnd="2dp" />
-
-                        <Button
-                            android:id="@+id/btnMenuNext1"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="▶"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp"
-                            android:layout_marginEnd="2dp" />
-
-                        <Button
-                            android:id="@+id/btnRefresh1"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="🔄"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp"
-                            android:layout_marginEnd="2dp" />
-
-                        <Button
-                            android:id="@+id/btnHome1"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="🏠"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp" />
-
-                    </LinearLayout>
-
-                    <EditText
-                        android:id="@+id/urlInput1"
-                        android:layout_width="match_parent"
-                        android:layout_height="32dp"
-                        android:background="#222222"
-                        android:hint="URL 1"
-                        android:imeOptions="actionGo"
-                        android:inputType="textUri"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp" />
-
-                </LinearLayout>
-
-                <!-- Player 2 Controls -->
-                <LinearLayout
-                    android:layout_width="200dp"
-                    android:layout_height="match_parent"
-                    android:orientation="vertical"
-                    android:background="#333333"
-                    android:padding="8dp"
-                    android:layout_marginEnd="8dp">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Player 2"
-                        android:textColor="#FFFFFF"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="4dp" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="4dp">
-
-                        <Button
-                            android:id="@+id/btnMenuPrev2"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="◀"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp"
-                            android:layout_marginEnd="2dp" />
-
-                        <Button
-                            android:id="@+id/btnMenuNext2"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="▶"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp"
-                            android:layout_marginEnd="2dp" />
-
-                        <Button
-                            android:id="@+id/btnRefresh2"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="🔄"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp"
-                            android:layout_marginEnd="2dp" />
-
-                        <Button
-                            android:id="@+id/btnHome2"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="🏠"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp" />
-
-                    </LinearLayout>
-
-                    <EditText
-                        android:id="@+id/urlInput2"
-                        android:layout_width="match_parent"
-                        android:layout_height="32dp"
-                        android:background="#222222"
-                        android:hint="URL 2"
-                        android:imeOptions="actionGo"
-                        android:inputType="textUri"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp" />
-
-                </LinearLayout>
-
-                <!-- Player 3 Controls -->
-                <LinearLayout
-                    android:layout_width="200dp"
-                    android:layout_height="match_parent"
-                    android:orientation="vertical"
-                    android:background="#333333"
-                    android:padding="8dp"
-                    android:layout_marginEnd="8dp">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Player 3"
-                        android:textColor="#FFFFFF"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="4dp" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="4dp">
-
-                        <Button
-                            android:id="@+id/btnMenuPrev3"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="◀"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp"
-                            android:layout_marginEnd="2dp" />
-
-                        <Button
-                            android:id="@+id/btnMenuNext3"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="▶"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp"
-                            android:layout_marginEnd="2dp" />
-
-                        <Button
-                            android:id="@+id/btnRefresh3"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="🔄"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp"
-                            android:layout_marginEnd="2dp" />
-
-                        <Button
-                            android:id="@+id/btnHome3"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="🏠"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp" />
-
-                    </LinearLayout>
-
-                    <EditText
-                        android:id="@+id/urlInput3"
-                        android:layout_width="match_parent"
-                        android:layout_height="32dp"
-                        android:background="#222222"
-                        android:hint="URL 3"
-                        android:imeOptions="actionGo"
-                        android:inputType="textUri"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp" />
-
-                </LinearLayout>
-
-                <!-- Player 4 Controls -->
-                <LinearLayout
-                    android:layout_width="200dp"
-                    android:layout_height="match_parent"
-                    android:orientation="vertical"
-                    android:background="#333333"
-                    android:padding="8dp">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Player 4"
-                        android:textColor="#FFFFFF"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="4dp" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="4dp">
-
-                        <Button
-                            android:id="@+id/btnMenuPrev4"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="◀"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp"
-                            android:layout_marginEnd="2dp" />
-
-                        <Button
-                            android:id="@+id/btnMenuNext4"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="▶"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp"
-                            android:layout_marginEnd="2dp" />
-
-                        <Button
-                            android:id="@+id/btnRefresh4"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="🔄"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp"
-                            android:layout_marginEnd="2dp" />
-
-                        <Button
-                            android:id="@+id/btnHome4"
-                            android:layout_width="0dp"
-                            android:layout_height="28dp"
-                            android:layout_weight="1"
-                            android:background="#444444"
-                            android:text="🏠"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp" />
-
-                    </LinearLayout>
-
-                    <EditText
-                        android:id="@+id/urlInput4"
-                        android:layout_width="match_parent"
-                        android:layout_height="32dp"
-                        android:background="#222222"
-                        android:hint="URL 4"
-                        android:imeOptions="actionGo"
-                        android:inputType="textUri"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp" />
-
-                </LinearLayout>
-
-            </LinearLayout>
-
-        </HorizontalScrollView>
-
-        <!-- Botões de ação no final -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="16dp">
-
-            <Button
-                android:id="@+id/btnLoadAll"
-                android:layout_width="0dp"
-                android:layout_height="32dp"
-                android:layout_weight="1"
-                android:background="#1e3c72"
-                android:text="LOAD ALL"
-                android:textColor="#FFFFFF"
-                android:textSize="10sp"
-                android:layout_marginEnd="4dp" />
-
-            <Button
-                android:id="@+id/btnReloadAll"
-                android:layout_width="0dp"
-                android:layout_height="32dp"
-                android:layout_weight="1"
-                android:background="#1e3c72"
-                android:text="RELOAD ALL"
-                android:textColor="#FFFFFF"
-                android:textSize="10sp"
-                android:layout_marginEnd="4dp" />
-
-            <Button
-                android:id="@+id/btnClearAll"
-                android:layout_width="0dp"
-                android:layout_height="32dp"
-                android:layout_weight="1"
-                android:background="#ff4444"
-                android:text="CLEAR ALL"
-                android:textColor="#FFFFFF"
-                android:textSize="10sp" />
-
-        </LinearLayout>
-
-    </LinearLayout>
-
-</RelativeLayout>
+</FrameLayout>
