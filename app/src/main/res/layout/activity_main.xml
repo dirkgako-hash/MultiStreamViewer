@@ -7,7 +7,7 @@
     android:background="@color/black"
     tools:context=".MainActivity">
 
-    <!-- URL Input and Controls -->
+    <!-- Controles com texto -->
     <LinearLayout
         android:id="@+id/controlsContainer"
         android:layout_width="match_parent"
@@ -19,43 +19,38 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <ImageButton
+        <Button
             android:id="@+id/btnBack"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@android:drawable/ic_media_previous"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="←" />
 
-        <ImageButton
+        <Button
             android:id="@+id/btnForward"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@android:drawable/ic_media_next"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="→" />
 
-        <ImageButton
+        <Button
             android:id="@+id/btnRefresh"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@android:drawable/ic_menu_refresh"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="↻" />
 
-        <ImageButton
+        <Button
             android:id="@+id/btnHome"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@android:drawable/ic_menu_home"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⌂" />
 
         <EditText
             android:id="@+id/urlInput"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="https://..."
+            android:hint="URL do stream"
             android:inputType="textUri"
-            android:padding="12dp"
-            android:text="https://m3u8player.net/" />
+            android:padding="8dp" />
 
         <Button
             android:id="@+id/btnLoad"
@@ -65,7 +60,7 @@
 
     </LinearLayout>
 
-    <!-- Grid for 4 WebViews -->
+    <!-- Grid 2x2 para 4 WebViews -->
     <GridLayout
         android:id="@+id/webview_grid"
         android:layout_width="match_parent"
@@ -190,20 +185,20 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="8dp"
-        android:text="Ready"
+        android:text="MultiStreamViewer Pronto"
         android:textColor="@color/white"
         android:background="@color/purple_900"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- FAB for Toggle -->
+    <!-- FAB para alternar controles -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabToggle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="16dp"
-        android:src="@android:drawable/ic_menu_camera"
+        android:contentDescription="Alternar controles"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
