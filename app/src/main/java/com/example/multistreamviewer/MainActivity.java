@@ -6,7 +6,6 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.View;
-import android.view.ViewGroup;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -17,19 +16,16 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.GridLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-
-import java.util.ArrayList;
-import java.util.List;
+import androidx.gridlayout.widget.GridLayout;
 
 public class MainActivity extends AppCompatActivity {
 
-    // Componentes principais
+    // Componentes principais - CORRIGIDO: usar androidx.gridlayout.widget.GridLayout
     private GridLayout gridLayout;
     private WebView[] webViews = new WebView[4];
     private FrameLayout[] boxContainers = new FrameLayout[4];
@@ -89,6 +85,7 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void initViews() {
+        // CORRIGIDO: Usar findViewById com GridLayout do androidx
         gridLayout = findViewById(R.id.gridLayout);
         overlayControls = findViewById(R.id.overlayControls);
         sidebarMenu = findViewById(R.id.sidebarMenu);
@@ -291,77 +288,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-    }
-    
-    private void initEventListeners() {
-        // Botão menu (☰)
-        btnMenu.setOnClickListener(v -> toggleOverlayControls());
-        btnToggleSidebar.setOnClickListener(v -> toggleSidebar());
-        
-        // Botão orientação (📱)
-        btnOrientation.setOnClickListener(v -> toggleOrientation());
-        btnTogglePortrait.setOnClickListener(v -> toggleOrientation());
-        
-        // Botão fold checks (▼)
-        btnFoldChecks.setOnClickListener(v -> toggleBottomPanel());
-        
-        // Botão fechar menu
-        btnCloseMenu.setOnClickListener(v -> toggleSidebar());
-        
-        // Botões de ação
-        btnLoadAll.setOnClickListener(v -> loadAllURLs());
-        btnReloadAll.setOnClickListener(v -> reloadAllWebViews());
-        btnClearAll.setOnClickListener(v -> clearAllWebViews());
-        
-        // Checkboxes de boxes
-        for (int i = 0; i < 4; i++) {
-            final int index = i;
-            checkBoxes[i].setOnCheckedChangeListener((buttonView, isChecked) -> {
-                boxEnabled[index] = isChecked;
-                updateLayout();
-            });
-        }
-        
-        // Configurações de segurança
-        cbAllowScripts.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            allowScripts = isChecked;
-            applyWebViewSettings();
-        });
-        
-        cbAllowForms.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            allowForms = isChecked;
-            applyWebViewSettings();
-        });
-        
-        cbAllowPopups.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            allowPopups = isChecked;
-            applyWebViewSettings();
-        });
-        
-        cbBlockRedirects.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            blockRedirects = isChecked;
-        });
-        
-        // Toque fora do menu para fechá-lo
-        overlayControls.setOnClickListener(v -> {
-            // Se clicar no overlay (fora dos controles), esconder controles
-            hideOverlayControls();
-        });
-        
-        // Prevenir que o clique nos controles propague para o overlay
-        View[] controlViews = {btnMenu, btnOrientation, btnFoldChecks, btnToggleSidebar, 
-                              btnTogglePortrait, btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll};
-        for (View view : controlViews) {
-            if (view != null) {
-                view.setOnClickListener(v -> {
-                    // Não fazer nada, apenas prevenir propagação
-                });
-        view.setOnTouchListener((v, event) -> {
-            v.performClick();
-            return true; // Consumir o evento
-        });
-            }
-        }
     }
     
     private void handleBoxControlClick(int boxIndex, String action) {
