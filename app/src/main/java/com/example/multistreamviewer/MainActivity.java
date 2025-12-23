@@ -1,13 +1,9 @@
 package com.example.multistreamviewer;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
 import android.content.res.Configuration;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
-import android.view.ViewGroup;
-import android.view.WindowManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -16,15 +12,11 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
-import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.GridLayout;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
-import android.widget.ScrollView;
 import android.widget.Spinner;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -149,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
                 applyAutoLayout();
             });
             
-            // Botões de zoom
+            // Botões de zoom (obter referências)
             btnZoomIn[i] = findViewById(zoomInIds[i]);
             btnZoomOut[i] = findViewById(zoomOutIds[i]);
             btnFullscreen[i] = findViewById(fullscreenIds[i]);
@@ -255,10 +247,10 @@ public class MainActivity extends AppCompatActivity {
         // Configurar WebChromeClient para vídeos fullscreen
         webView.setWebChromeClient(new WebChromeClient() {
             private View customView;
-            private CustomViewCallback customViewCallback;
+            private WebChromeClient.CustomViewCallback customViewCallback;
             
             @Override
-            public void onShowCustomView(View view, CustomViewCallback callback) {
+            public void onShowCustomView(View view, WebChromeClient.CustomViewCallback callback) {
                 if (customView != null) {
                     callback.onCustomViewHidden();
                     return;
@@ -270,8 +262,8 @@ public class MainActivity extends AppCompatActivity {
                 // Adicionar a view personalizada ao container
                 playerContainers[playerIndex].addView(customView, 
                     new FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT));
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT));
                 
                 // Esconder WebView
                 webViews[playerIndex].setVisibility(View.GONE);
@@ -311,29 +303,10 @@ public class MainActivity extends AppCompatActivity {
     
     private void applyWebViewSettings() {
         for (WebView webView : webViews) {
-            WebSettings webSettings = webView.getSettings();
-            
-            // Configurar sandbox baseado nas opções
-            String sandbox = "allow-same-origin";
-            if (allowScripts) sandbox += " allow-scripts";
-            if (allowForms) sandbox += " allow-forms";
-            if (allowPopups) sandbox += " allow-popups";
-            
-            try {
-                webView.setWebChromeClient(null);
-                webView.setWebChromeClient(new WebChromeClient() {
-                    @Override
-                    public void onShowCustomView(View view, CustomViewCallback callback) {
-                        super.onShowCustomView(view, callback);
-                    }
-                    
-                    @Override
-                    public void onHideCustomView() {
-                        super.onHideCustomView();
-                    }
-                });
-            } catch (Exception e) {
-                e.printStackTrace();
+            if (webView != null) {
+                WebSettings webSettings = webView.getSettings();
+                webSettings.setJavaScriptEnabled(allowScripts);
+                // As outras configurações são mantidas
             }
         }
     }
@@ -385,14 +358,13 @@ public class MainActivity extends AppCompatActivity {
     
     private void zoomWebView(int playerIndex, float factor) {
         WebView webView = webViews[playerIndex];
-        WebSettings settings = webView.getSettings();
-        
-        if (factor > 1.0f) {
-            // Zoom in
-            settings.setTextZoom((int)(settings.getTextZoom() * factor));
-        } else {
-            // Zoom out
-            settings.setTextZoom((int)(settings.getTextZoom() * factor));
+        if (webView != null) {
+            WebSettings settings = webView.getSettings();
+            int currentZoom = settings.getTextZoom();
+            int newZoom = (int)(currentZoom * factor);
+            if (newZoom > 10 && newZoom < 500) { // Limites razoáveis
+                settings.setTextZoom(newZoom);
+            }
         }
     }
     
@@ -404,9 +376,7 @@ public class MainActivity extends AppCompatActivity {
                 chromeClient.onHideCustomView();
             }
         } else {
-            // Entrar no fullscreen
-            // Para vídeos, o próprio WebChromeClient gerencia via onShowCustomView
-            // Para outras páginas, tentamos forçar fullscreen
+            // Entrar no fullscreen - para páginas normais
             playerContainers[playerIndex].setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_FULLSCREEN |
                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
@@ -419,9 +389,8 @@ public class MainActivity extends AppCompatActivity {
     
     private void showPlayerControls(int playerIndex) {
         // Mostrar controles temporariamente
-        // Em uma implementação real, você teria controles visíveis
-        // Aqui apenas mostramos um toast como exemplo
-        Toast.makeText(this, "Player " + (playerIndex + 1) + " tapped", Toast.LENGTH_SHORT).show();
+        // Implementação básica
+        Toast.makeText(this, "Player " + (playerIndex + 1), Toast.LENGTH_SHORT).show();
     }
     
     private void hideAllControls() {
@@ -498,34 +467,38 @@ public class MainActivity extends AppCompatActivity {
         String[] parts = layout.split("x");
         if (parts.length != 2) return;
         
-        int rows = Integer.parseInt(parts[0]);
-        int cols = Integer.parseInt(parts[1]);
-        
-        // Configurar grid
-        gridLayout.setRowCount(rows);
-        gridLayout.setColumnCount(cols);
-        
-        // Redistribuir players ativos
-        int playerIndex = 0;
-        for (int i = 0; i < 4; i++) {
-            if (checkBoxes[i].isChecked()) {
-                GridLayout.Spec rowSpec = GridLayout.spec(playerIndex / cols, 1f);
-                GridLayout.Spec colSpec = GridLayout.spec(playerIndex % cols, 1f);
-                
-                GridLayout.LayoutParams params = new GridLayout.LayoutParams(rowSpec, colSpec);
-                params.width = 0;
-                params.height = 0;
-                params.setMargins(1, 1, 1, 1);
-                
-                playerContainers[i].setLayoutParams(params);
-                playerIndex++;
-                
-                if (playerIndex >= rows * cols) break;
+        try {
+            int rows = Integer.parseInt(parts[0]);
+            int cols = Integer.parseInt(parts[1]);
+            
+            // Configurar grid
+            gridLayout.setRowCount(rows);
+            gridLayout.setColumnCount(cols);
+            
+            // Redistribuir players ativos
+            int playerIndex = 0;
+            for (int i = 0; i < 4; i++) {
+                if (checkBoxes[i].isChecked()) {
+                    GridLayout.Spec rowSpec = GridLayout.spec(playerIndex / cols, 1f);
+                    GridLayout.Spec colSpec = GridLayout.spec(playerIndex % cols, 1f);
+                    
+                    GridLayout.LayoutParams params = new GridLayout.LayoutParams(rowSpec, colSpec);
+                    params.width = 0;
+                    params.height = 0;
+                    params.setMargins(1, 1, 1, 1);
+                    
+                    playerContainers[i].setLayoutParams(params);
+                    playerIndex++;
+                    
+                    if (playerIndex >= rows * cols) break;
+                }
             }
+            
+            // Forçar redesenho
+            gridLayout.requestLayout();
+        } catch (NumberFormatException e) {
+            e.printStackTrace();
         }
-        
-        // Forçar redesenho
-        gridLayout.requestLayout();
     }
     
     private void toggleMenu() {
