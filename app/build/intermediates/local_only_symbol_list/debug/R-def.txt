@@ -1,9 +1,0 @@
-R_DEF: Internal format may change without notice
-local
-id webView1
-id webView2
-id webView3
-id webView4
-layout activity_main
-mipmap ic_launcher
-string app_name
