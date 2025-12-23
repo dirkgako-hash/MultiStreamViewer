@@ -3,17 +3,6 @@
     <string name="load_all">Load All</string>
     <string name="reload_all">Reload All</string>
     <string name="clear_all">Clear All</string>
-    <string name="toggle_menu">Menu</string>
-    <string name="toggle_orientation">Orientation</string>
-    <string name="close_menu">Close</string>
-    <string-array name="layout_options">
-        <item>1x1</item>
-        <item>1x2</item>
-        <item>2x1</item>
-        <item>1x3</item>
-        <item>3x1</item>
-        <item>1x4</item>
-        <item>4x1</item>
-        <item>2x2</item>
-    </string-array>
+    <string name="toggle_menu">☰ Menu</string>
+    <string name="toggle_orientation">📱 Orientation</string>
 </resources>
