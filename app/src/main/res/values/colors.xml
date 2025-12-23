@@ -8,3 +8,7 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>
+
+    <!-- Additional colors for MultiStreamViewer -->
+    <color name="purple_900">#FF1A237E</color>
+    <color name="black">#FF000000</color>
