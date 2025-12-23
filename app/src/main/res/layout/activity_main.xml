@@ -1,231 +1,562 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/black"
+    android:background="#0a0a0a"
     tools:context=".MainActivity">
 
-    <!-- Controles com texto -->
+    <!-- GridLayout para os players -->
+    <androidx.gridlayout.widget.GridLayout
+        android:id="@+id/gridLayout"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_margin="2dp"
+        android:background="#1a1a1a"
+        android:columnCount="2"
+        android:rowCount="2"
+        app:layout_constraintBottom_toTopOf="@+id/controlsLayout"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <!-- Player 1 -->
+        <FrameLayout
+            android:id="@+id/playerContainer1"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_margin="1dp"
+            android:background="#000000"
+            app:layout_columnWeight="1"
+            app:layout_rowWeight="1"
+            app:layout_column="0"
+            app:layout_row="0">
+
+            <WebView
+                android:id="@+id/webView1"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <!-- Overlay de loading -->
+            <LinearLayout
+                android:id="@+id/loadingOverlay1"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#80000000"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:indeterminateTint="#1e3c72" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Loading..."
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+
+            </LinearLayout>
+
+            <!-- Controles do player -->
+            <LinearLayout
+                android:id="@+id/playerControls1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#80000000"
+                android:orientation="horizontal"
+                android:padding="4dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Player 1"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnPrev1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="24dp"
+                    android:background="#444444"
+                    android:text="◀"
+                    android:textColor="#FFFFFF"
+                    android:textSize="8sp" />
+
+                <Button
+                    android:id="@+id/btnNext1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="24dp"
+                    android:background="#444444"
+                    android:text="▶"
+                    android:textColor="#FFFFFF"
+                    android:textSize="8sp" />
+
+            </LinearLayout>
+
+        </FrameLayout>
+
+        <!-- Player 2 -->
+        <FrameLayout
+            android:id="@+id/playerContainer2"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_margin="1dp"
+            android:background="#000000"
+            app:layout_columnWeight="1"
+            app:layout_rowWeight="1"
+            app:layout_column="1"
+            app:layout_row="0">
+
+            <WebView
+                android:id="@+id/webView2"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <LinearLayout
+                android:id="@+id/loadingOverlay2"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#80000000"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:indeterminateTint="#1e3c72" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Loading..."
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/playerControls2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#80000000"
+                android:orientation="horizontal"
+                android:padding="4dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Player 2"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnPrev2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="24dp"
+                    android:background="#444444"
+                    android:text="◀"
+                    android:textColor="#FFFFFF"
+                    android:textSize="8sp" />
+
+                <Button
+                    android:id="@+id/btnNext2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="24dp"
+                    android:background="#444444"
+                    android:text="▶"
+                    android:textColor="#FFFFFF"
+                    android:textSize="8sp" />
+
+            </LinearLayout>
+
+        </FrameLayout>
+
+        <!-- Player 3 -->
+        <FrameLayout
+            android:id="@+id/playerContainer3"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_margin="1dp"
+            android:background="#000000"
+            app:layout_columnWeight="1"
+            app:layout_rowWeight="1"
+            app:layout_column="0"
+            app:layout_row="1">
+
+            <WebView
+                android:id="@+id/webView3"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <LinearLayout
+                android:id="@+id/loadingOverlay3"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#80000000"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:indeterminateTint="#1e3c72" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Loading..."
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/playerControls3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#80000000"
+                android:orientation="horizontal"
+                android:padding="4dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Player 3"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnPrev3"
+                    android:layout_width="wrap_content"
+                    android:layout_height="24dp"
+                    android:background="#444444"
+                    android:text="◀"
+                    android:textColor="#FFFFFF"
+                    android:textSize="8sp" />
+
+                <Button
+                    android:id="@+id/btnNext3"
+                    android:layout_width="wrap_content"
+                    android:layout_height="24dp"
+                    android:background="#444444"
+                    android:text="▶"
+                    android:textColor="#FFFFFF"
+                    android:textSize="8sp" />
+
+            </LinearLayout>
+
+        </FrameLayout>
+
+        <!-- Player 4 -->
+        <FrameLayout
+            android:id="@+id/playerContainer4"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_margin="1dp"
+            android:background="#000000"
+            app:layout_columnWeight="1"
+            app:layout_rowWeight="1"
+            app:layout_column="1"
+            app:layout_row="1">
+
+            <WebView
+                android:id="@+id/webView4"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <LinearLayout
+                android:id="@+id/loadingOverlay4"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#80000000"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:indeterminateTint="#1e3c72" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Loading..."
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/playerControls4"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#80000000"
+                android:orientation="horizontal"
+                android:padding="4dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Player 4"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnPrev4"
+                    android:layout_width="wrap_content"
+                    android:layout_height="24dp"
+                    android:background="#444444"
+                    android:text="◀"
+                    android:textColor="#FFFFFF"
+                    android:textSize="8sp" />
+
+                <Button
+                    android:id="@+id/btnNext4"
+                    android:layout_width="wrap_content"
+                    android:layout_height="24dp"
+                    android:background="#444444"
+                    android:text="▶"
+                    android:textColor="#FFFFFF"
+                    android:textSize="8sp" />
+
+            </LinearLayout>
+
+        </FrameLayout>
+
+    </androidx.gridlayout.widget.GridLayout>
+
+    <!-- Painel de controles flutuante -->
     <LinearLayout
-        android:id="@+id/controls_container"
+        android:id="@+id/controlsLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:background="#1a1a1a99"
+        android:orientation="vertical"
         android:padding="8dp"
-        android:background="@color/purple_700"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
 
-        <Button
-            android:id="@+id/btn_back"
-            android:layout_width="wrap_content"
+        <!-- Linha 1: Seleção de boxes e layout -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="←" />
+            android:layout_marginBottom="4dp"
+            android:orientation="horizontal">
 
-        <Button
-            android:id="@+id/btn_forward"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="→" />
+            <!-- Seleção de boxes -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:text="Boxes:"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:layout_marginEnd="8dp" />
 
-        <Button
-            android:id="@+id/btn_refresh"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="↻" />
+            <CheckBox
+                android:id="@+id/checkBox1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="1"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp" />
 
-        <Button
-            android:id="@+id/btn_home"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="⌂" />
+            <CheckBox
+                android:id="@+id/checkBox2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="2"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp" />
 
-        <EditText
-            android:id="@+id/url_input"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:hint="URL do stream"
-            android:inputType="textUri"
-            android:padding="8dp" />
+            <CheckBox
+                android:id="@+id/checkBox3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="3"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp" />
 
-        <Button
-            android:id="@+id/btn_load"
-            android:layout_width="wrap_content"
+            <CheckBox
+                android:id="@+id/checkBox4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="4"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp" />
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <!-- Seleção de layout -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:text="Layout:"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:layout_marginEnd="4dp" />
+
+            <Spinner
+                android:id="@+id/layoutSpinner"
+                android:layout_width="120dp"
+                android:layout_height="32dp"
+                android:background="#333333"
+                android:popupBackground="#1a1a1a" />
+
+        </LinearLayout>
+
+        <!-- Linha 2: URL inputs -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="GO" />
+            android:layout_marginBottom="4dp"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/urlInput1"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:background="#333333"
+                android:hint="URL 1"
+                android:imeOptions="actionGo"
+                android:inputType="textUri"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:layout_marginEnd="2dp" />
+
+            <EditText
+                android:id="@+id/urlInput2"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:background="#333333"
+                android:hint="URL 2"
+                android:imeOptions="actionGo"
+                android:inputType="textUri"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:layout_marginEnd="2dp" />
+
+            <EditText
+                android:id="@+id/urlInput3"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:background="#333333"
+                android:hint="URL 3"
+                android:imeOptions="actionGo"
+                android:inputType="textUri"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:layout_marginEnd="2dp" />
+
+            <EditText
+                android:id="@+id/urlInput4"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:background="#333333"
+                android:hint="URL 4"
+                android:imeOptions="actionGo"
+                android:inputType="textUri"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp" />
+
+        </LinearLayout>
+
+        <!-- Linha 3: Botões de controle -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnLoadAll"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:background="#1e3c72"
+                android:text="LOAD ALL"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:layout_marginEnd="2dp" />
+
+            <Button
+                android:id="@+id/btnReloadAll"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:background="#1e3c72"
+                android:text="RELOAD ALL"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:layout_marginEnd="2dp" />
+
+            <Button
+                android:id="@+id/btnClearAll"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:background="#ff4444"
+                android:text="CLEAR ALL"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:layout_marginEnd="2dp" />
+
+            <Button
+                android:id="@+id/btnFullscreen"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:background="#1e3c72"
+                android:text="⛶"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+
+        </LinearLayout>
 
     </LinearLayout>
-
-    <!-- Grid 2x2 para 4 WebViews -->
-    <GridLayout
-        android:id="@+id/webview_grid"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:rowCount="2"
-        android:columnCount="2"
-        android:padding="2dp"
-        app:layout_constraintTop_toBottomOf="@id/controls_container"
-        app:layout_constraintBottom_toTopOf="@id/tv_status"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
-
-        <!-- WebView 1 - COM AMBOS OS IDs -->
-        <FrameLayout
-            android:id="@+id/container_1"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_rowWeight="1"
-            android:layout_columnWeight="1"
-            android:layout_margin="1dp"
-            android:background="@color/black">
-
-            <!-- WebView com ID PRIMÁRIO -->
-            <WebView
-                android:id="@+id/webview_1"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-            
-            <!-- WebView ALTERNATIVO (escondido) para tv_webview_1 -->
-            <WebView
-                android:id="@+id/tv_webview_1"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:visibility="gone" />
-
-            <TextView
-                android:id="@+id/status_1"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="bottom|center"
-                android:text="Stream 1"
-                android:textColor="@color/white"
-                android:background="#80000000"
-                android:padding="4dp" />
-        </FrameLayout>
-
-        <!-- WebView 2 - COM AMBOS OS IDs -->
-        <FrameLayout
-            android:id="@+id/container_2"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_rowWeight="1"
-            android:layout_columnWeight="1"
-            android:layout_margin="1dp"
-            android:background="@color/black">
-
-            <WebView
-                android:id="@+id/webview_2"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-            
-            <WebView
-                android:id="@+id/tv_webview_2"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:visibility="gone" />
-
-            <TextView
-                android:id="@+id/status_2"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="bottom|center"
-                android:text="Stream 2"
-                android:textColor="@color/white"
-                android:background="#80000000"
-                android:padding="4dp" />
-        </FrameLayout>
-
-        <!-- WebView 3 - COM AMBOS OS IDs -->
-        <FrameLayout
-            android:id="@+id/container_3"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_rowWeight="1"
-            android:layout_columnWeight="1"
-            android:layout_margin="1dp"
-            android:background="@color/black">
-
-            <WebView
-                android:id="@+id/webview_3"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-            
-            <WebView
-                android:id="@+id/tv_webview_3"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:visibility="gone" />
-
-            <TextView
-                android:id="@+id/status_3"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="bottom|center"
-                android:text="Stream 3"
-                android:textColor="@color/white"
-                android:background="#80000000"
-                android:padding="4dp" />
-        </FrameLayout>
-
-        <!-- WebView 4 - COM AMBOS OS IDs -->
-        <FrameLayout
-            android:id="@+id/container_4"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_rowWeight="1"
-            android:layout_columnWeight="1"
-            android:layout_margin="1dp"
-            android:background="@color/black">
-
-            <WebView
-                android:id="@+id/webview_4"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-            
-            <WebView
-                android:id="@+id/tv_webview_4"
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:visibility="gone" />
-
-            <TextView
-                android:id="@+id/status_4"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="bottom|center"
-                android:text="Stream 4"
-                android:textColor="@color/white"
-                android:background="#80000000"
-                android:padding="4dp" />
-        </FrameLayout>
-
-    </GridLayout>
-
-    <!-- Status Bar -->
-    <TextView
-        android:id="@+id/tv_status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="8dp"
-        android:text="MultiStreamViewer Pronto"
-        android:textColor="@color/white"
-        android:background="@color/purple_900"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <!-- FAB para alternar controles -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fab_toggle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:contentDescription="Alternar controles"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
