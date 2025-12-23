@@ -73,7 +73,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- WebView 1 -->
+        <!-- WebView 1 - COM AMBOS OS IDs -->
         <FrameLayout
             android:id="@+id/container_1"
             android:layout_width="0dp"
@@ -83,10 +83,18 @@
             android:layout_margin="1dp"
             android:background="@color/black">
 
+            <!-- WebView com ID PRIMÁRIO -->
             <WebView
                 android:id="@+id/webview_1"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
+            
+            <!-- WebView ALTERNATIVO (escondido) para tv_webview_1 -->
+            <WebView
+                android:id="@+id/tv_webview_1"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/status_1"
@@ -99,7 +107,7 @@
                 android:padding="4dp" />
         </FrameLayout>
 
-        <!-- WebView 2 -->
+        <!-- WebView 2 - COM AMBOS OS IDs -->
         <FrameLayout
             android:id="@+id/container_2"
             android:layout_width="0dp"
@@ -113,6 +121,12 @@
                 android:id="@+id/webview_2"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
+            
+            <WebView
+                android:id="@+id/tv_webview_2"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/status_2"
@@ -125,7 +139,7 @@
                 android:padding="4dp" />
         </FrameLayout>
 
-        <!-- WebView 3 -->
+        <!-- WebView 3 - COM AMBOS OS IDs -->
         <FrameLayout
             android:id="@+id/container_3"
             android:layout_width="0dp"
@@ -139,6 +153,12 @@
                 android:id="@+id/webview_3"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
+            
+            <WebView
+                android:id="@+id/tv_webview_3"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/status_3"
@@ -151,7 +171,7 @@
                 android:padding="4dp" />
         </FrameLayout>
 
-        <!-- WebView 4 -->
+        <!-- WebView 4 - COM AMBOS OS IDs -->
         <FrameLayout
             android:id="@+id/container_4"
             android:layout_width="0dp"
@@ -165,6 +185,12 @@
                 android:id="@+id/webview_4"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
+            
+            <WebView
+                android:id="@+id/tv_webview_4"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/status_4"
