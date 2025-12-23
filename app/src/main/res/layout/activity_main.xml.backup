@@ -14,7 +14,7 @@
         android:layout_height="match_parent"
         android:background="#000000">
 
-        <!-- Player 1 Container -->
+        <!-- Player 1 Container (será adicionado dinamicamente) -->
         <FrameLayout
             android:id="@+id/playerContainer1"
             android:layout_width="0dp"
@@ -24,8 +24,7 @@
             <WebView
                 android:id="@+id/webView1"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="#000000" /> <!-- CORREÇÃO ADICIONADA -->
+                android:layout_height="match_parent" />
 
             <!-- Overlay de loading -->
             <LinearLayout
@@ -59,8 +58,8 @@
                     android:id="@+id/btnBack1"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555" <!-- Cor mais clara para melhor visibilidade -->
-                    android:text="←"
+                    android:background="#333333"
+                    android:text="◀"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp" />
 
@@ -68,8 +67,8 @@
                     android:id="@+id/btnForward1"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
-                    android:text="→"
+                    android:background="#333333"
+                    android:text="▶"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp"
                     android:layout_marginStart="4dp" />
@@ -78,8 +77,8 @@
                     android:id="@+id/btnRefresh1"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
-                    android:text="↻"
+                    android:background="#333333"
+                    android:text="🔄"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp"
                     android:layout_marginStart="4dp" />
@@ -96,7 +95,7 @@
                     android:id="@+id/btnZoomOut1"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
+                    android:background="#333333"
                     android:text="-"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
@@ -105,7 +104,7 @@
                     android:id="@+id/btnZoomIn1"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
+                    android:background="#333333"
                     android:text="+"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
@@ -116,7 +115,7 @@
                     android:layout_width="36dp"
                     android:layout_height="36dp"
                     android:background="#1e3c72"
-                    android:text="⤢"
+                    android:text="⛶"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp"
                     android:layout_marginStart="8dp" />
@@ -135,8 +134,7 @@
             <WebView
                 android:id="@+id/webView2"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="#000000" /> <!-- CORREÇÃO ADICIONADA -->
+                android:layout_height="match_parent" />
 
             <LinearLayout
                 android:id="@+id/loadingOverlay2"
@@ -168,8 +166,8 @@
                     android:id="@+id/btnBack2"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
-                    android:text="←"
+                    android:background="#333333"
+                    android:text="◀"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp" />
 
@@ -177,8 +175,8 @@
                     android:id="@+id/btnForward2"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
-                    android:text="→"
+                    android:background="#333333"
+                    android:text="▶"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp"
                     android:layout_marginStart="4dp" />
@@ -187,8 +185,8 @@
                     android:id="@+id/btnRefresh2"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
-                    android:text="↻"
+                    android:background="#333333"
+                    android:text="🔄"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp"
                     android:layout_marginStart="4dp" />
@@ -205,7 +203,7 @@
                     android:id="@+id/btnZoomOut2"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
+                    android:background="#333333"
                     android:text="-"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
@@ -214,7 +212,7 @@
                     android:id="@+id/btnZoomIn2"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
+                    android:background="#333333"
                     android:text="+"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
@@ -225,7 +223,7 @@
                     android:layout_width="36dp"
                     android:layout_height="36dp"
                     android:background="#1e3c72"
-                    android:text="⤢"
+                    android:text="⛶"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp"
                     android:layout_marginStart="8dp" />
@@ -244,8 +242,7 @@
             <WebView
                 android:id="@+id/webView3"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="#000000" /> <!-- CORREÇÃO ADICIONADA -->
+                android:layout_height="match_parent" />
 
             <LinearLayout
                 android:id="@+id/loadingOverlay3"
@@ -277,8 +274,8 @@
                     android:id="@+id/btnBack3"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
-                    android:text="←"
+                    android:background="#333333"
+                    android:text="◀"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp" />
 
@@ -286,8 +283,8 @@
                     android:id="@+id/btnForward3"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
-                    android:text="→"
+                    android:background="#333333"
+                    android:text="▶"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp"
                     android:layout_marginStart="4dp" />
@@ -296,8 +293,8 @@
                     android:id="@+id/btnRefresh3"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
-                    android:text="↻"
+                    android:background="#333333"
+                    android:text="🔄"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp"
                     android:layout_marginStart="4dp" />
@@ -314,7 +311,7 @@
                     android:id="@+id/btnZoomOut3"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
+                    android:background="#333333"
                     android:text="-"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
@@ -323,7 +320,7 @@
                     android:id="@+id/btnZoomIn3"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
+                    android:background="#333333"
                     android:text="+"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
@@ -334,7 +331,7 @@
                     android:layout_width="36dp"
                     android:layout_height="36dp"
                     android:background="#1e3c72"
-                    android:text="⤢"
+                    android:text="⛶"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp"
                     android:layout_marginStart="8dp" />
@@ -353,8 +350,7 @@
             <WebView
                 android:id="@+id/webView4"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="#000000" /> <!-- CORREÇÃO ADICIONADA -->
+                android:layout_height="match_parent" />
 
             <LinearLayout
                 android:id="@+id/loadingOverlay4"
@@ -386,8 +382,8 @@
                     android:id="@+id/btnBack4"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
-                    android:text="←"
+                    android:background="#333333"
+                    android:text="◀"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp" />
 
@@ -395,8 +391,8 @@
                     android:id="@+id/btnForward4"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
-                    android:text="→"
+                    android:background="#333333"
+                    android:text="▶"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp"
                     android:layout_marginStart="4dp" />
@@ -405,8 +401,8 @@
                     android:id="@+id/btnRefresh4"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
-                    android:text="↻"
+                    android:background="#333333"
+                    android:text="🔄"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp"
                     android:layout_marginStart="4dp" />
@@ -423,7 +419,7 @@
                     android:id="@+id/btnZoomOut4"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
+                    android:background="#333333"
                     android:text="-"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp" />
@@ -432,7 +428,7 @@
                     android:id="@+id/btnZoomIn4"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
-                    android:background="#555555"
+                    android:background="#333333"
                     android:text="+"
                     android:textColor="#FFFFFF"
                     android:textSize="16sp"
@@ -443,7 +439,7 @@
                     android:layout_width="36dp"
                     android:layout_height="36dp"
                     android:background="#1e3c72"
-                    android:text="⤢"
+                    android:text="⛶"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp"
                     android:layout_marginStart="8dp" />
@@ -477,7 +473,7 @@
                 android:id="@+id/btnToggleMenu"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
-                android:background="#555555"
+                android:background="#333333"
                 android:text="☰ Sidebar"
                 android:textColor="#FFFFFF"
                 android:textSize="12sp"
@@ -487,8 +483,8 @@
                 android:id="@+id/btnToggleOrientation"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
-                android:background="#555555"
-                android:text="🔁 Landscape"
+                android:background="#333333"
+                android:text="📱 Landscape"
                 android:textColor="#FFFFFF"
                 android:textSize="12sp" />
 
@@ -572,7 +568,257 @@
         android:translationX="-280dp"
         android:visibility="gone">
 
-        <!-- ... (restante do código do menu lateral permanece igual) ... -->
+        <androidx.core.widget.NestedScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:padding="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- Cabeçalho -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="SETTINGS"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnCloseMenu"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="#ff4444"
+                        android:text="✕"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp" />
+
+                </LinearLayout>
+
+                <!-- Layout selection -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Layout:"
+                    android:textColor="#CCCCCC"
+                    android:textSize="11sp"
+                    android:layout_marginBottom="4dp" />
+
+                <Spinner
+                    android:id="@+id/layoutSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:background="#333333"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- Security settings -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Security Settings:"
+                    android:textColor="#CCCCCC"
+                    android:textSize="11sp"
+                    android:layout_marginBottom="4dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="#333333"
+                    android:padding="8dp"
+                    android:layout_marginBottom="16dp">
+
+                    <CheckBox
+                        android:id="@+id/cbAllowScripts"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Allow Scripts"
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp" />
+
+                    <CheckBox
+                        android:id="@+id/cbAllowForms"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Allow Forms"
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp" />
+
+                    <CheckBox
+                        android:id="@+id/cbAllowPopups"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Allow Popups"
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp" />
+
+                    <CheckBox
+                        android:id="@+id/cbBlockRedirects"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Block Redirects"
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp" />
+
+                </LinearLayout>
+
+                <!-- URL Inputs -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="URL Inputs:"
+                    android:textColor="#CCCCCC"
+                    android:textSize="11sp"
+                    android:layout_marginBottom="4dp" />
+
+                <!-- Player 1 URL -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Box 1 URL:"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="2dp" />
+
+                <EditText
+                    android:id="@+id/urlInput1"
+                    android:layout_width="match_parent"
+                    android:layout_height="32dp"
+                    android:background="#333333"
+                    android:hint="https://..."
+                    android:imeOptions="actionGo"
+                    android:inputType="textUri"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Player 2 URL -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Box 2 URL:"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="2dp" />
+
+                <EditText
+                    android:id="@+id/urlInput2"
+                    android:layout_width="match_parent"
+                    android:layout_height="32dp"
+                    android:background="#333333"
+                    android:hint="https://..."
+                    android:imeOptions="actionGo"
+                    android:inputType="textUri"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Player 3 URL -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Box 3 URL:"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="2dp" />
+
+                <EditText
+                    android:id="@+id/urlInput3"
+                    android:layout_width="match_parent"
+                    android:layout_height="32dp"
+                    android:background="#333333"
+                    android:hint="https://..."
+                    android:imeOptions="actionGo"
+                    android:inputType="textUri"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Player 4 URL -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Box 4 URL:"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="2dp" />
+
+                <EditText
+                    android:id="@+id/urlInput4"
+                    android:layout_width="match_parent"
+                    android:layout_height="32dp"
+                    android:background="#333333"
+                    android:hint="https://..."
+                    android:imeOptions="actionGo"
+                    android:inputType="textUri"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:layout_marginBottom="16dp" />
+
+            </LinearLayout>
+
+        </androidx.core.widget.NestedScrollView>
+
+        <!-- Botões de ação -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="8dp"
+            android:background="#222222">
+
+            <Button
+                android:id="@+id/btnLoadAll"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:background="#1e3c72"
+                android:text="LOAD ALL"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btnReloadAll"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:background="#1e3c72"
+                android:text="RELOAD ALL"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btnClearAll"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:background="#ff4444"
+                android:text="CLEAR ALL"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

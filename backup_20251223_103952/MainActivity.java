@@ -300,8 +300,6 @@ public class MainActivity extends AppCompatActivity {
         // Configurações de zoom
         webSettings.setBuiltInZoomControls(false);
         webSettings.setDisplayZoomControls(false);
-        // CORREÇÃO: Definir fundo preto para o WebView
-        webView.setBackgroundColor(Color.BLACK);
         webSettings.setSupportZoom(true);
         webSettings.setUseWideViewPort(true);
         webSettings.setLoadWithOverviewMode(true);
@@ -322,13 +320,6 @@ public class MainActivity extends AppCompatActivity {
                 // Adicionar ao histórico
                 List<String> history = historyMap.get(playerIndex);
                 if (history.isEmpty() || !history.get(history.size() - 1).equals(url)) {
-                    // INJEÇÃO DE CSS para forçar fundo preto no conteúdo web
-                    if (url != null && !url.startsWith("about:")) {
-                        view.loadUrl("javascript:(function() {" +
-                            "document.body.style.backgroundColor = \"#000000\";" +
-                            "document.body.style.color = \"#ffffff\";" +
-                            "})()");
-                    }
                     // INJEÇÃO DE CSS para forçar fundo preto no conteúdo web
                     if (url != null && !url.startsWith("about:")) {
                         view.loadUrl("javascript:(function() {" +

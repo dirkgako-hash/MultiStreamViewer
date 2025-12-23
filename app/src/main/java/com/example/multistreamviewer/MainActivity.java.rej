@@ -1,0 +1,12 @@
+--- MainActivity.java.original
++++ MainActivity.java
+@@ -117,6 +118,9 @@
+         // Configurações de zoom
+         webSettings.setBuiltInZoomControls(false);
+         webSettings.setDisplayZoomControls(false);
++        
++        // CORREÇÃO: Definir fundo preto para o WebView
++        webView.setBackgroundColor(Color.BLACK);
+         
+         // Configurar WebViewClient personalizado para controlar redirecionamentos
+         webView.setWebViewClient(new WebViewClient() {
