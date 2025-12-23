@@ -6,6 +6,7 @@ import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -18,7 +19,9 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.Spinner;
 import android.widget.Toast;
 
@@ -42,32 +45,52 @@ public class MainActivity extends AppCompatActivity {
     private CheckBox[] checkBoxes = new CheckBox[4];
     private Button[] btnPrev = new Button[4];
     private Button[] btnNext = new Button[4];
-    private Button btnLoadAll, btnReloadAll, btnClearAll, btnFullscreen;
+    
+    // Menu lateral
+    private LinearLayout sideMenu;
+    private LinearLayout bottomMenu;
+    private Button btnToggleMenu;
+    private Button btnToggleOrientation;
+    private Button btnCloseMenu;
+    private Button btnCloseBottomMenu;
+    
+    // Controles do menu
     private Spinner layoutSpinner;
+    private Button btnLoadAll, btnReloadAll, btnClearAll, btnFullscreen;
+    private Button[] btnRefresh = new Button[4];
+    private Button[] btnHome = new Button[4];
+    private Button[] btnMenuPrev = new Button[4];
+    private Button[] btnMenuNext = new Button[4];
 
     // Estado da aplicação
     private Map<Integer, List<String>> playerHistory = new HashMap<>();
     private Map<Integer, Integer> currentHistoryIndex = new HashMap<>();
     private boolean isFullscreen = false;
+    private boolean isMenuVisible = false;
     private String currentLayout = "2x2";
     private List<Integer> activePlayers = new ArrayList<>();
+    private int currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
 
     // Configurações de layout
     private Map<String, int[]> layoutConfigs = new HashMap<String, int[]>() {{
         put("1x1", new int[]{1, 1});
-        put("1x2", new int[]{1, 2});
-        put("2x1", new int[]{2, 1});
-        put("1x3", new int[]{1, 3});
-        put("3x1", new int[]{3, 1});
-        put("1x4", new int[]{1, 4});
-        put("4x1", new int[]{4, 1});
+        put("1x2", new int[]{2, 1});
+        put("2x1", new int[]{1, 2});
+        put("1x3", new int[]{3, 1});
+        put("3x1", new int[]{1, 3});
+        put("1x4", new int[]{4, 1});
+        put("4x1", new int[]{1, 4});
         put("2x2", new int[]{2, 2});
     }};
 
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint({"SetJavaScriptEnabled", "SourceLockedOrientationActivity"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Forçar landscape inicialmente
+        setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        
         setContentView(R.layout.activity_main);
 
         // Inicializar arrays
@@ -79,9 +102,22 @@ public class MainActivity extends AppCompatActivity {
         int[] checkBoxIds = {R.id.checkBox1, R.id.checkBox2, R.id.checkBox3, R.id.checkBox4};
         int[] prevBtnIds = {R.id.btnPrev1, R.id.btnPrev2, R.id.btnPrev3, R.id.btnPrev4};
         int[] nextBtnIds = {R.id.btnNext1, R.id.btnNext2, R.id.btnNext3, R.id.btnNext4};
+        
+        // IDs do menu
+        int[] refreshBtnIds = {R.id.btnRefresh1, R.id.btnRefresh2, R.id.btnRefresh3, R.id.btnRefresh4};
+        int[] homeBtnIds = {R.id.btnHome1, R.id.btnHome2, R.id.btnHome3, R.id.btnHome4};
+        int[] menuPrevBtnIds = {R.id.btnMenuPrev1, R.id.btnMenuPrev2, R.id.btnMenuPrev3, R.id.btnMenuPrev4};
+        int[] menuNextBtnIds = {R.id.btnMenuNext1, R.id.btnMenuNext2, R.id.btnMenuNext3, R.id.btnMenuNext4};
 
         // Obter referências
         gridLayout = findViewById(R.id.gridLayout);
+        sideMenu = findViewById(R.id.sideMenu);
+        bottomMenu = findViewById(R.id.bottomMenu);
+        btnToggleMenu = findViewById(R.id.btnToggleMenu);
+        btnToggleOrientation = findViewById(R.id.btnToggleOrientation);
+        btnCloseMenu = findViewById(R.id.btnCloseMenu);
+        btnCloseBottomMenu = findViewById(R.id.btnCloseBottomMenu);
+        
         btnLoadAll = findViewById(R.id.btnLoadAll);
         btnReloadAll = findViewById(R.id.btnReloadAll);
         btnClearAll = findViewById(R.id.btnClearAll);
@@ -122,6 +158,12 @@ public class MainActivity extends AppCompatActivity {
             btnPrev[i] = findViewById(prevBtnIds[i]);
             btnNext[i] = findViewById(nextBtnIds[i]);
             
+            // Botões do menu
+            btnRefresh[i] = findViewById(refreshBtnIds[i]);
+            btnHome[i] = findViewById(homeBtnIds[i]);
+            btnMenuPrev[i] = findViewById(menuPrevBtnIds[i]);
+            btnMenuNext[i] = findViewById(menuNextBtnIds[i]);
+            
             // Configurar listeners
             setupPlayerListeners(playerIndex);
             
@@ -160,9 +202,32 @@ public class MainActivity extends AppCompatActivity {
         btnReloadAll.setOnClickListener(v -> reloadAllWebViews());
         btnClearAll.setOnClickListener(v -> clearAllWebViews());
         btnFullscreen.setOnClickListener(v -> toggleFullscreen());
+        
+        // Configurar botões do menu
+        btnToggleMenu.setOnClickListener(v -> toggleMenu());
+        btnToggleOrientation.setOnClickListener(v -> toggleScreenOrientation());
+        btnCloseMenu.setOnClickListener(v -> toggleMenu());
+        btnCloseBottomMenu.setOnClickListener(v -> toggleMenu());
+        
+        // Configurar botões do menu para cada player
+        for (int i = 0; i < 4; i++) {
+            final int playerIndex = i;
+            btnRefresh[i].setOnClickListener(v -> refreshPlayer(playerIndex));
+            btnHome[i].setOnClickListener(v -> goHome(playerIndex));
+            btnMenuPrev[i].setOnClickListener(v -> navigateHistory(playerIndex, -1));
+            btnMenuNext[i].setOnClickListener(v -> navigateHistory(playerIndex, 1));
+        }
 
+        // Detectar orientação inicial
+        currentOrientation = getResources().getConfiguration().orientation;
+        updateOrientationUI();
+        
         // Aplicar layout inicial
         applyLayout();
+        
+        // Esconder menus inicialmente
+        sideMenu.setVisibility(View.GONE);
+        bottomMenu.setVisibility(View.GONE);
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -192,6 +257,9 @@ public class MainActivity extends AppCompatActivity {
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 loadingOverlays[playerIndex].setVisibility(View.VISIBLE);
                 playerControls[playerIndex].setVisibility(View.VISIBLE);
+                
+                // Atualizar input URL
+                urlInputs[playerIndex].setText(url);
                 
                 // Adicionar ao histórico
                 if (!playerHistory.get(playerIndex).contains(url)) {
@@ -291,6 +359,18 @@ public class MainActivity extends AppCompatActivity {
         }
         Toast.makeText(this, "Reloading all players", Toast.LENGTH_SHORT).show();
     }
+    
+    private void refreshPlayer(int playerIndex) {
+        if (webViews[playerIndex] != null) {
+            webViews[playerIndex].reload();
+            Toast.makeText(this, "Refreshing Player " + (playerIndex + 1), Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private void goHome(int playerIndex) {
+        loadURL(playerIndex, "https://www.google.com");
+        Toast.makeText(this, "Player " + (playerIndex + 1) + " going to Google", Toast.LENGTH_SHORT).show();
+    }
 
     private void clearAllWebViews() {
         for (int i = 0; i < 4; i++) {
@@ -316,6 +396,7 @@ public class MainActivity extends AppCompatActivity {
             webViews[playerIndex].loadUrl(url);
             urlInputs[playerIndex].setText(url);
             currentHistoryIndex.put(playerIndex, newIndex);
+            Toast.makeText(this, "Player " + (playerIndex + 1) + " navigating history", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -329,55 +410,60 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void applyLayout() {
-        if (activePlayers.isEmpty()) return;
+        if (activePlayers.isEmpty()) {
+            // Se não houver players ativos, mostrar mensagem
+            Toast.makeText(this, "No active players", Toast.LENGTH_SHORT).show();
+            return;
+        }
         
-        int[] config = layoutConfigs.get(currentLayout);
-        if (config == null) config = new int[]{2, 2};
-        
-        int rows = config[0];
-        int cols = config[1];
-        
-        gridLayout.setRowCount(rows);
-        gridLayout.setColumnCount(cols);
-        
-        // Reset all containers
-        for (int i = 0; i < 4; i++) {
-            GridLayout.LayoutParams params = (GridLayout.LayoutParams) playerContainers[i].getLayoutParams();
-            params.rowSpec = GridLayout.spec(GridLayout.UNDEFINED, 1);
-            params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1);
-            params.width = 0;
-            params.height = 0;
+        try {
+            int[] config = layoutConfigs.get(currentLayout);
+            if (config == null) config = new int[]{2, 2};
             
-            // Show/hide based on checkbox
-            if (checkBoxes[i].isChecked() && activePlayers.contains(i)) {
-                playerContainers[i].setVisibility(View.VISIBLE);
-            } else {
-                playerContainers[i].setVisibility(View.GONE);
+            int rows = config[0];
+            int cols = config[1];
+            
+            // Remover todas as views do grid
+            gridLayout.removeAllViews();
+            
+            // Adicionar apenas os containers ativos
+            for (int i = 0; i < 4; i++) {
+                if (checkBoxes[i].isChecked() && activePlayers.contains(i)) {
+                    // Criar novos LayoutParams
+                    GridLayout.LayoutParams params = new GridLayout.LayoutParams();
+                    
+                    // Calcular posição baseada na ordem
+                    int position = activePlayers.indexOf(i);
+                    int row = position / cols;
+                    int col = position % cols;
+                    
+                    params.rowSpec = GridLayout.spec(row, 1, 1f);
+                    params.columnSpec = GridLayout.spec(col, 1, 1f);
+                    params.width = 0;
+                    params.height = 0;
+                    
+                    // Adicionar ao grid
+                    gridLayout.addView(playerContainers[i], params);
+                    
+                    // Garantir que está visível
+                    playerContainers[i].setVisibility(View.VISIBLE);
+                } else {
+                    playerContainers[i].setVisibility(View.GONE);
+                }
             }
+            
+            // Atualizar configuração do grid
+            gridLayout.setRowCount(rows);
+            gridLayout.setColumnCount(cols);
+            
+            // Forçar redesenho
+            gridLayout.requestLayout();
+            gridLayout.invalidate();
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(this, "Error applying layout: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
-        
-        // Position active players in grid
-        int count = 0;
-        for (int i = 0; i < 4; i++) {
-            if (checkBoxes[i].isChecked() && activePlayers.contains(i)) {
-                int row = count / cols;
-                int col = count % cols;
-                
-                GridLayout.LayoutParams params = (GridLayout.LayoutParams) playerContainers[i].getLayoutParams();
-                params.rowSpec = GridLayout.spec(row, 1, 1f);
-                params.columnSpec = GridLayout.spec(col, 1, 1f);
-                params.width = 0;
-                params.height = 0;
-                
-                playerContainers[i].setLayoutParams(params);
-                count++;
-                
-                if (count >= rows * cols) break;
-            }
-        }
-        
-        // Force layout update
-        gridLayout.requestLayout();
     }
 
     private void toggleFullscreen() {
@@ -398,11 +484,74 @@ public class MainActivity extends AppCompatActivity {
         }
         isFullscreen = !isFullscreen;
     }
+    
+    private void toggleMenu() {
+        isMenuVisible = !isMenuVisible;
+        
+        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+            if (isMenuVisible) {
+                sideMenu.setVisibility(View.VISIBLE);
+                // Deslizar para dentro
+                sideMenu.animate().translationX(0).setDuration(300).start();
+            } else {
+                // Deslizar para fora
+                sideMenu.animate().translationX(-sideMenu.getWidth()).setDuration(300).withEndAction(() -> {
+                    sideMenu.setVisibility(View.GONE);
+                }).start();
+            }
+            bottomMenu.setVisibility(View.GONE);
+        } else {
+            if (isMenuVisible) {
+                bottomMenu.setVisibility(View.VISIBLE);
+                // Deslizar para cima
+                bottomMenu.animate().translationY(0).setDuration(300).start();
+            } else {
+                // Deslizar para baixo
+                bottomMenu.animate().translationY(bottomMenu.getHeight()).setDuration(300).withEndAction(() -> {
+                    bottomMenu.setVisibility(View.GONE);
+                }).start();
+            }
+            sideMenu.setVisibility(View.GONE);
+        }
+        
+        // Atualizar texto do botão
+        btnToggleMenu.setText(isMenuVisible ? "✕" : "☰");
+    }
+    
+    private void toggleScreenOrientation() {
+        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT);
+        } else {
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        }
+    }
+    
+    private void updateOrientationUI() {
+        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+            btnToggleOrientation.setText("📱 Portrait");
+            // Mostrar menu lateral se visível
+            if (isMenuVisible) {
+                sideMenu.setVisibility(View.VISIBLE);
+                bottomMenu.setVisibility(View.GONE);
+            }
+        } else {
+            btnToggleOrientation.setText("📱 Landscape");
+            // Mostrar menu inferior se visível
+            if (isMenuVisible) {
+                bottomMenu.setVisibility(View.VISIBLE);
+                sideMenu.setVisibility(View.GONE);
+            }
+        }
+        
+        // Reaplicar layout para nova orientação
+        applyLayout();
+    }
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        applyLayout();
+        currentOrientation = newConfig.orientation;
+        updateOrientationUI();
     }
 
     @Override
@@ -437,12 +586,21 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
+        // Se menu estiver visível, fechar primeiro
+        if (isMenuVisible) {
+            toggleMenu();
+            return;
+        }
+        
+        // Verificar se algum WebView pode voltar
         for (WebView webView : webViews) {
             if (webView.canGoBack()) {
                 webView.goBack();
                 return;
             }
         }
+        
+        // Sair do app
         super.onBackPressed();
     }
 }

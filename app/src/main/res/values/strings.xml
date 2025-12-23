@@ -3,6 +3,9 @@
     <string name="load_all">Load All</string>
     <string name="reload_all">Reload All</string>
     <string name="clear_all">Clear All</string>
+    <string name="toggle_menu">Menu</string>
+    <string name="toggle_orientation">Orientation</string>
+    <string name="close_menu">Close</string>
     <string-array name="layout_options">
         <item>1x1</item>
         <item>1x2</item>
