@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000000">
@@ -9,39 +10,166 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:rowCount="2"
-        android:columnCount="2">
+        android:columnCount="2"
+        android:background="#000000">
 
-        <WebView
-            android:id="@+id/webView1"
+        <!-- Player 1 -->
+        <FrameLayout
+            android:id="@+id/playerContainer1"
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_rowWeight="1"
             android:layout_columnWeight="1"
-            android:background="#000000" />
+            android:layout_margin="2dp"
+            android:background="#000000">
 
-        <WebView
-            android:id="@+id/webView2"
+            <WebView
+                android:id="@+id/webView1"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#000000" />
+
+            <LinearLayout
+                android:id="@+id/loadingOverlay1"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#80000000"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:indeterminateTint="#1e3c72" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <!-- Player 2 -->
+        <FrameLayout
+            android:id="@+id/playerContainer2"
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_rowWeight="1"
             android:layout_columnWeight="1"
-            android:background="#000000" />
+            android:layout_margin="2dp"
+            android:background="#000000">
 
-        <WebView
-            android:id="@+id/webView3"
+            <WebView
+                android:id="@+id/webView2"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#000000" />
+
+            <LinearLayout
+                android:id="@+id/loadingOverlay2"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#80000000"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:indeterminateTint="#1e3c72" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <!-- Player 3 -->
+        <FrameLayout
+            android:id="@+id/playerContainer3"
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_rowWeight="1"
             android:layout_columnWeight="1"
-            android:background="#000000" />
+            android:layout_margin="2dp"
+            android:background="#000000">
 
-        <WebView
-            android:id="@+id/webView4"
+            <WebView
+                android:id="@+id/webView3"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#000000" />
+
+            <LinearLayout
+                android:id="@+id/loadingOverlay3"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#80000000"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:indeterminateTint="#1e3c72" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <!-- Player 4 -->
+        <FrameLayout
+            android:id="@+id/playerContainer4"
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_rowWeight="1"
             android:layout_columnWeight="1"
-            android:background="#000000" />
+            android:layout_margin="2dp"
+            android:background="#000000">
 
+            <WebView
+                android:id="@+id/webView4"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#000000" />
+
+            <LinearLayout
+                android:id="@+id/loadingOverlay4"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#80000000"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:indeterminateTint="#1e3c72" />
+            </LinearLayout>
+        </FrameLayout>
     </androidx.gridlayout.widget.GridLayout>
+
+    <!-- Painel de Controle Simples -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center"
+        android:background="#1a1a1a"
+        android:orientation="horizontal"
+        android:padding="12dp">
+
+        <Button
+            android:id="@+id/btnLoadAll"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="#1e3c72"
+            android:text="LOAD ALL"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/btnClearAll"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="#ff4444"
+            android:text="CLEAR ALL"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+    </LinearLayout>
 </FrameLayout>
