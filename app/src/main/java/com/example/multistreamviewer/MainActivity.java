@@ -16,11 +16,8 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
 import android.widget.Spinner;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -232,11 +229,17 @@ public class MainActivity extends AppCompatActivity {
                 toggleControlPanel(playerIndex);
             });
             
+            // CORREÇÃO: Criar variável final para usar na lambda
+            final int finalPlayerIndex = i;
+            
             // Criar runnable para esconder controles
-            hideControlPanelRunnables[i] = () -> {
-                if (controlPanelVisible[i] && !playerFullscreen[playerIndex]) {
-                    controlPanels[i].setVisibility(View.GONE);
-                    controlPanelVisible[i] = false;
+            hideControlPanelRunnables[i] = new Runnable() {
+                @Override
+                public void run() {
+                    if (controlPanelVisible[finalPlayerIndex] && !playerFullscreen[finalPlayerIndex]) {
+                        controlPanels[finalPlayerIndex].setVisibility(View.GONE);
+                        controlPanelVisible[finalPlayerIndex] = false;
+                    }
                 }
             };
         }
