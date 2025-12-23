@@ -1,0 +1,435 @@
+========================================
+ANÁLISE DO PROJETO MULTISTREAM VIEWER
+Data: $(date)
+========================================
+
+=== BUILD.GRADLE ===
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.example.multistreamviewer'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.example.multistreamviewer"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.10.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.gridlayout:gridlayout:1.0.0'
+    implementation 'androidx.core:core:1.12.0'
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}
+
+========================================
+
+=== ANDROIDMANIFEST.XML ===
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.example.multistreamviewer">
+
+    <!-- Permissões -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Suportar ambas orientações -->
+    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
+    <uses-feature android:name="android.hardware.screen.landscape" android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MultiStreamViewer.NoActionBar.FullScreen"
+        android:usesCleartextTraffic="true"
+        tools:targetApi="31">
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
+            android:exported="true"
+            android:theme="@style/Theme.MultiStreamViewer.NoActionBar.FullScreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>
+
+========================================
+
+=== ACTIVITY_MAIN.XML (PRIMEIRAS 100 LINHAS) ===
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- GridLayout para os 4 players -->
+    <androidx.gridlayout.widget.GridLayout
+        android:id="@+id/gridLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000" />
+
+    <!-- Overlay transparente para controles (inicialmente invisível) -->
+    <LinearLayout
+        android:id="@+id/overlayControls"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#00000000"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- Barra superior com botão menu -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:background="#1a1a1aCC"
+            android:orientation="horizontal"
+            android:padding="8dp">
+
+            <Button
+                android:id="@+id/btnMenu"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:background="#333333"
+                android:text="☰"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/btnOrientation"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:background="#333333"
+                android:text="📱"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp" />
+        </LinearLayout>
+
+        <!-- Container para controles dos boxes (será preenchido dinamicamente) -->
+        <FrameLayout
+            android:id="@+id/controlsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- Barra inferior foldable -->
+        <LinearLayout
+            android:id="@+id/bottomPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#1a1a1aCC"
+            android:orientation="vertical"
+            android:padding="8dp">
+
+            <!-- Linha 1: Botões principais -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <Button
+                    android:id="@+id/btnFoldChecks"
+                    android:layout_width="40dp"
+                    android:layout_height="30dp"
+                    android:background="#444444"
+                    android:text="▼"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btnToggleSidebar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="30dp"
+                    android:layout_marginStart="8dp"
+                    android:background="#333333"
+                    android:text="☰ Menu"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btnTogglePortrait"
+                    android:layout_width="wrap_content"
+                    android:layout_height="30dp"
+
+========================================
+
+=== ARQUIVOS JAVA ===
+-rw-rw-rw- 1 codespace codespace 26719 Dec 23 13:25 /workspaces/MultiStreamViewer/app/src/main/java/com/example/multistreamviewer/MainActivity.java
+
+=== MAINACTIVITY.JAVA (PRIMEIRAS 200 LINHAS) ===
+package com.example.multistreamviewer;
+
+import android.annotation.SuppressLint;
+import android.content.res.Configuration;
+import android.graphics.Color;
+import android.os.Bundle;
+import android.os.Handler;
+import android.view.MotionEvent;
+import android.view.View;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.gridlayout.widget.GridLayout;
+
+public class MainActivity extends AppCompatActivity {
+
+    // Componentes principais
+    private GridLayout gridLayout;
+    private WebView[] webViews = new WebView[4];
+    private FrameLayout[] boxContainers = new FrameLayout[4];
+    private LinearLayout overlayControls;
+    private ScrollView sidebarMenu;
+    
+    // Controles
+    private Button btnMenu, btnOrientation, btnFoldChecks, btnToggleSidebar, btnTogglePortrait;
+    private Button btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll;
+    private CheckBox[] checkBoxes = new CheckBox[4];
+    private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects;
+    private EditText[] urlInputs = new EditText[4];
+    
+    // Estado
+    private boolean[] boxEnabled = {true, true, true, true};
+    private boolean isSidebarVisible = false;
+    private boolean isBottomPanelFolded = false;
+    private int currentOrientation;
+    
+    // Controles individuais por box
+    private LinearLayout[] boxControlPanels = new LinearLayout[4];
+    private boolean[] controlPanelVisible = new boolean[4];
+    private Handler[] boxHandlers = new Handler[4];
+    
+    // Configurações WebView
+    private boolean allowScripts = true;
+    private boolean allowForms = true;
+    private boolean allowPopups = true;
+    private boolean blockRedirects = false;
+
+    @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        
+        // Configurar tela cheia
+        getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_FULLSCREEN |
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        );
+        
+        // Inicializar componentes
+        initViews();
+        initWebViews();
+        initEventListeners();
+        
+        // Configurar layout inicial
+        currentOrientation = getResources().getConfiguration().orientation;
+        updateLayout();
+        
+        // Carregar URLs iniciais
+        new Handler().postDelayed(this::loadInitialURLs, 1000);
+    }
+    
+    private void initViews() {
+        gridLayout = findViewById(R.id.gridLayout);
+        overlayControls = findViewById(R.id.overlayControls);
+        sidebarMenu = findViewById(R.id.sidebarMenu);
+        
+        // Botões principais
+        btnMenu = findViewById(R.id.btnMenu);
+        btnOrientation = findViewById(R.id.btnOrientation);
+        btnFoldChecks = findViewById(R.id.btnFoldChecks);
+        btnToggleSidebar = findViewById(R.id.btnToggleSidebar);
+        btnTogglePortrait = findViewById(R.id.btnTogglePortrait);
+        btnCloseMenu = findViewById(R.id.btnCloseMenu);
+        btnLoadAll = findViewById(R.id.btnLoadAll);
+        btnReloadAll = findViewById(R.id.btnReloadAll);
+        btnClearAll = findViewById(R.id.btnClearAll);
+        
+        // Checkboxes
+        checkBoxes[0] = findViewById(R.id.checkBox1);
+        checkBoxes[1] = findViewById(R.id.checkBox2);
+        checkBoxes[2] = findViewById(R.id.checkBox3);
+        checkBoxes[3] = findViewById(R.id.checkBox4);
+        
+        // Configurações
+        cbAllowScripts = findViewById(R.id.cbAllowScripts);
+        cbAllowForms = findViewById(R.id.cbAllowForms);
+        cbAllowPopups = findViewById(R.id.cbAllowPopups);
+        cbBlockRedirects = findViewById(R.id.cbBlockRedirects);
+        
+        // URLs
+        urlInputs[0] = findViewById(R.id.urlInput1);
+        urlInputs[1] = findViewById(R.id.urlInput2);
+        urlInputs[2] = findViewById(R.id.urlInput3);
+        urlInputs[3] = findViewById(R.id.urlInput4);
+        
+        // Inicializar handlers
+        for (int i = 0; i < 4; i++) {
+            boxHandlers[i] = new Handler();
+            controlPanelVisible[i] = false;
+        }
+    }
+    
+    @SuppressLint("SetJavaScriptEnabled")
+    private void initWebViews() {
+        // Criar containers e WebViews
+        for (int i = 0; i < 4; i++) {
+            final int boxIndex = i;
+            
+            // Criar container
+            boxContainers[i] = new FrameLayout(this);
+            boxContainers[i].setId(View.generateViewId());
+            boxContainers[i].setBackgroundColor(Color.BLACK);
+            
+            // Criar WebView
+            webViews[i] = new WebView(this);
+            webViews[i].setId(View.generateViewId());
+            setupWebView(webViews[i], boxIndex);
+            
+            // Adicionar WebView ao container
+            boxContainers[i].addView(webViews[i], 
+                new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT));
+            
+            // Criar painel de controles
+            createBoxControlPanel(boxIndex);
+            
+            // Configurar clique longo para mostrar controles (evitar conflito com navegação)
+            boxContainers[i].setOnLongClickListener(v -> {
+                toggleBoxControlPanel(boxIndex);
+                return true;
+            });
+            
+            // Clique normal para esconder controles se visíveis
+            boxContainers[i].setOnClickListener(v -> {
+                if (controlPanelVisible[boxIndex]) {
+                    hideBoxControlPanel(boxIndex);
+                }
+            });
+        }
+        
+        // Adicionar containers ao grid
+        for (int i = 0; i < 4; i++) {
+            gridLayout.addView(boxContainers[i]);
+        }
+    }
+    
+    private void createBoxControlPanel(int boxIndex) {
+        // Criar painel de controles
+        boxControlPanels[boxIndex] = new LinearLayout(this);
+        boxControlPanels[boxIndex].setOrientation(LinearLayout.HORIZONTAL);
+        boxControlPanels[boxIndex].setBackgroundColor(0xCC1a1a1a);
+        boxControlPanels[boxIndex].setPadding(12, 8, 12, 8);
+        boxControlPanels[boxIndex].setVisibility(View.GONE);
+        
+        // Layout params
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT);
+        boxContainers[boxIndex].addView(boxControlPanels[boxIndex], params);
+        
+        // Botões do painel
+        String[] buttonLabels = {"➕", "➖", "↻", "←", "→", "⤢"};
+        String[] buttonActions = {"zoomIn", "zoomOut", "refresh", "back", "forward", "fullscreen"};
+        
+        for (int j = 0; j < buttonLabels.length; j++) {
+            Button btn = new Button(this);
+            btn.setText(buttonLabels[j]);
+            btn.setTag(boxIndex + "_" + buttonActions[j]);
+            btn.setBackgroundColor(0xFF555555); // Cinza escuro
+            btn.setTextColor(Color.WHITE);
+            btn.setTextSize(14);
+            btn.setPadding(12, 8, 12, 8);
+            btn.setMinWidth(0);
+            btn.setMinimumWidth(0);
+            
+
+========================================
+
+=== ARQUIVOS KOTLIN ===
+
+=== ESTRUTURA DE PASTAS ===
+/workspaces/MultiStreamViewer/app/src/main
+/workspaces/MultiStreamViewer/app/src/main/assets
+/workspaces/MultiStreamViewer/app/src/main/java
+/workspaces/MultiStreamViewer/app/src/main/java/com
+/workspaces/MultiStreamViewer/app/src/main/java/com/example
+/workspaces/MultiStreamViewer/app/src/main/java/com/example/multistreamviewer
+/workspaces/MultiStreamViewer/app/src/main/res
+/workspaces/MultiStreamViewer/app/src/main/res/drawable
+/workspaces/MultiStreamViewer/app/src/main/res/layout
+/workspaces/MultiStreamViewer/app/src/main/res/mipmap-hdpi
+/workspaces/MultiStreamViewer/app/src/main/res/mipmap-mdpi
+/workspaces/MultiStreamViewer/app/src/main/res/mipmap-xhdpi
+/workspaces/MultiStreamViewer/app/src/main/res/mipmap-xxhdpi
+/workspaces/MultiStreamViewer/app/src/main/res/mipmap-xxxhdpi
+/workspaces/MultiStreamViewer/app/src/main/res/values
+/workspaces/MultiStreamViewer/app/src/main/res/xml
+
+=== VERIFICAÇÃO DO GRIDLAYOUT ===
+1. Dependência no build.gradle:
+35:    implementation 'androidx.gridlayout:gridlayout:1.0.0'
+
+2. Import no MainActivity.java:
+25:import androidx.gridlayout.widget.GridLayout;
+30:    private GridLayout gridLayout;
+575:                GridLayout.Spec rowSpec = GridLayout.spec(added / cols, 1f);
+576:                GridLayout.Spec colSpec = GridLayout.spec(added % cols, 1f);
+578:                GridLayout.LayoutParams params = new GridLayout.LayoutParams(rowSpec, colSpec);
+
+3. Uso no XML:
+7:    <!-- GridLayout para os 4 players -->
+8:    <androidx.gridlayout.widget.GridLayout

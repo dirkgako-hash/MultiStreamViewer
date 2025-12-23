@@ -5,7 +5,6 @@ import android.content.res.Configuration;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
-import android.view.MotionEvent;
 import android.view.View;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -126,7 +125,7 @@ public class MainActivity extends AppCompatActivity {
     
     @SuppressLint("SetJavaScriptEnabled")
     private void initWebViews() {
-        // Criar containers e WebViews
+        // Criar containers e WebViews dinamicamente
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
             
@@ -149,18 +148,8 @@ public class MainActivity extends AppCompatActivity {
             // Criar painel de controles
             createBoxControlPanel(boxIndex);
             
-            // Configurar clique longo para mostrar controles (evitar conflito com navegação)
-            boxContainers[i].setOnLongClickListener(v -> {
-                toggleBoxControlPanel(boxIndex);
-                return true;
-            });
-            
-            // Clique normal para esconder controles se visíveis
-            boxContainers[i].setOnClickListener(v -> {
-                if (controlPanelVisible[boxIndex]) {
-                    hideBoxControlPanel(boxIndex);
-                }
-            });
+            // Configurar clique na box
+            boxContainers[i].setOnClickListener(v -> toggleBoxControlPanel(boxIndex));
         }
         
         // Adicionar containers ao grid
@@ -183,30 +172,18 @@ public class MainActivity extends AppCompatActivity {
             FrameLayout.LayoutParams.WRAP_CONTENT);
         boxContainers[boxIndex].addView(boxControlPanels[boxIndex], params);
         
-        // Botões do painel
-        String[] buttonLabels = {"➕", "➖", "↻", "←", "→", "⤢"};
+        // Botões do painel com símbolos corrigidos
+        String[] buttonLabels = {"+", "-", "↻", "←", "→", "⤢"};
         String[] buttonActions = {"zoomIn", "zoomOut", "refresh", "back", "forward", "fullscreen"};
         
         for (int j = 0; j < buttonLabels.length; j++) {
             Button btn = new Button(this);
             btn.setText(buttonLabels[j]);
             btn.setTag(boxIndex + "_" + buttonActions[j]);
-            btn.setBackgroundColor(0xFF555555); // Cinza escuro
+            btn.setBackgroundColor(0xFF555555);
             btn.setTextColor(Color.WHITE);
             btn.setTextSize(14);
             btn.setPadding(12, 8, 12, 8);
-            btn.setMinWidth(0);
-            btn.setMinimumWidth(0);
-            
-            // Efeito de clique
-            btn.setOnTouchListener((v, event) -> {
-                if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                    v.setBackgroundColor(0xFF777777); // Mais claro quando pressionado
-                } else if (event.getAction() == MotionEvent.ACTION_UP) {
-                    v.setBackgroundColor(0xFF555555);
-                }
-                return false;
-            });
             
             final int actionIndex = j;
             final int currentBoxIndex = boxIndex;
@@ -233,15 +210,14 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         
-        // Otimizações para vídeo e zoom
+        // Configurações de zoom
+        settings.setSupportZoom(true);
+        settings.setBuiltInZoomControls(true);
+        settings.setDisplayZoomControls(false);
+        
+        // Otimizações
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
-        settings.setSupportZoom(true);
-        settings.setBuiltInZoomControls(true);  // IMPORTANTE: habilitar controles de zoom nativos
-        settings.setDisplayZoomControls(false); // Mas não mostrar os controles nativos
-        
-        // Zoom específico
-        settings.setDefaultZoom(WebSettings.ZoomDensity.MEDIUM);
         
         // User agent
         settings.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
@@ -270,20 +246,10 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                // Injetar CSS para fundo preto
                 view.loadUrl("javascript:(function(){" +
                     "document.body.style.backgroundColor='#000000';" +
                     "document.body.style.color='#ffffff';" +
-                    "})()");
-            }
-            
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                view.loadUrl("javascript:(function(){" +
-                    "document.body.style.backgroundColor='#000000';" +
-                    "var videos=document.getElementsByTagName('video');" +
-                    "for(var i=0;i<videos.length;i++){" +
-                    "videos[i].style.backgroundColor='#000000';" +
-                    "}" +
                     "})()");
             }
         });
@@ -292,6 +258,7 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onShowCustomView(View view, CustomViewCallback callback) {
+                // Fullscreen dentro da box
                 boxContainers[boxIndex].addView(view, 
                     new FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
@@ -301,6 +268,7 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onHideCustomView() {
+                // Sair do fullscreen
                 webView.setVisibility(View.VISIBLE);
                 View customView = boxContainers[boxIndex].getChildAt(boxContainers[boxIndex].getChildCount() - 1);
                 if (customView != webView && customView != boxControlPanels[boxIndex]) {
@@ -311,11 +279,11 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void initEventListeners() {
-        // Botão menu (☰)
+        // Botão menu
         btnMenu.setOnClickListener(v -> toggleOverlayControls());
         btnToggleSidebar.setOnClickListener(v -> toggleSidebar());
         
-        // Botão orientação (📱)
+        // Botão orientação
         btnOrientation.setOnClickListener(v -> toggleOrientation());
         btnTogglePortrait.setOnClickListener(v -> toggleOrientation());
         
@@ -336,10 +304,6 @@ public class MainActivity extends AppCompatActivity {
             checkBoxes[i].setOnCheckedChangeListener((buttonView, isChecked) -> {
                 boxEnabled[index] = isChecked;
                 updateLayout();
-                // Esconder controles se box desativada
-                if (!isChecked && controlPanelVisible[index]) {
-                    hideBoxControlPanel(index);
-                }
             });
         }
         
@@ -363,20 +327,8 @@ public class MainActivity extends AppCompatActivity {
             blockRedirects = isChecked;
         });
         
-        // Toque no overlay para esconder controles
+        // Toque no overlay para esconder
         overlayControls.setOnClickListener(v -> hideOverlayControls());
-        
-        // Prevenir que clique nos controles propague
-        View[] controlViews = {btnMenu, btnOrientation, btnFoldChecks, btnToggleSidebar, 
-                              btnTogglePortrait, btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll};
-        for (View view : controlViews) {
-            if (view != null) {
-                view.setOnTouchListener((v, event) -> {
-                    v.performClick();
-                    return true;
-                });
-            }
-        }
     }
     
     private void handleBoxControlClick(int boxIndex, String action) {
@@ -384,18 +336,12 @@ public class MainActivity extends AppCompatActivity {
         
         switch (action) {
             case "zoomIn":
-                // Zoom in usando controles nativos do WebView
-                if (webView.canZoomIn()) {
-                    webView.zoomIn();
-                    Toast.makeText(this, "Zoom in Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
-                }
+                webView.zoomIn();
+                Toast.makeText(this, "Zoom in Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
                 break;
             case "zoomOut":
-                // Zoom out usando controles nativos do WebView
-                if (webView.canZoomOut()) {
-                    webView.zoomOut();
-                    Toast.makeText(this, "Zoom out Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
-                }
+                webView.zoomOut();
+                Toast.makeText(this, "Zoom out Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
                 break;
             case "refresh":
                 webView.reload();
@@ -416,15 +362,10 @@ public class MainActivity extends AppCompatActivity {
                 }
                 break;
             case "fullscreen":
-                // Tentar ativar fullscreen via JavaScript
+                // Tentar ativar fullscreen
                 webView.loadUrl("javascript:(function(){" +
                     "var videos=document.getElementsByTagName('video');" +
-                    "if(videos.length>0){" +
-                    "var video=videos[0];" +
-                    "if(video.requestFullscreen){video.requestFullscreen();}" +
-                    "else if(video.webkitRequestFullscreen){video.webkitRequestFullscreen();}" +
-                    "else if(video.mozRequestFullScreen){video.mozRequestFullScreen();}" +
-                    "}" +
+                    "if(videos.length>0){videos[0].requestFullscreen();}" +
                     "})()");
                 break;
         }
@@ -446,17 +387,7 @@ public class MainActivity extends AppCompatActivity {
             // Mostrar este painel
             boxControlPanels[boxIndex].setVisibility(View.VISIBLE);
             controlPanelVisible[boxIndex] = true;
-            
-            // Configurar timer para esconder
             resetBoxControlPanelTimer(boxIndex);
-            
-            // Feedback visual
-            boxContainers[boxIndex].setBackgroundColor(0xFF333333);
-            new Handler().postDelayed(() -> {
-                if (boxEnabled[boxIndex]) {
-                    boxContainers[boxIndex].setBackgroundColor(Color.BLACK);
-                }
-            }, 300);
         }
     }
     
@@ -464,7 +395,6 @@ public class MainActivity extends AppCompatActivity {
         boxControlPanels[boxIndex].setVisibility(View.GONE);
         controlPanelVisible[boxIndex] = false;
         boxHandlers[boxIndex].removeCallbacksAndMessages(null);
-        boxContainers[boxIndex].setBackgroundColor(Color.BLACK);
     }
     
     private void resetBoxControlPanelTimer(int boxIndex) {
@@ -473,7 +403,7 @@ public class MainActivity extends AppCompatActivity {
             if (controlPanelVisible[boxIndex]) {
                 hideBoxControlPanel(boxIndex);
             }
-        }, 10000); // 10 segundos
+        }, 10000);
     }
     
     private void toggleOverlayControls() {
@@ -481,14 +411,11 @@ public class MainActivity extends AppCompatActivity {
             hideOverlayControls();
         } else {
             overlayControls.setVisibility(View.VISIBLE);
-            // Esconder após 5 segundos
-            new Handler().postDelayed(this::hideOverlayControls, 5000);
         }
     }
     
     private void hideOverlayControls() {
         overlayControls.setVisibility(View.GONE);
-        // Esconder também todos os painéis das boxes
         for (int i = 0; i < 4; i++) {
             if (controlPanelVisible[i]) {
                 hideBoxControlPanel(i);
@@ -510,15 +437,11 @@ public class MainActivity extends AppCompatActivity {
         int newOrientation = (currentOrientation == Configuration.ORIENTATION_PORTRAIT) ?
             Configuration.ORIENTATION_LANDSCAPE : Configuration.ORIENTATION_PORTRAIT;
         
-        // Atualizar botões
-        btnOrientation.setText(newOrientation == Configuration.ORIENTATION_PORTRAIT ? "📱 Portrait" : "🔄 Landscape");
+        btnOrientation.setText(newOrientation == Configuration.ORIENTATION_PORTRAIT ? "📱" : "🔄");
         btnTogglePortrait.setText(newOrientation == Configuration.ORIENTATION_PORTRAIT ? "Portrait" : "Landscape");
         
         currentOrientation = newOrientation;
         updateLayout();
-        Toast.makeText(this, "Orientation: " + 
-            (newOrientation == Configuration.ORIENTATION_PORTRAIT ? "Portrait" : "Landscape"), 
-            Toast.LENGTH_SHORT).show();
     }
     
     private void toggleBottomPanel() {

@@ -11,7 +11,7 @@
         android:layout_height="match_parent"
         android:background="#000000" />
 
-    <!-- Overlay transparente para controles (inicialmente invisível) -->
+    <!-- Overlay transparente para controles -->
     <LinearLayout
         android:id="@+id/overlayControls"
         android:layout_width="match_parent"
@@ -20,7 +20,7 @@
         android:orientation="vertical"
         android:visibility="gone">
 
-        <!-- Barra superior com botão menu -->
+        <!-- Barra superior -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="40dp"
@@ -52,14 +52,14 @@
                 android:textSize="16sp" />
         </LinearLayout>
 
-        <!-- Container para controles dos boxes (será preenchido dinamicamente) -->
+        <!-- Container para controles -->
         <FrameLayout
             android:id="@+id/controlsContainer"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />
 
-        <!-- Barra inferior foldable -->
+        <!-- Barra inferior -->
         <LinearLayout
             android:id="@+id/bottomPanel"
             android:layout_width="match_parent"
@@ -68,7 +68,7 @@
             android:orientation="vertical"
             android:padding="8dp">
 
-            <!-- Linha 1: Botões principais -->
+            <!-- Linha 1: Botões -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -105,7 +105,7 @@
                     android:textSize="12sp" />
             </LinearLayout>
 
-            <!-- Linha 2: Checkboxes (inicialmente visível) -->
+            <!-- Linha 2: Checkboxes -->
             <LinearLayout
                 android:id="@+id/checkboxContainer"
                 android:layout_width="match_parent"
@@ -160,7 +160,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Sidebar Menu (inicialmente invisível) -->
+    <!-- Sidebar Menu -->
     <ScrollView
         android:id="@+id/sidebarMenu"
         android:layout_width="280dp"
@@ -202,15 +202,7 @@
                     android:textSize="14sp" />
             </LinearLayout>
 
-            <!-- Configurações de Segurança -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Security:"
-                android:textColor="#CCCCCC"
-                android:textSize="12sp"
-                android:layout_marginBottom="8dp" />
-
+            <!-- Configurações -->
             <CheckBox
                 android:id="@+id/cbAllowScripts"
                 android:layout_width="match_parent"
@@ -251,15 +243,7 @@
                 android:textSize="12sp"
                 android:layout_marginBottom="16dp" />
 
-            <!-- URLs Inputs -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="URLs:"
-                android:textColor="#CCCCCC"
-                android:textSize="12sp"
-                android:layout_marginBottom="8dp" />
-
+            <!-- URLs -->
             <EditText
                 android:id="@+id/urlInput1"
                 android:layout_width="match_parent"
@@ -312,7 +296,7 @@
                 android:textSize="12sp"
                 android:layout_marginBottom="16dp" />
 
-            <!-- Botões de Ação -->
+            <!-- Botões -->
             <Button
                 android:id="@+id/btnLoadAll"
                 android:layout_width="match_parent"
@@ -341,8 +325,6 @@
                 android:text="CLEAR ALL"
                 android:textColor="#FFFFFF"
                 android:textSize="12sp" />
-
         </LinearLayout>
     </ScrollView>
-
 </RelativeLayout>
