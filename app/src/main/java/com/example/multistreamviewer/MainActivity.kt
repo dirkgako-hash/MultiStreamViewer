@@ -1,23 +1,18 @@
 package com.example.multistreamviewer
 
-import android.os.Bundle
-import android.webkit.WebView
 import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.widget.Button
+import android.widget.Toast
 
 class MainActivity : AppCompatActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
-        val webView1: WebView = findViewById(R.id.webView1)
-        val webView2: WebView = findViewById(R.id.webView2)
-        val webView3: WebView = findViewById(R.id.webView3)
-        val webView4: WebView = findViewById(R.id.webView4)
-
-        webView1.loadUrl("https://example.com/1")
-        webView2.loadUrl("https://example.com/2")
-        webView3.loadUrl("https://example.com/3")
-        webView4.loadUrl("https://example.com/4")
+        
+        val testButton: Button = findViewById(R.id.btn_test)
+        testButton.setOnClickListener {
+            Toast.makeText(this, "MultiStreamViewer Funcionando!", Toast.LENGTH_SHORT).show()
+        }
     }
 }
