@@ -11,49 +11,47 @@
         android:layout_height="match_parent"
         android:background="#000000" />
 
-    <!-- Barra superior COMPACTA (1/4 da altura original) -->
-    <LinearLayout
-        android:id="@+id/topControls"
-        android:layout_width="match_parent"
-        android:layout_height="30dp"
-        android:layout_alignParentTop="true"
-        android:background="#1a1a1aCC"
-        android:orientation="horizontal"
-        android:padding="4dp">
-
-        <Button
-            android:id="@+id/btnMenu"
-            android:layout_width="0dp"
-            android:layout_height="25dp"
-            android:layout_weight="1"
-            android:background="#1e3c72"
-            android:text="☰ MENU"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
-
-        <Button
-            android:id="@+id/btnOrientation"
-            android:layout_width="0dp"
-            android:layout_height="25dp"
-            android:layout_weight="1"
-            android:layout_marginStart="4dp"
-            android:background="#1e3c72"
-            android:text="📱 ORIENT"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
-    </LinearLayout>
-
-    <!-- Seleção de boxes INFERIOR COMPACTA (1/4 da altura original) -->
+    <!-- BARRA INFERIOR ÚNICA com todos os controles -->
     <LinearLayout
         android:id="@+id/bottomControls"
         android:layout_width="match_parent"
-        android:layout_height="30dp"
+        android:layout_height="40dp"
         android:layout_alignParentBottom="true"
         android:background="#1a1a1aCC"
-        android:gravity="center"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:padding="4dp">
+        android:padding="6dp">
 
+        <!-- Botão MENU -->
+        <Button
+            android:id="@+id/btnMenu"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:background="#1e3c72"
+            android:text="☰"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
+        <!-- Botão ORIENTAÇÃO -->
+        <Button
+            android:id="@+id/btnOrientation"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:background="#1e3c72"
+            android:text="📱"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
+        <!-- Separador -->
+        <View
+            android:layout_width="1dp"
+            android:layout_height="20dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:background="#555555" />
+
+        <!-- Checkboxes -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -100,6 +98,12 @@
             android:textColor="#FFFFFF"
             android:textSize="12sp"
             android:checked="true" />
+
+        <!-- Espaço flexível para empurrar tudo para a esquerda -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
     </LinearLayout>
 
     <!-- Sidebar Menu COMPACTO -->

@@ -32,7 +32,7 @@ public class MainActivity extends AppCompatActivity {
     private GridLayout gridLayout;
     private WebView[] webViews = new WebView[4];
     private FrameLayout[] boxContainers = new FrameLayout[4];
-    private LinearLayout topControls;
+    private LinearLayout bottomControls;
     private ScrollView sidebarMenu;
     
     // Controles
@@ -74,10 +74,10 @@ public class MainActivity extends AppCompatActivity {
     
     private void initViews() {
         gridLayout = findViewById(R.id.gridLayout);
-        topControls = findViewById(R.id.topControls);
+        bottomControls = findViewById(R.id.bottomControls);
         sidebarMenu = findViewById(R.id.sidebarMenu);
         
-        // Botões superiores (COMPACTOS)
+        // Botões na barra inferior
         btnMenu = findViewById(R.id.btnMenu);
         btnOrientation = findViewById(R.id.btnOrientation);
         
@@ -87,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
         btnReloadAll = findViewById(R.id.btnReloadAll);
         btnClearAll = findViewById(R.id.btnClearAll);
         
-        // Checkboxes (COMPACTAS)
+        // Checkboxes
         checkBoxes[0] = findViewById(R.id.checkBox1);
         checkBoxes[1] = findViewById(R.id.checkBox2);
         checkBoxes[2] = findViewById(R.id.checkBox3);
@@ -209,8 +209,8 @@ public class MainActivity extends AppCompatActivity {
                 mCustomView = view;
                 mCustomViewCallback = callback;
                 
-                // Ocultar controles superiores
-                topControls.setVisibility(View.GONE);
+                // Ocultar controles inferiores
+                bottomControls.setVisibility(View.GONE);
                 
                 // Adicionar a view customizada
                 boxContainers[boxIndex].addView(view, 
@@ -245,7 +245,7 @@ public class MainActivity extends AppCompatActivity {
                 mCustomViewCallback = null;
                 
                 // Restaurar controles
-                topControls.setVisibility(View.VISIBLE);
+                bottomControls.setVisibility(View.VISIBLE);
                 
                 // Sair do fullscreen
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -254,7 +254,7 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void initEventListeners() {
-        // Botão menu superior
+        // Botão menu
         btnMenu.setOnClickListener(v -> {
             if (sidebarMenu.getVisibility() == View.VISIBLE) {
                 sidebarMenu.setVisibility(View.GONE);
@@ -289,7 +289,7 @@ public class MainActivity extends AppCompatActivity {
             clearAllWebViews();
         });
         
-        // Checkboxes de boxes (PERMANENTEMENTE VISÍVEIS)
+        // Checkboxes de boxes
         for (int i = 0; i < 4; i++) {
             final int index = i;
             checkBoxes[i].setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -472,7 +472,7 @@ public class MainActivity extends AppCompatActivity {
         for (WebView webView : webViews) {
             if (webView != null && webView.getVisibility() == View.GONE) {
                 webView.setVisibility(View.VISIBLE);
-                topControls.setVisibility(View.VISIBLE);
+                bottomControls.setVisibility(View.VISIBLE);
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
                 return;
             }
