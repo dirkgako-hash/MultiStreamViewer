@@ -5,8 +5,10 @@ import android.content.res.Configuration;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.inputmethod.EditorInfo;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -18,6 +20,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -74,7 +77,7 @@ public class MainActivity extends AppCompatActivity {
         topControls = findViewById(R.id.topControls);
         sidebarMenu = findViewById(R.id.sidebarMenu);
         
-        // Botões superiores (AGORA VISÍVEIS PERMANENTEMENTE)
+        // Botões superiores (COMPACTOS)
         btnMenu = findViewById(R.id.btnMenu);
         btnOrientation = findViewById(R.id.btnOrientation);
         
@@ -84,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
         btnReloadAll = findViewById(R.id.btnReloadAll);
         btnClearAll = findViewById(R.id.btnClearAll);
         
-        // Checkboxes (AGORA VISÍVEIS PERMANENTEMENTE)
+        // Checkboxes (COMPACTAS)
         checkBoxes[0] = findViewById(R.id.checkBox1);
         checkBoxes[1] = findViewById(R.id.checkBox2);
         checkBoxes[2] = findViewById(R.id.checkBox3);
@@ -101,6 +104,26 @@ public class MainActivity extends AppCompatActivity {
         urlInputs[1] = findViewById(R.id.urlInput2);
         urlInputs[2] = findViewById(R.id.urlInput3);
         urlInputs[3] = findViewById(R.id.urlInput4);
+        
+        // Configurar ENTER para carregar em cada EditText
+        for (int i = 0; i < 4; i++) {
+            final int boxIndex = i;
+            urlInputs[i].setOnEditorActionListener(new TextView.OnEditorActionListener() {
+                @Override
+                public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                    if (actionId == EditorInfo.IME_ACTION_DONE || 
+                        (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER)) {
+                        // Carregar URL na box correspondente
+                        String url = urlInputs[boxIndex].getText().toString().trim();
+                        if (!url.isEmpty()) {
+                            loadURL(boxIndex, url);
+                        }
+                        return true;
+                    }
+                    return false;
+                }
+            });
+        }
     }
     
     @SuppressLint("SetJavaScriptEnabled")
@@ -409,6 +432,7 @@ public class MainActivity extends AppCompatActivity {
             url = "https://" + url;
         }
         webViews[boxIndex].loadUrl(url);
+        Toast.makeText(this, "Carregando Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
     }
     
     private void reloadAllWebViews() {
