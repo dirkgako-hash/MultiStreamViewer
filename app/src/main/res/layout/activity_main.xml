@@ -11,155 +11,98 @@
         android:layout_height="match_parent"
         android:background="#000000" />
 
-    <!-- Overlay transparente para controles -->
+    <!-- Controles superiores PERMANENTES -->
     <LinearLayout
-        android:id="@+id/overlayControls"
+        android:id="@+id/topControls"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#00000000"
-        android:orientation="vertical"
-        android:visibility="visible">
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:background="#1a1a1aCC"
+        android:orientation="horizontal"
+        android:padding="8dp">
 
-        <!-- Barra superior simplificada -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="32dp"
-            android:background="#1a1a1aCC"
-            android:orientation="horizontal"
-            android:padding="4dp">
+        <Button
+            android:id="@+id/btnMenu"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:background="#1e3c72"
+            android:text="☰ MENU"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
 
-            <Button
-                android:id="@+id/btnMenu"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:background="#333333"
-                android:text="☰"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
-
-            <Button
-                android:id="@+id/btnOrientation"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:background="#333333"
-                android:text="📱"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp" />
-        </LinearLayout>
-
-        <!-- Container para controles -->
-        <FrameLayout
-            android:id="@+id/controlsContainer"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-
-        <!-- Barra inferior COMPACTA -->
-        <LinearLayout
-            android:id="@+id/bottomPanel"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="#1a1a1aCC"
-            android:orientation="vertical"
-            android:padding="6dp">
-
-            <!-- Linha 1: Botões principais -->
-            <LinearLayout
-                android:id="@+id/controlsRow"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center">
-
-                    <Button
-                        android:id="@+id/btnFoldChecks"
-                        android:layout_width="40dp"
-                        android:layout_height="32dp"
-                        android:background="#444444"
-                        android:text="▲"
-                        android:textColor="#FFFFFF"
-                        android:textSize="16sp" />
-
-                    <Button
-                        android:id="@+id/btnToggleSidebar"
-                        android:layout_width="0dp"
-                        android:layout_height="32dp"
-                        android:layout_weight="1"
-                        android:layout_marginStart="8dp"
-                        android:background="#1e3c72"
-                        android:text="☰ MENU"
-                        android:textColor="#FFFFFF"
-                        android:textSize="12sp" />
-
-                    <Button
-                        android:id="@+id/btnTogglePortrait"
-                        android:layout_width="0dp"
-                        android:layout_height="32dp"
-                        android:layout_weight="1"
-                        android:layout_marginStart="8dp"
-                        android:background="#1e3c72"
-                        android:text="📱 ORIENT"
-                        android:textColor="#FFFFFF"
-                        android:textSize="12sp" />
-            </LinearLayout>
-
-            <!-- Linha 2: Checkboxes -->
-            <LinearLayout
-                android:id="@+id/checkboxContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:gravity="center"
-                android:orientation="horizontal">
-
-                <CheckBox
-                    android:id="@+id/checkBox1"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="BOX 1"
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp"
-                    android:layout_marginEnd="8dp"
-                    android:checked="true" />
-
-                <CheckBox
-                    android:id="@+id/checkBox2"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="BOX 2"
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp"
-                    android:layout_marginEnd="8dp"
-                    android:checked="true" />
-
-                <CheckBox
-                    android:id="@+id/checkBox3"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="BOX 3"
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp"
-                    android:layout_marginEnd="8dp"
-                    android:checked="true" />
-
-                <CheckBox
-                    android:id="@+id/checkBox4"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="BOX 4"
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp"
-                    android:checked="true" />
-            </LinearLayout>
-        </LinearLayout>
+        <Button
+            android:id="@+id/btnOrientation"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:background="#1e3c72"
+            android:text="📱 ORIENT"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
     </LinearLayout>
 
-    <!-- Sidebar Menu COMPACTO -->
+    <!-- Seleção de boxes INFERIOR PERMANENTE -->
+    <LinearLayout
+        android:id="@+id/bottomControls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:background="#1a1a1aCC"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="8dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="BOXES:"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:layout_marginEnd="8dp" />
+
+        <CheckBox
+            android:id="@+id/checkBox1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:layout_marginEnd="8dp"
+            android:checked="true" />
+
+        <CheckBox
+            android:id="@+id/checkBox2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="2"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:layout_marginEnd="8dp"
+            android:checked="true" />
+
+        <CheckBox
+            android:id="@+id/checkBox3"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="3"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:layout_marginEnd="8dp"
+            android:checked="true" />
+
+        <CheckBox
+            android:id="@+id/checkBox4"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="4"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:checked="true" />
+    </LinearLayout>
+
+    <!-- Sidebar Menu -->
     <ScrollView
         android:id="@+id/sidebarMenu"
         android:layout_width="240dp"
@@ -173,13 +116,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="8dp">
+            android:padding="12dp">
 
-            <!-- Cabeçalho compacto -->
+            <!-- Cabeçalho -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
+                android:layout_marginBottom="16dp"
                 android:orientation="horizontal">
 
                 <TextView
@@ -188,142 +131,142 @@
                     android:layout_weight="1"
                     android:text="CONFIGURAÇÕES"
                     android:textColor="#FFFFFF"
-                    android:textSize="12sp"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
 
                 <Button
                     android:id="@+id/btnCloseMenu"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                     android:background="#ff4444"
                     android:text="✕"
                     android:textColor="#FFFFFF"
-                    android:textSize="12sp" />
+                    android:textSize="14sp" />
             </LinearLayout>
 
-            <!-- Configurações compactas -->
+            <!-- Configurações -->
             <CheckBox
                 android:id="@+id/cbAllowScripts"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:checked="true"
-                android:text="JavaScript"
+                android:text="Permitir JavaScript"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp" />
 
             <CheckBox
                 android:id="@+id/cbAllowForms"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:checked="true"
-                android:text="Formulários"
+                android:text="Permitir Formulários"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp" />
 
             <CheckBox
                 android:id="@+id/cbAllowPopups"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:checked="true"
-                android:text="Popups"
+                android:text="Permitir Popups"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp" />
 
             <CheckBox
                 android:id="@+id/cbBlockRedirects"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:checked="false"
-                android:text="Bloquear Redirects"
+                android:text="Bloquear Redirecionamentos"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="12dp" />
+                android:textSize="12sp"
+                android:layout_marginBottom="16dp" />
 
-            <!-- URLs compactas -->
+            <!-- URLs -->
             <EditText
                 android:id="@+id/urlInput1"
                 android:layout_width="match_parent"
-                android:layout_height="36dp"
+                android:layout_height="40dp"
                 android:background="#333333"
                 android:hint="URL Box 1"
                 android:inputType="textUri"
-                android:padding="6dp"
+                android:padding="8dp"
                 android:text="https://www.youtube.com"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp" />
 
             <EditText
                 android:id="@+id/urlInput2"
                 android:layout_width="match_parent"
-                android:layout_height="36dp"
+                android:layout_height="40dp"
                 android:background="#333333"
                 android:hint="URL Box 2"
                 android:inputType="textUri"
-                android:padding="6dp"
+                android:padding="8dp"
                 android:text="https://www.twitch.tv"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp" />
 
             <EditText
                 android:id="@+id/urlInput3"
                 android:layout_width="match_parent"
-                android:layout_height="36dp"
+                android:layout_height="40dp"
                 android:background="#333333"
                 android:hint="URL Box 3"
                 android:inputType="textUri"
-                android:padding="6dp"
+                android:padding="8dp"
                 android:text="https://vimeo.com"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp" />
 
             <EditText
                 android:id="@+id/urlInput4"
                 android:layout_width="match_parent"
-                android:layout_height="36dp"
+                android:layout_height="40dp"
                 android:background="#333333"
                 android:hint="URL Box 4"
                 android:inputType="textUri"
-                android:padding="6dp"
+                android:padding="8dp"
                 android:text="https://www.dailymotion.com"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="12dp" />
+                android:textSize="12sp"
+                android:layout_marginBottom="16dp" />
 
-            <!-- Botões compactos -->
+            <!-- Botões -->
             <Button
                 android:id="@+id/btnLoadAll"
                 android:layout_width="match_parent"
-                android:layout_height="36dp"
+                android:layout_height="40dp"
                 android:background="#1e3c72"
                 android:text="CARREGAR TODAS"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp" />
 
             <Button
                 android:id="@+id/btnReloadAll"
                 android:layout_width="match_parent"
-                android:layout_height="36dp"
+                android:layout_height="40dp"
                 android:background="#1e3c72"
                 android:text="RECARREGAR TODAS"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp" />
 
             <Button
                 android:id="@+id/btnClearAll"
                 android:layout_width="match_parent"
-                android:layout_height="36dp"
+                android:layout_height="40dp"
                 android:background="#ff4444"
                 android:text="LIMPAR TODAS"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp" />
+                android:textSize="12sp" />
         </LinearLayout>
     </ScrollView>
 </RelativeLayout>
