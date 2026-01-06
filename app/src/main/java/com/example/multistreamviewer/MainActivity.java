@@ -39,6 +39,7 @@ public class MainActivity extends AppCompatActivity {
     // Controles
     private Button btnMenu, btnOrientation, btnFoldChecks, btnToggleSidebar, btnTogglePortrait;
     private Button btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll;
+    private Button[] layoutButtons = new Button[8];
     private CheckBox[] checkBoxes = new CheckBox[4];
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects;
     private EditText[] urlInputs = new EditText[4];
@@ -47,7 +48,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean[] boxEnabled = {true, true, true, true};
     private boolean isSidebarVisible = false;
     private boolean isControlsFolded = false;
-    private int currentOrientation = Configuration.ORIENTATION_PORTRAIT;
+    private String currentLayout = "2x2";
     
     // Controles individuais por box
     private LinearLayout[] boxControlPanels = new LinearLayout[4];
@@ -81,7 +82,7 @@ public class MainActivity extends AppCompatActivity {
         // Configurar layout inicial
         updateLayout();
         
-        // Mostrar overlay por padrão
+        // Overlay visível por padrão
         overlayControls.setVisibility(View.VISIBLE);
         
         // Carregar URLs iniciais
@@ -103,6 +104,16 @@ public class MainActivity extends AppCompatActivity {
         btnLoadAll = findViewById(R.id.btnLoadAll);
         btnReloadAll = findViewById(R.id.btnReloadAll);
         btnClearAll = findViewById(R.id.btnClearAll);
+        
+        // Botões de layout
+        layoutButtons[0] = findViewById(R.id.btnLayout2x2);
+        layoutButtons[1] = findViewById(R.id.btnLayout1x4);
+        layoutButtons[2] = findViewById(R.id.btnLayout4x1);
+        layoutButtons[3] = findViewById(R.id.btnLayout1x2);
+        layoutButtons[4] = findViewById(R.id.btnLayout2x1);
+        layoutButtons[5] = findViewById(R.id.btnLayout1x3);
+        layoutButtons[6] = findViewById(R.id.btnLayout3x1);
+        layoutButtons[7] = findViewById(R.id.btnLayout1x1);
         
         // Checkboxes
         checkBoxes[0] = findViewById(R.id.checkBox1);
@@ -127,6 +138,9 @@ public class MainActivity extends AppCompatActivity {
             boxHandlers[i] = new Handler();
             controlPanelVisible[i] = false;
         }
+        
+        // Debug
+        Log.d("MainActivity", "Views inicializadas");
     }
     
     @SuppressLint("SetJavaScriptEnabled")
@@ -154,7 +168,7 @@ public class MainActivity extends AppCompatActivity {
             // Criar painel de controles da box
             createBoxControlPanel(boxIndex);
             
-            // Configurar clique duplo para mostrar controles
+            // Configurar clique para mostrar controles
             boxContainers[i].setOnClickListener(new View.OnClickListener() {
                 private long lastClickTime = 0;
                 
@@ -177,11 +191,11 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void createBoxControlPanel(int boxIndex) {
-        // Criar painel de controles com cores visíveis
+        // Criar painel de controles COM CORES MELHORADAS
         boxControlPanels[boxIndex] = new LinearLayout(this);
         boxControlPanels[boxIndex].setOrientation(LinearLayout.HORIZONTAL);
-        boxControlPanels[boxIndex].setBackgroundColor(0xEE333333);
-        boxControlPanels[boxIndex].setPadding(12, 8, 12, 8);
+        boxControlPanels[boxIndex].setBackgroundColor(0xEE222222); // Cinza escuro
+        boxControlPanels[boxIndex].setPadding(8, 6, 8, 6);
         boxControlPanels[boxIndex].setVisibility(View.GONE);
         
         // Layout params - posicionar no TOPO do container
@@ -189,19 +203,30 @@ public class MainActivity extends AppCompatActivity {
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.WRAP_CONTENT);
         params.gravity = android.view.Gravity.TOP;
+        params.topMargin = 4;
         boxContainers[boxIndex].addView(boxControlPanels[boxIndex], params);
         
-        // Botões do painel
-        String[] buttonLabels = {"+", "-", "↻", "←", "→", "⤢"};
-        String[] buttonActions = {"zoomIn", "zoomOut", "refresh", "back", "forward", "fullscreen"};
+        // Botões do painel com ícones claros e cores diferentes
+        String[] buttonLabels = {"☰", "⛶", "+", "-", "↻", "←", "→"};
+        String[] buttonActions = {"menu", "fullscreen", "zoomIn", "zoomOut", "refresh", "back", "forward"};
+        int[] buttonColors = {
+            0xFF4CAF50,  // Verde para menu
+            0xFF2196F3,  // Azul para fullscreen
+            0xFF9C27B0,  // Roxo para zoom in
+            0xFF9C27B0,  // Roxo para zoom out
+            0xFFFF9800,  // Laranja para refresh
+            0xFF607D8B,  // Cinza azulado para back
+            0xFF607D8B   // Cinza azulado para forward
+        };
         
         for (int j = 0; j < buttonLabels.length; j++) {
             Button btn = new Button(this);
             btn.setText(buttonLabels[j]);
-            btn.setBackgroundColor(0xFF1e3c72);
+            btn.setBackgroundColor(buttonColors[j]);
             btn.setTextColor(Color.WHITE);
             btn.setTextSize(14);
-            btn.setPadding(12, 8, 12, 8);
+            btn.setPadding(10, 6, 10, 6);
+            btn.setMinWidth(0);
             
             final int actionIndex = j;
             final int currentBoxIndex = boxIndex;
@@ -212,7 +237,7 @@ public class MainActivity extends AppCompatActivity {
             
             LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
-            btnParams.setMargins(4, 0, 4, 0);
+            btnParams.setMargins(2, 0, 2, 0);
             boxControlPanels[boxIndex].addView(btn, btnParams);
         }
     }
@@ -280,7 +305,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         
-        // WebChromeClient para fullscreen - ESSENCIAL!
+        // WebChromeClient para fullscreen
         webView.setWebChromeClient(new WebChromeClient() {
             private View mCustomView;
             private WebChromeClient.CustomViewCallback mCustomViewCallback;
@@ -344,15 +369,6 @@ public class MainActivity extends AppCompatActivity {
                     "Exited fullscreen", 
                     Toast.LENGTH_SHORT).show();
             }
-            
-            @Override
-            public void onProgressChanged(WebView view, int newProgress) {
-                super.onProgressChanged(view, newProgress);
-                // Log para debug
-                if (newProgress == 100) {
-                    Log.d("WebView", "Box " + boxIndex + " loaded: " + view.getUrl());
-                }
-            }
         });
     }
     
@@ -366,7 +382,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         
-        // Botão toggle sidebar - MOSTRAR sidebar
+        // Botão toggle sidebar
         btnToggleSidebar.setOnClickListener(v -> {
             if (sidebarMenu.getVisibility() == View.VISIBLE) {
                 sidebarMenu.setVisibility(View.GONE);
@@ -381,7 +397,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         
-        // Botão orientação - MUDAR layout
+        // Botão orientação
         btnOrientation.setOnClickListener(v -> {
             changeOrientation();
         });
@@ -390,9 +406,31 @@ public class MainActivity extends AppCompatActivity {
             changeOrientation();
         });
         
-        // Botão fold checks - dobrar controles inferiores
+        // Botão fold checks - IMPORTANTE: FUNCIONANDO
         btnFoldChecks.setOnClickListener(v -> {
-            toggleBottomControls();
+            LinearLayout controlsRow = findViewById(R.id.controlsRow);
+            LinearLayout checkboxContainer = findViewById(R.id.checkboxContainer);
+            
+            if (controlsRow == null || checkboxContainer == null) {
+                Log.e("MainActivity", "Controls not found!");
+                return;
+            }
+            
+            if (isControlsFolded) {
+                // Mostrar tudo
+                controlsRow.setVisibility(View.VISIBLE);
+                checkboxContainer.setVisibility(View.VISIBLE);
+                btnFoldChecks.setText("▲");
+                isControlsFolded = false;
+                Toast.makeText(this, "Controles mostrados", Toast.LENGTH_SHORT).show();
+            } else {
+                // Esconder tudo
+                controlsRow.setVisibility(View.GONE);
+                checkboxContainer.setVisibility(View.GONE);
+                btnFoldChecks.setText("▼");
+                isControlsFolded = true;
+                Toast.makeText(this, "Controles escondidos", Toast.LENGTH_SHORT).show();
+            }
         });
         
         // Botão fechar menu
@@ -400,6 +438,16 @@ public class MainActivity extends AppCompatActivity {
             sidebarMenu.setVisibility(View.GONE);
             isSidebarVisible = false;
         });
+        
+        // Botões de layout
+        layoutButtons[0].setOnClickListener(v -> changeLayout("2x2"));
+        layoutButtons[1].setOnClickListener(v -> changeLayout("1x4"));
+        layoutButtons[2].setOnClickListener(v -> changeLayout("4x1"));
+        layoutButtons[3].setOnClickListener(v -> changeLayout("1x2"));
+        layoutButtons[4].setOnClickListener(v -> changeLayout("2x1"));
+        layoutButtons[5].setOnClickListener(v -> changeLayout("1x3"));
+        layoutButtons[6].setOnClickListener(v -> changeLayout("3x1"));
+        layoutButtons[7].setOnClickListener(v -> changeLayout("1x1"));
         
         // Botões de ação
         btnLoadAll.setOnClickListener(v -> {
@@ -464,6 +512,16 @@ public class MainActivity extends AppCompatActivity {
         WebView webView = webViews[boxIndex];
         
         switch (action) {
+            case "menu":
+                // Alternar sidebar
+                if (sidebarMenu.getVisibility() == View.VISIBLE) {
+                    sidebarMenu.setVisibility(View.GONE);
+                    isSidebarVisible = false;
+                } else {
+                    sidebarMenu.setVisibility(View.VISIBLE);
+                    isSidebarVisible = true;
+                }
+                break;
             case "zoomIn":
                 webView.zoomIn();
                 showToast("Zoom in Box " + (boxIndex + 1));
@@ -530,7 +588,6 @@ public class MainActivity extends AppCompatActivity {
             boxControlPanels[boxIndex].setVisibility(View.VISIBLE);
             controlPanelVisible[boxIndex] = true;
             resetBoxControlPanelTimer(boxIndex);
-            showToast("Controls Box " + (boxIndex + 1));
         }
     }
     
@@ -551,49 +608,31 @@ public class MainActivity extends AppCompatActivity {
                 if (controlPanelVisible[boxIndex]) {
                     hideBoxControlPanel(boxIndex);
                 }
-            }, 5000);
+            }, 10000); // 10 SEGUNDOS
         }
     }
     
     private void changeOrientation() {
         try {
-            if (currentOrientation == Configuration.ORIENTATION_PORTRAIT) {
-                currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
+            // Não faz nada com layout, apenas muda o texto do botão
+            if (btnOrientation.getText().toString().equals("📱")) {
                 btnOrientation.setText("↻");
                 btnTogglePortrait.setText("Landscape");
                 showToast("Landscape Mode");
             } else {
-                currentOrientation = Configuration.ORIENTATION_PORTRAIT;
                 btnOrientation.setText("📱");
                 btnTogglePortrait.setText("Portrait");
                 showToast("Portrait Mode");
             }
-            updateLayout();
         } catch (Exception e) {
             Log.e("Orientation", "Error: " + e.getMessage());
-            showToast("Error changing layout");
         }
     }
     
-    private void toggleBottomControls() {
-        LinearLayout checkboxContainer = findViewById(R.id.checkboxContainer);
-        LinearLayout controlsRow = findViewById(R.id.controlsRow);
-        
-        if (isControlsFolded) {
-            // Mostrar tudo
-            if (checkboxContainer != null) checkboxContainer.setVisibility(View.VISIBLE);
-            if (controlsRow != null) controlsRow.setVisibility(View.VISIBLE);
-            btnFoldChecks.setText("▲");
-            isControlsFolded = false;
-            showToast("Controls shown");
-        } else {
-            // Esconder tudo
-            if (checkboxContainer != null) checkboxContainer.setVisibility(View.GONE);
-            if (controlsRow != null) controlsRow.setVisibility(View.GONE);
-            btnFoldChecks.setText("▼");
-            isControlsFolded = true;
-            showToast("Controls hidden");
-        }
+    private void changeLayout(String layout) {
+        currentLayout = layout;
+        showToast("Layout: " + layout);
+        updateLayout();
     }
     
     private void updateLayout() {
@@ -610,25 +649,43 @@ public class MainActivity extends AppCompatActivity {
             
             int rows, cols;
             
-            if (activeBoxes == 1) {
-                rows = 1; cols = 1;
-            } else if (activeBoxes == 2) {
-                if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+            // Mapear layout string para rows e cols
+            switch (currentLayout) {
+                case "1x1":
+                    rows = 1; cols = 1;
+                    break;
+                case "1x2":
                     rows = 1; cols = 2;
-                } else {
+                    break;
+                case "2x1":
                     rows = 2; cols = 1;
-                }
-            } else if (activeBoxes == 3) {
-                if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-                    rows = 2; cols = 2; // Um espaço vazio
-                } else {
-                    rows = 2; cols = 2;
-                }
-            } else {
-                if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-                    rows = 2; cols = 2;
-                } else {
+                    break;
+                case "1x3":
+                    rows = 1; cols = 3;
+                    break;
+                case "3x1":
+                    rows = 3; cols = 1;
+                    break;
+                case "1x4":
+                    rows = 1; cols = 4;
+                    break;
+                case "4x1":
                     rows = 4; cols = 1;
+                    break;
+                case "2x2":
+                default:
+                    rows = 2; cols = 2;
+                    break;
+            }
+            
+            // Ajustar para número de boxes ativas
+            int maxCells = rows * cols;
+            if (activeBoxes < maxCells) {
+                // Reduzir células se necessário
+                if (cols > 1 && activeBoxes <= rows) {
+                    cols = activeBoxes;
+                } else if (rows > 1 && activeBoxes <= cols) {
+                    rows = activeBoxes;
                 }
             }
             
@@ -651,6 +708,8 @@ public class MainActivity extends AppCompatActivity {
                     boxContainers[i].setVisibility(View.VISIBLE);
                     gridLayout.addView(boxContainers[i], params);
                     position++;
+                    
+                    if (position >= maxCells) break;
                 } else {
                     boxContainers[i].setVisibility(View.GONE);
                     hideBoxControlPanel(i);
@@ -726,16 +785,6 @@ public class MainActivity extends AppCompatActivity {
         showToast("Settings applied");
     }
     
-    private boolean isSameDomain(String url1, String url2) {
-        try {
-            java.net.URL u1 = new java.net.URL(url1);
-            java.net.URL u2 = new java.net.URL(url2);
-            return u1.getHost().equals(u2.getHost());
-        } catch (Exception e) {
-            return false;
-        }
-    }
-    
     private void showToast(String message) {
         runOnUiThread(() -> Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show());
     }
@@ -767,16 +816,6 @@ public class MainActivity extends AppCompatActivity {
             overlayControls.setVisibility(View.VISIBLE);
             return;
         }
-        
-        // Por último, voltar no WebView
-        // for (WebView webView : webViews) {
-        //     if (webView.canGoBack()) {
-        //         webView.goBack();
-        //         return;
-        //     }
-        // }
-        
-        // super.onBackPressed();
     }
     
     @Override
