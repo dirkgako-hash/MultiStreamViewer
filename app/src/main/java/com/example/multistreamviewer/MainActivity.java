@@ -1,6 +1,8 @@
 package com.example.multistreamviewer;
 
 import android.annotation.SuppressLint;
+import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -13,6 +15,7 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -20,11 +23,21 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.gridlayout.widget.GridLayout;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -38,6 +51,7 @@ public class MainActivity extends AppCompatActivity {
     // Controles
     private Button btnMenu, btnOrientation;
     private Button btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll;
+    private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
     private CheckBox[] checkBoxes = new CheckBox[4];
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects;
     private EditText[] urlInputs = new EditText[4];
@@ -46,12 +60,19 @@ public class MainActivity extends AppCompatActivity {
     private boolean[] boxEnabled = {true, true, true, true};
     private boolean isSidebarVisible = false;
     private int currentOrientation = Configuration.ORIENTATION_PORTRAIT;
+    
+    // Favoritos
+    private ArrayList<String> favoritesList = new ArrayList<>();
+    private SharedPreferences preferences;
 
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        
+        // Inicializar SharedPreferences
+        preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
         
         // Configurar tela cheia
         getWindow().getDecorView().setSystemUiVisibility(
@@ -64,6 +85,12 @@ public class MainActivity extends AppCompatActivity {
         initViews();
         initWebViews();
         initEventListeners();
+        
+        // Carregar estado salvo
+        loadSavedState();
+        
+        // Carregar lista de favoritos
+        loadFavoritesList();
         
         // Configurar layout inicial
         updateLayout();
@@ -86,6 +113,12 @@ public class MainActivity extends AppCompatActivity {
         btnLoadAll = findViewById(R.id.btnLoadAll);
         btnReloadAll = findViewById(R.id.btnReloadAll);
         btnClearAll = findViewById(R.id.btnClearAll);
+        
+        // Botões de estado e favoritos
+        btnSaveState = findViewById(R.id.btnSaveState);
+        btnLoadState = findViewById(R.id.btnLoadState);
+        btnSaveFavorites = findViewById(R.id.btnSaveFavorites);
+        btnLoadFavorites = findViewById(R.id.btnLoadFavorites);
         
         // Checkboxes
         checkBoxes[0] = findViewById(R.id.checkBox1);
@@ -289,6 +322,23 @@ public class MainActivity extends AppCompatActivity {
             clearAllWebViews();
         });
         
+        // Botões de estado e favoritos
+        btnSaveState.setOnClickListener(v -> {
+            saveCurrentState();
+        });
+        
+        btnLoadState.setOnClickListener(v -> {
+            loadSavedState();
+        });
+        
+        btnSaveFavorites.setOnClickListener(v -> {
+            showSaveFavoriteDialog();
+        });
+        
+        btnLoadFavorites.setOnClickListener(v -> {
+            showLoadFavoritesDialog();
+        });
+        
         // Checkboxes de boxes
         for (int i = 0; i < 4; i++) {
             final int index = i;
@@ -309,6 +359,293 @@ public class MainActivity extends AppCompatActivity {
                           Toast.LENGTH_SHORT).show();
         });
     }
+    
+    // ==================== ESTADO ====================
+    
+    private void saveCurrentState() {
+        try {
+            SharedPreferences.Editor editor = preferences.edit();
+            
+            // Salvar URLs
+            for (int i = 0; i < 4; i++) {
+                editor.putString("url_" + i, urlInputs[i].getText().toString());
+            }
+            
+            // Salvar estado das checkboxes
+            for (int i = 0; i < 4; i++) {
+                editor.putBoolean("box_enabled_" + i, boxEnabled[i]);
+            }
+            
+            // Salvar orientação
+            editor.putInt("orientation", currentOrientation);
+            
+            editor.apply();
+            
+            Toast.makeText(this, "Estado guardado com sucesso!", Toast.LENGTH_SHORT).show();
+            
+        } catch (Exception e) {
+            Toast.makeText(this, "Erro ao guardar estado: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private void loadSavedState() {
+        try {
+            // Carregar URLs
+            for (int i = 0; i < 4; i++) {
+                String savedUrl = preferences.getString("url_" + i, "");
+                if (!savedUrl.isEmpty()) {
+                    urlInputs[i].setText(savedUrl);
+                }
+            }
+            
+            // Carregar estado das checkboxes
+            for (int i = 0; i < 4; i++) {
+                boolean savedState = preferences.getBoolean("box_enabled_" + i, true);
+                boxEnabled[i] = savedState;
+                checkBoxes[i].setChecked(savedState);
+            }
+            
+            // Carregar orientação
+            int savedOrientation = preferences.getInt("orientation", Configuration.ORIENTATION_PORTRAIT);
+            currentOrientation = savedOrientation;
+            btnOrientation.setText(currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "📱" : "↻");
+            
+            Toast.makeText(this, "Estado carregado com sucesso!", Toast.LENGTH_SHORT).show();
+            
+        } catch (Exception e) {
+            Toast.makeText(this, "Erro ao carregar estado: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    // ==================== FAVORITOS ====================
+    
+    private void loadFavoritesList() {
+        try {
+            String favoritesJson = preferences.getString("favorites_list", "[]");
+            JSONArray jsonArray = new JSONArray(favoritesJson);
+            
+            favoritesList.clear();
+            for (int i = 0; i < jsonArray.length(); i++) {
+                JSONObject favorite = jsonArray.getJSONObject(i);
+                String name = favorite.getString("name");
+                favoritesList.add(name);
+            }
+            
+        } catch (Exception e) {
+            favoritesList.clear();
+        }
+    }
+    
+    private void saveFavoritesList() {
+        try {
+            JSONArray jsonArray = new JSONArray();
+            
+            for (int i = 0; i < favoritesList.size(); i++) {
+                JSONObject favorite = new JSONObject();
+                favorite.put("name", favoritesList.get(i));
+                jsonArray.put(favorite);
+            }
+            
+            SharedPreferences.Editor editor = preferences.edit();
+            editor.putString("favorites_list", jsonArray.toString());
+            editor.apply();
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private void saveFavorite(String favoriteName) {
+        try {
+            // Verificar se já existe
+            if (favoritesList.contains(favoriteName)) {
+                Toast.makeText(this, "Já existe um favorito com este nome!", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
+            // Criar JSON com as URLs atuais
+            JSONObject favoriteData = new JSONObject();
+            favoriteData.put("name", favoriteName);
+            
+            JSONArray urlsArray = new JSONArray();
+            for (int i = 0; i < 4; i++) {
+                urlsArray.put(urlInputs[i].getText().toString());
+            }
+            favoriteData.put("urls", urlsArray);
+            
+            // Adicionar à lista e salvar
+            favoritesList.add(favoriteName);
+            saveFavoritesList();
+            
+            // Salvar os dados do favorito
+            SharedPreferences.Editor editor = preferences.edit();
+            editor.putString("favorite_" + favoriteName, favoriteData.toString());
+            editor.apply();
+            
+            Toast.makeText(this, "Favorito '" + favoriteName + "' guardado!", Toast.LENGTH_SHORT).show();
+            
+        } catch (Exception e) {
+            Toast.makeText(this, "Erro ao guardar favorito: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private void loadFavorite(String favoriteName) {
+        try {
+            String favoriteJson = preferences.getString("favorite_" + favoriteName, "");
+            if (favoriteJson.isEmpty()) {
+                Toast.makeText(this, "Favorito não encontrado!", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
+            JSONObject favoriteData = new JSONObject(favoriteJson);
+            JSONArray urlsArray = favoriteData.getJSONArray("urls");
+            
+            // Carregar URLs
+            for (int i = 0; i < 4 && i < urlsArray.length(); i++) {
+                String url = urlsArray.getString(i);
+                urlInputs[i].setText(url);
+            }
+            
+            // Carregar todas as URLs
+            loadAllURLs();
+            
+            Toast.makeText(this, "Favorito '" + favoriteName + "' carregado!", Toast.LENGTH_SHORT).show();
+            
+        } catch (Exception e) {
+            Toast.makeText(this, "Erro ao carregar favorito: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private void deleteFavorite(String favoriteName) {
+        try {
+            // Remover da lista
+            favoritesList.remove(favoriteName);
+            saveFavoritesList();
+            
+            // Remover dados
+            SharedPreferences.Editor editor = preferences.edit();
+            editor.remove("favorite_" + favoriteName);
+            editor.apply();
+            
+            Toast.makeText(this, "Favorito '" + favoriteName + "' removido!", Toast.LENGTH_SHORT).show();
+            
+        } catch (Exception e) {
+            Toast.makeText(this, "Erro ao remover favorito: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    // ==================== DIALOGS ====================
+    
+    private void showSaveFavoriteDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Guardar Favorito");
+        
+        // Configurar a view do dialog
+        final EditText input = new EditText(this);
+        input.setHint("Nome do favorito");
+        builder.setView(input);
+        
+        builder.setPositiveButton("GUARDAR", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                String favoriteName = input.getText().toString().trim();
+                if (!favoriteName.isEmpty()) {
+                    saveFavorite(favoriteName);
+                } else {
+                    Toast.makeText(MainActivity.this, "Digite um nome para o favorito!", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        
+        builder.setNegativeButton("CANCELAR", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.cancel();
+            }
+        });
+        
+        builder.show();
+    }
+    
+    private void showLoadFavoritesDialog() {
+        if (favoritesList.isEmpty()) {
+            Toast.makeText(this, "Não há favoritos guardados!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Carregar Favorito");
+        
+        // Converter lista para array
+        final String[] favoriteNames = favoritesList.toArray(new String[0]);
+        
+        builder.setItems(favoriteNames, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                String selectedFavorite = favoriteNames[which];
+                showFavoriteOptionsDialog(selectedFavorite);
+            }
+        });
+        
+        builder.setNegativeButton("CANCELAR", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.cancel();
+            }
+        });
+        
+        builder.show();
+    }
+    
+    private void showFavoriteOptionsDialog(final String favoriteName) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Favorito: " + favoriteName);
+        
+        String[] options = {"Carregar", "Eliminar", "Cancelar"};
+        
+        builder.setItems(options, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                switch (which) {
+                    case 0: // Carregar
+                        loadFavorite(favoriteName);
+                        break;
+                    case 1: // Eliminar
+                        showDeleteConfirmDialog(favoriteName);
+                        break;
+                    case 2: // Cancelar
+                        dialog.dismiss();
+                        break;
+                }
+            }
+        });
+        
+        builder.show();
+    }
+    
+    private void showDeleteConfirmDialog(final String favoriteName) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Confirmar Eliminação");
+        builder.setMessage("Tem certeza que deseja eliminar o favorito '" + favoriteName + "'?");
+        
+        builder.setPositiveButton("ELIMINAR", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                deleteFavorite(favoriteName);
+            }
+        });
+        
+        builder.setNegativeButton("CANCELAR", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+            }
+        });
+        
+        builder.show();
+    }
+    
+    // ==================== OUTROS MÉTODOS ====================
     
     private void activateFullscreen(int boxIndex) {
         // Ativar fullscreen via JavaScript
@@ -458,6 +795,20 @@ public class MainActivity extends AppCompatActivity {
         super.onConfigurationChanged(newConfig);
         currentOrientation = newConfig.orientation;
         updateLayout();
+    }
+    
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Guardar estado automaticamente ao sair
+        saveCurrentState();
+    }
+    
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Recarregar favoritos
+        loadFavoritesList();
     }
     
     @Override
