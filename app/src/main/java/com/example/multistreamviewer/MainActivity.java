@@ -5,17 +5,19 @@ import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -23,7 +25,6 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -32,12 +33,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.gridlayout.widget.GridLayout;
 
 import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Arrays;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -53,7 +53,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
     private CheckBox[] checkBoxes = new CheckBox[4];
-    private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects;
+    private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
     private EditText[] urlInputs = new EditText[4];
     
     // Estado
@@ -64,6 +64,29 @@ public class MainActivity extends AppCompatActivity {
     // Favoritos
     private ArrayList<String> favoritesList = new ArrayList<>();
     private SharedPreferences preferences;
+    
+    // Lista de domínios de anúncios para bloquear
+    private final List<String> adDomains = Arrays.asList(
+        "doubleclick.net",
+        "googleadservices.com",
+        "googlesyndication.com",
+        "ads.google.com",
+        "adservice.google.com",
+        "ads.facebook.com",
+        "ad.doubleclick.net",
+        "adserver.google.com",
+        "pagead2.googlesyndication.com",
+        "ads.youtube.com",
+        "ad.youtube.com",
+        "pubads.g.doubleclick.net",
+        "securepubads.g.doubleclick.net",
+        "www.googletagservices.com",
+        "googletagservices.com",
+        "ads-twitter.com",
+        "ads.twitter.com",
+        "ads.reddit.com",
+        "ad.reddit.com"
+    );
 
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
@@ -86,8 +109,8 @@ public class MainActivity extends AppCompatActivity {
         initWebViews();
         initEventListeners();
         
-        // Carregar estado salvo
-        loadSavedState();
+        // Carregar estado salvo AUTOMATICAMENTE
+        loadSavedState(true);
         
         // Carregar lista de favoritos
         loadFavoritesList();
@@ -95,8 +118,10 @@ public class MainActivity extends AppCompatActivity {
         // Configurar layout inicial
         updateLayout();
         
-        // Carregar URLs iniciais
-        new Handler().postDelayed(this::loadInitialURLs, 1000);
+        // Carregar URLs iniciais apenas se não tiver estado salvo
+        if (!hasSavedState()) {
+            new Handler().postDelayed(this::loadInitialURLs, 1000);
+        }
     }
     
     private void initViews() {
@@ -131,6 +156,7 @@ public class MainActivity extends AppCompatActivity {
         cbAllowForms = findViewById(R.id.cbAllowForms);
         cbAllowPopups = findViewById(R.id.cbAllowPopups);
         cbBlockRedirects = findViewById(R.id.cbBlockRedirects);
+        cbBlockAds = findViewById(R.id.cbBlockAds);
         
         // URLs
         urlInputs[0] = findViewById(R.id.urlInput1);
@@ -223,14 +249,89 @@ public class MainActivity extends AppCompatActivity {
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
         
+        // Bloquear anúncios
+        settings.setBlockNetworkLoads(cbBlockAds.isChecked());
+        settings.setBlockNetworkImage(cbBlockAds.isChecked());
+        
         // User agent
         settings.setUserAgentString("Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36");
         
         // Cor de fundo
         webView.setBackgroundColor(Color.BLACK);
         
-        // WebViewClient simplificado
-        webView.setWebViewClient(new WebViewClient());
+        // WebViewClient com bloqueio de redirecionamentos e anúncios
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return handleUrlLoading(view, request.getUrl().toString());
+            }
+            
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return handleUrlLoading(view, url);
+            }
+            
+            private boolean handleUrlLoading(WebView view, String url) {
+                Log.d("URL_LOADING", "Tentando carregar: " + url);
+                
+                // 1. Bloqueio de redirecionamentos
+                if (cbBlockRedirects.isChecked()) {
+                    String currentUrl = view.getUrl();
+                    if (currentUrl != null && !isSameDomain(currentUrl, url)) {
+                        Toast.makeText(MainActivity.this, 
+                            "Redirecionamento bloqueado: " + getDomain(url), 
+                            Toast.LENGTH_SHORT).show();
+                        return true; // Bloquear
+                    }
+                }
+                
+                // 2. Bloqueio de anúncios
+                if (cbBlockAds.isChecked() && isAdUrl(url)) {
+                    Toast.makeText(MainActivity.this, 
+                        "Anúncio bloqueado: " + getDomain(url), 
+                        Toast.LENGTH_SHORT).show();
+                    return true; // Bloquear
+                }
+                
+                return false; // Permitir carregamento
+            }
+            
+            @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                Log.d("PAGE_STARTED", "Carregando: " + url);
+                
+                // Injetar script para remover anúncios
+                if (cbBlockAds.isChecked()) {
+                    injectAdBlocker(view);
+                }
+            }
+            
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                
+                // Injetar JavaScript para permitir fullscreen
+                String fullscreenJS = 
+                    "var videos = document.getElementsByTagName('video');" +
+                    "for(var i = 0; i < videos.length; i++) {" +
+                    "   videos[i].setAttribute('playsinline', 'false');" +
+                    "   videos[i].setAttribute('webkit-playsinline', 'false');" +
+                    "   videos[i].controls = true;" +
+                    "}";
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                    view.evaluateJavascript(fullscreenJS, null);
+                } else {
+                    view.loadUrl("javascript:" + fullscreenJS);
+                }
+                
+                // Injetar script para remover anúncios após carregamento
+                if (cbBlockAds.isChecked()) {
+                    injectAdBlocker(view);
+                }
+            }
+        });
         
         // WebChromeClient para fullscreen
         webView.setWebChromeClient(new WebChromeClient() {
@@ -286,6 +387,77 @@ public class MainActivity extends AppCompatActivity {
         });
     }
     
+    private void injectAdBlocker(WebView view) {
+        String adBlockJS = 
+            "// Remover elementos de anúncios comuns" +
+            "var selectors = [" +
+            "   'div[class*=\"ad\"]'," +
+            "   'div[id*=\"ad\"]'," +
+            "   'iframe[src*=\"ad\"]'," +
+            "   'ins.adsbygoogle'," +
+            "   'div.ad-container'," +
+            "   'div.advertisement'," +
+            "   'div.ad-banner'," +
+            "   'div.ad-wrapper'," +
+            "   'div[data-ad-status]'," +
+            "   'div.google-ad'," +
+            "   'div#ad-wrap'," +
+            "   'div#ad-container'" +
+            "];" +
+            "" +
+            "selectors.forEach(function(selector) {" +
+            "   var elements = document.querySelectorAll(selector);" +
+            "   elements.forEach(function(el) {" +
+            "       el.style.display = 'none';" +
+            "       el.parentNode.removeChild(el);" +
+            "   });" +
+            "});" +
+            "" +
+            "// Remover scripts de anúncios" +
+            "var scripts = document.getElementsByTagName('script');" +
+            "for(var i = scripts.length - 1; i >= 0; i--) {" +
+            "   var src = scripts[i].src || '';" +
+            "   if(src.includes('doubleclick') || src.includes('googlesyndication') || src.includes('ads.google')) {" +
+            "       scripts[i].parentNode.removeChild(scripts[i]);" +
+            "   }" +
+            "}";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            view.evaluateJavascript(adBlockJS, null);
+        } else {
+            view.loadUrl("javascript:" + adBlockJS);
+        }
+    }
+    
+    private boolean isAdUrl(String url) {
+        for (String domain : adDomains) {
+            if (url.toLowerCase().contains(domain.toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    private String getDomain(String url) {
+        try {
+            java.net.URI uri = new java.net.URI(url);
+            String domain = uri.getHost();
+            return domain != null ? domain.replace("www.", "") : url;
+        } catch (Exception e) {
+            return url;
+        }
+    }
+    
+    private boolean isSameDomain(String url1, String url2) {
+        try {
+            String domain1 = getDomain(url1);
+            String domain2 = getDomain(url2);
+            return domain1.equals(domain2);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
     private void initEventListeners() {
         // Botão menu
         btnMenu.setOnClickListener(v -> {
@@ -328,7 +500,7 @@ public class MainActivity extends AppCompatActivity {
         });
         
         btnLoadState.setOnClickListener(v -> {
-            loadSavedState();
+            loadSavedState(false);
         });
         
         btnSaveFavorites.setOnClickListener(v -> {
@@ -358,9 +530,25 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "JavaScript: " + (isChecked ? "Ativado" : "Desativado"), 
                           Toast.LENGTH_SHORT).show();
         });
+        
+        cbBlockAds.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            for (WebView webView : webViews) {
+                if (webView != null) {
+                    WebSettings settings = webView.getSettings();
+                    settings.setBlockNetworkLoads(isChecked);
+                    settings.setBlockNetworkImage(isChecked);
+                }
+            }
+            Toast.makeText(this, "Bloqueio de anúncios: " + (isChecked ? "Ativado" : "Desativado"), 
+                          Toast.LENGTH_SHORT).show();
+        });
     }
     
     // ==================== ESTADO ====================
+    
+    private boolean hasSavedState() {
+        return preferences.contains("url_0") || preferences.contains("box_enabled_0");
+    }
     
     private void saveCurrentState() {
         try {
@@ -368,7 +556,11 @@ public class MainActivity extends AppCompatActivity {
             
             // Salvar URLs
             for (int i = 0; i < 4; i++) {
-                editor.putString("url_" + i, urlInputs[i].getText().toString());
+                String currentUrl = urlInputs[i].getText().toString().trim();
+                if (currentUrl.isEmpty()) {
+                    currentUrl = getDefaultUrl(i);
+                }
+                editor.putString("url_" + i, currentUrl);
             }
             
             // Salvar estado das checkboxes
@@ -379,22 +571,42 @@ public class MainActivity extends AppCompatActivity {
             // Salvar orientação
             editor.putInt("orientation", currentOrientation);
             
+            // Salvar configurações
+            editor.putBoolean("allow_scripts", cbAllowScripts.isChecked());
+            editor.putBoolean("allow_forms", cbAllowForms.isChecked());
+            editor.putBoolean("allow_popups", cbAllowPopups.isChecked());
+            editor.putBoolean("block_redirects", cbBlockRedirects.isChecked());
+            editor.putBoolean("block_ads", cbBlockAds.isChecked());
+            
             editor.apply();
             
-            Toast.makeText(this, "Estado guardado com sucesso!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "✅ Estado guardado com sucesso!", Toast.LENGTH_SHORT).show();
             
         } catch (Exception e) {
-            Toast.makeText(this, "Erro ao guardar estado: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "❌ Erro ao guardar estado: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
     
-    private void loadSavedState() {
+    private void loadSavedState(boolean silent) {
         try {
             // Carregar URLs
+            boolean hasSavedUrls = false;
             for (int i = 0; i < 4; i++) {
                 String savedUrl = preferences.getString("url_" + i, "");
                 if (!savedUrl.isEmpty()) {
+                    hasSavedUrls = true;
                     urlInputs[i].setText(savedUrl);
+                    // Carregar a URL no WebView
+                    if (boxEnabled[i]) {
+                        loadURL(i, savedUrl);
+                    }
+                }
+            }
+            
+            // Se não tiver URLs salvas, usar URLs padrão
+            if (!hasSavedUrls) {
+                for (int i = 0; i < 4; i++) {
+                    urlInputs[i].setText(getDefaultUrl(i));
                 }
             }
             
@@ -410,10 +622,33 @@ public class MainActivity extends AppCompatActivity {
             currentOrientation = savedOrientation;
             btnOrientation.setText(currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "📱" : "↻");
             
-            Toast.makeText(this, "Estado carregado com sucesso!", Toast.LENGTH_SHORT).show();
+            // Carregar configurações
+            cbAllowScripts.setChecked(preferences.getBoolean("allow_scripts", true));
+            cbAllowForms.setChecked(preferences.getBoolean("allow_forms", true));
+            cbAllowPopups.setChecked(preferences.getBoolean("allow_popups", true));
+            cbBlockRedirects.setChecked(preferences.getBoolean("block_redirects", false));
+            cbBlockAds.setChecked(preferences.getBoolean("block_ads", false));
+            
+            if (!silent) {
+                Toast.makeText(this, "✅ Estado carregado com sucesso!", Toast.LENGTH_SHORT).show();
+            }
+            
+            updateLayout();
             
         } catch (Exception e) {
-            Toast.makeText(this, "Erro ao carregar estado: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            if (!silent) {
+                Toast.makeText(this, "❌ Erro ao carregar estado: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+    
+    private String getDefaultUrl(int boxIndex) {
+        switch (boxIndex) {
+            case 0: return "https://www.youtube.com";
+            case 1: return "https://www.twitch.tv";
+            case 2: return "https://vimeo.com";
+            case 3: return "https://www.dailymotion.com";
+            default: return "https://www.google.com";
         }
     }
     
@@ -426,8 +661,7 @@ public class MainActivity extends AppCompatActivity {
             
             favoritesList.clear();
             for (int i = 0; i < jsonArray.length(); i++) {
-                JSONObject favorite = jsonArray.getJSONObject(i);
-                String name = favorite.getString("name");
+                String name = jsonArray.getString(i);
                 favoritesList.add(name);
             }
             
@@ -438,14 +672,7 @@ public class MainActivity extends AppCompatActivity {
     
     private void saveFavoritesList() {
         try {
-            JSONArray jsonArray = new JSONArray();
-            
-            for (int i = 0; i < favoritesList.size(); i++) {
-                JSONObject favorite = new JSONObject();
-                favorite.put("name", favoritesList.get(i));
-                jsonArray.put(favorite);
-            }
-            
+            JSONArray jsonArray = new JSONArray(favoritesList);
             SharedPreferences.Editor editor = preferences.edit();
             editor.putString("favorites_list", jsonArray.toString());
             editor.apply();
@@ -459,7 +686,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             // Verificar se já existe
             if (favoritesList.contains(favoriteName)) {
-                Toast.makeText(this, "Já existe um favorito com este nome!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "❌ Já existe um favorito com este nome!", Toast.LENGTH_SHORT).show();
                 return;
             }
             
@@ -469,7 +696,11 @@ public class MainActivity extends AppCompatActivity {
             
             JSONArray urlsArray = new JSONArray();
             for (int i = 0; i < 4; i++) {
-                urlsArray.put(urlInputs[i].getText().toString());
+                String url = urlInputs[i].getText().toString().trim();
+                if (url.isEmpty()) {
+                    url = getDefaultUrl(i);
+                }
+                urlsArray.put(url);
             }
             favoriteData.put("urls", urlsArray);
             
@@ -482,10 +713,10 @@ public class MainActivity extends AppCompatActivity {
             editor.putString("favorite_" + favoriteName, favoriteData.toString());
             editor.apply();
             
-            Toast.makeText(this, "Favorito '" + favoriteName + "' guardado!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "✅ Favorito '" + favoriteName + "' guardado!", Toast.LENGTH_SHORT).show();
             
         } catch (Exception e) {
-            Toast.makeText(this, "Erro ao guardar favorito: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "❌ Erro ao guardar favorito: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
     
@@ -493,7 +724,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             String favoriteJson = preferences.getString("favorite_" + favoriteName, "");
             if (favoriteJson.isEmpty()) {
-                Toast.makeText(this, "Favorito não encontrado!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "❌ Favorito não encontrado!", Toast.LENGTH_SHORT).show();
                 return;
             }
             
@@ -509,10 +740,10 @@ public class MainActivity extends AppCompatActivity {
             // Carregar todas as URLs
             loadAllURLs();
             
-            Toast.makeText(this, "Favorito '" + favoriteName + "' carregado!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "✅ Favorito '" + favoriteName + "' carregado!", Toast.LENGTH_SHORT).show();
             
         } catch (Exception e) {
-            Toast.makeText(this, "Erro ao carregar favorito: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "❌ Erro ao carregar favorito: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
     
@@ -527,10 +758,10 @@ public class MainActivity extends AppCompatActivity {
             editor.remove("favorite_" + favoriteName);
             editor.apply();
             
-            Toast.makeText(this, "Favorito '" + favoriteName + "' removido!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "✅ Favorito '" + favoriteName + "' removido!", Toast.LENGTH_SHORT).show();
             
         } catch (Exception e) {
-            Toast.makeText(this, "Erro ao remover favorito: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "❌ Erro ao remover favorito: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
     
@@ -552,7 +783,7 @@ public class MainActivity extends AppCompatActivity {
                 if (!favoriteName.isEmpty()) {
                     saveFavorite(favoriteName);
                 } else {
-                    Toast.makeText(MainActivity.this, "Digite um nome para o favorito!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "❌ Digite um nome para o favorito!", Toast.LENGTH_SHORT).show();
                 }
             }
         });
@@ -569,7 +800,7 @@ public class MainActivity extends AppCompatActivity {
     
     private void showLoadFavoritesDialog() {
         if (favoritesList.isEmpty()) {
-            Toast.makeText(this, "Não há favoritos guardados!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "📭 Não há favoritos guardados!", Toast.LENGTH_SHORT).show();
             return;
         }
         
@@ -747,9 +978,11 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < 4; i++) {
             if (boxEnabled[i]) {
                 String url = urlInputs[i].getText().toString().trim();
-                if (!url.isEmpty()) {
-                    loadURL(i, url);
+                if (url.isEmpty()) {
+                    url = getDefaultUrl(i);
+                    urlInputs[i].setText(url);
                 }
+                loadURL(i, url);
             }
         }
         Toast.makeText(this, "Carregando todas as URLs", Toast.LENGTH_SHORT).show();
@@ -758,18 +991,24 @@ public class MainActivity extends AppCompatActivity {
     private void loadInitialURLs() {
         for (int i = 0; i < 4; i++) {
             String url = urlInputs[i].getText().toString().trim();
-            if (!url.isEmpty()) {
-                loadURL(i, url);
+            if (url.isEmpty()) {
+                url = getDefaultUrl(i);
+                urlInputs[i].setText(url);
             }
+            loadURL(i, url);
         }
     }
     
     private void loadURL(int boxIndex, String url) {
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            url = "https://" + url;
+        try {
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                url = "https://" + url;
+            }
+            webViews[boxIndex].loadUrl(url);
+            Toast.makeText(this, "Carregando Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "❌ Erro ao carregar Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
         }
-        webViews[boxIndex].loadUrl(url);
-        Toast.makeText(this, "Carregando Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
     }
     
     private void reloadAllWebViews() {
@@ -813,22 +1052,32 @@ public class MainActivity extends AppCompatActivity {
     
     @Override
     public void onBackPressed() {
+        // 1. Tentar retroceder em cada WebView
+        for (WebView webView : webViews) {
+            if (webView != null && webView.canGoBack()) {
+                webView.goBack();
+                return;
+            }
+        }
+        
+        // 2. Fechar sidebar se aberto
         if (isSidebarVisible) {
             sidebarMenu.setVisibility(View.GONE);
             isSidebarVisible = false;
             return;
         }
         
-        // Tentar sair do fullscreen
-        for (WebView webView : webViews) {
-            if (webView != null && webView.getVisibility() == View.GONE) {
-                webView.setVisibility(View.VISIBLE);
-                bottomControls.setVisibility(View.VISIBLE);
-                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-                return;
-            }
-        }
-        
-        super.onBackPressed();
+        // 3. Confirmar saída do app
+        new AlertDialog.Builder(this)
+            .setTitle("Sair do App")
+            .setMessage("Deseja realmente sair?")
+            .setPositiveButton("SIM", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    finish();
+                }
+            })
+            .setNegativeButton("NÃO", null)
+            .show();
     }
 }
