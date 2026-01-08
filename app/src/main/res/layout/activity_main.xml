@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/main_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000000">
@@ -15,18 +16,29 @@
     <LinearLayout
         android:id="@+id/bottomControls"
         android:layout_width="match_parent"
-        android:layout_height="30dp"
+        android:layout_height="40dp"
         android:layout_alignParentBottom="true"
         android:background="#1a1a1aCC"
-        android:gravity="center_vertical"
+        android:gravity="center"
         android:orientation="horizontal"
-        android:padding="6dp">
+        android:padding="4dp">
+
+        <!-- Botão BACK -->
+        <Button
+            android:id="@+id/btnBack"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginEnd="8dp"
+            android:background="#333333"
+            android:text="←"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
 
         <!-- Botão MENU -->
         <Button
             android:id="@+id/btnMenu"
             android:layout_width="wrap_content"
-            android:layout_height="20dp"
+            android:layout_height="32dp"
             android:background="#1e3c72"
             android:text="☰"
             android:textColor="#FFFFFF"
@@ -36,7 +48,7 @@
         <Button
             android:id="@+id/btnOrientation"
             android:layout_width="wrap_content"
-            android:layout_height="20dp"
+            android:layout_height="32dp"
             android:layout_marginStart="8dp"
             android:background="#1e3c72"
             android:text="📱"
@@ -47,20 +59,20 @@
         <View
             android:layout_width="1dp"
             android:layout_height="20dp"
-            android:layout_marginStart="2dp"
-            android:layout_marginEnd="2dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
             android:background="#555555" />
 
         <!-- Checkboxes -->
-        
+
         <CheckBox
             android:id="@+id/checkBox1"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="1"
             android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:layout_marginEnd="2dp"
+            android:textSize="10sp"
+            android:layout_marginEnd="4dp"
             android:checked="true" />
 
         <CheckBox
@@ -69,8 +81,8 @@
             android:layout_height="wrap_content"
             android:text="2"
             android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:layout_marginEnd="2dp"
+            android:textSize="10sp"
+            android:layout_marginEnd="4dp"
             android:checked="true" />
 
         <CheckBox
@@ -79,8 +91,8 @@
             android:layout_height="wrap_content"
             android:text="3"
             android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:layout_marginEnd="2dp"
+            android:textSize="10sp"
+            android:layout_marginEnd="4dp"
             android:checked="true" />
 
         <CheckBox
@@ -89,23 +101,50 @@
             android:layout_height="wrap_content"
             android:text="4"
             android:textColor="#FFFFFF"
-            android:textSize="12sp"
+            android:textSize="10sp"
             android:checked="true" />
 
-        <!-- Espaço flexível para empurrar tudo para a esquerda -->
+        <!-- Espaço flexível para centralização em landscape -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- Indicador de box em foco -->
+        <TextView
+            android:id="@+id/tvFocusedBox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Foco: 1"
+            android:textColor="#FF9800"
+            android:textSize="10sp"
+            android:layout_marginStart="8dp"
+            android:visibility="gone" />
+
         <View
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_weight="1" />
     </LinearLayout>
 
+    <!-- Overlay para fechar sidebar ao tocar fora -->
+    <View
+        android:id="@+id/sidebarOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#00000000"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
     <!-- Sidebar Menu COMPACTO -->
     <ScrollView
         android:id="@+id/sidebarMenu"
-        android:layout_width="240dp"
+        android:layout_width="120dp"
         android:layout_height="match_parent"
         android:layout_alignParentEnd="true"
-        android:background="#1a1a1aEE"
+        android:layout_above="@id/bottomControls"
+        android:background="#000000"
         android:scrollbars="vertical"
         android:visibility="gone">
 
@@ -113,93 +152,93 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="8dp">
+            android:padding="4dp">
 
             <!-- Cabeçalho compacto -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
+                android:layout_marginBottom="6dp"
                 android:orientation="horizontal">
 
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="CONFIGURAÇÕES"
+                    android:text="MENU"
                     android:textColor="#FFFFFF"
-                    android:textSize="12sp"
+                    android:textSize="10sp"
                     android:textStyle="bold" />
 
                 <Button
                     android:id="@+id/btnCloseMenu"
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
                     android:background="#ff4444"
                     android:text="✕"
                     android:textColor="#FFFFFF"
-                    android:textSize="12sp" />
+                    android:textSize="10sp" />
             </LinearLayout>
 
             <!-- SEÇÃO: GUARDAR/CARREGAR -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="GUARDAR / CARREGAR"
+                android:text="GUARDAR/CARREGAR"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:textStyle="bold"
-                android:layout_marginBottom="8dp" />
+                android:layout_marginBottom="4dp" />
 
             <Button
                 android:id="@+id/btnSaveState"
                 android:layout_width="match_parent"
-                android:layout_height="32dp"
+                android:layout_height="28dp"
                 android:background="#4CAF50"
                 android:text="GUARDAR ESTADO"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="3dp" />
 
             <Button
                 android:id="@+id/btnLoadState"
                 android:layout_width="match_parent"
-                android:layout_height="32dp"
+                android:layout_height="28dp"
                 android:background="#4CAF50"
                 android:text="CARREGAR ESTADO"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="12dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="6dp" />
 
             <Button
                 android:id="@+id/btnSaveFavorites"
                 android:layout_width="match_parent"
-                android:layout_height="32dp"
+                android:layout_height="28dp"
                 android:background="#FF9800"
                 android:text="GUARDAR FAVORITO"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="3dp" />
 
             <Button
                 android:id="@+id/btnLoadFavorites"
                 android:layout_width="match_parent"
-                android:layout_height="32dp"
+                android:layout_height="28dp"
                 android:background="#FF9800"
                 android:text="CARREGAR FAVORITO"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="16dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="8dp" />
 
             <!-- SEÇÃO: CONFIGURAÇÕES -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="CONFIGURAÇÕES WEB"
+                android:text="CONFIG WEB"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:textStyle="bold"
-                android:layout_marginBottom="8dp" />
+                android:layout_marginBottom="4dp" />
 
             <CheckBox
                 android:id="@+id/cbAllowScripts"
@@ -208,8 +247,8 @@
                 android:checked="true"
                 android:text="JavaScript"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="2dp" />
 
             <CheckBox
                 android:id="@+id/cbAllowForms"
@@ -218,8 +257,8 @@
                 android:checked="true"
                 android:text="Formulários"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="2dp" />
 
             <CheckBox
                 android:id="@+id/cbAllowPopups"
@@ -228,124 +267,124 @@
                 android:checked="true"
                 android:text="Popups"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="2dp" />
 
             <CheckBox
                 android:id="@+id/cbBlockRedirects"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:checked="false"
-                android:text="Bloquear Redirects"
+                android:text="Bloq Redirects"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="2dp" />
 
             <CheckBox
                 android:id="@+id/cbBlockAds"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:checked="false"
-                android:text="Bloquear Anúncios"
+                android:text="Bloq Anúncios"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="12dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="6dp" />
 
             <!-- SEÇÃO: URLs -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="URLs (ENTER para carregar)"
+                android:text="URLs (ENTER)"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:textStyle="bold"
-                android:layout_marginBottom="8dp" />
+                android:layout_marginBottom="4dp" />
 
             <EditText
                 android:id="@+id/urlInput1"
                 android:layout_width="match_parent"
-                android:layout_height="32dp"
+                android:layout_height="28dp"
                 android:background="#333333"
                 android:hint="Box 1"
                 android:imeOptions="actionDone"
                 android:inputType="textUri"
-                android:padding="6dp"
+                android:padding="4dp"
                 android:text="https://www.youtube.com"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="2dp" />
 
             <EditText
                 android:id="@+id/urlInput2"
                 android:layout_width="match_parent"
-                android:layout_height="32dp"
+                android:layout_height="28dp"
                 android:background="#333333"
                 android:hint="Box 2"
                 android:imeOptions="actionDone"
                 android:inputType="textUri"
-                android:padding="6dp"
+                android:padding="4dp"
                 android:text="https://www.twitch.tv"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="2dp" />
 
             <EditText
                 android:id="@+id/urlInput3"
                 android:layout_width="match_parent"
-                android:layout_height="32dp"
+                android:layout_height="28dp"
                 android:background="#333333"
                 android:hint="Box 3"
                 android:imeOptions="actionDone"
                 android:inputType="textUri"
-                android:padding="6dp"
+                android:padding="4dp"
                 android:text="https://vimeo.com"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="2dp" />
 
             <EditText
                 android:id="@+id/urlInput4"
                 android:layout_width="match_parent"
-                android:layout_height="32dp"
+                android:layout_height="28dp"
                 android:background="#333333"
                 android:hint="Box 4"
                 android:imeOptions="actionDone"
                 android:inputType="textUri"
-                android:padding="6dp"
+                android:padding="4dp"
                 android:text="https://www.dailymotion.com"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="12dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="6dp" />
 
             <!-- Botões de ação -->
             <Button
                 android:id="@+id/btnLoadAll"
                 android:layout_width="match_parent"
-                android:layout_height="32dp"
+                android:layout_height="28dp"
                 android:background="#1e3c72"
                 android:text="CARREGAR TODAS"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="2dp" />
 
             <Button
                 android:id="@+id/btnReloadAll"
                 android:layout_width="match_parent"
-                android:layout_height="32dp"
+                android:layout_height="28dp"
                 android:background="#1e3c72"
                 android:text="RECARREGAR TODAS"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="10sp"
+                android:layout_marginBottom="2dp" />
 
             <Button
                 android:id="@+id/btnClearAll"
                 android:layout_width="match_parent"
-                android:layout_height="32dp"
+                android:layout_height="28dp"
                 android:background="#ff4444"
                 android:text="LIMPAR TODAS"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp" />
+                android:textSize="10sp" />
         </LinearLayout>
     </ScrollView>
 </RelativeLayout>
