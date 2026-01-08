@@ -26,7 +26,7 @@
         <!-- Botão BACK -->
         <Button
             android:id="@+id/btnBack"
-            android:layout_width="wrap_content"
+            android:layout_width="10dp"
             android:layout_height="32dp"
             android:layout_marginEnd="8dp"
             android:background="#333333"
@@ -37,7 +37,7 @@
         <!-- Botão MENU -->
         <Button
             android:id="@+id/btnMenu"
-            android:layout_width="wrap_content"
+            android:layout_width="10dp"
             android:layout_height="32dp"
             android:background="#1e3c72"
             android:text="☰"
@@ -47,9 +47,9 @@
         <!-- Botão ORIENTAÇÃO -->
         <Button
             android:id="@+id/btnOrientation"
-            android:layout_width="wrap_content"
+            android:layout_width="10dp"
             android:layout_height="32dp"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="4dp"
             android:background="#1e3c72"
             android:text="📱"
             android:textColor="#FFFFFF"
@@ -59,8 +59,8 @@
         <View
             android:layout_width="1dp"
             android:layout_height="20dp"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
             android:background="#555555" />
 
         <!-- Checkboxes -->
@@ -72,7 +72,7 @@
             android:text="1"
             android:textColor="#FFFFFF"
             android:textSize="10sp"
-            android:layout_marginEnd="4dp"
+            android:layout_marginEnd="2dp"
             android:checked="true" />
 
         <CheckBox
@@ -82,7 +82,7 @@
             android:text="2"
             android:textColor="#FFFFFF"
             android:textSize="10sp"
-            android:layout_marginEnd="4dp"
+            android:layout_marginEnd="2dp"
             android:checked="true" />
 
         <CheckBox
@@ -92,7 +92,7 @@
             android:text="3"
             android:textColor="#FFFFFF"
             android:textSize="10sp"
-            android:layout_marginEnd="4dp"
+            android:layout_marginEnd="2dp"
             android:checked="true" />
 
         <CheckBox
@@ -186,9 +186,9 @@
                 android:layout_height="wrap_content"
                 android:text="GUARDAR/CARREGAR"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="7sp"
                 android:textStyle="bold"
-                android:layout_marginBottom="4dp" />
+                android:layout_marginBottom="2dp" />
 
             <Button
                 android:id="@+id/btnSaveState"
@@ -197,7 +197,7 @@
                 android:background="#4CAF50"
                 android:text="GUARDAR ESTADO"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="5sp"
                 android:layout_marginBottom="3dp" />
 
             <Button
@@ -207,8 +207,8 @@
                 android:background="#4CAF50"
                 android:text="CARREGAR ESTADO"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="5sp"
+                android:layout_marginBottom="3dp" />
 
             <Button
                 android:id="@+id/btnSaveFavorites"
@@ -217,7 +217,7 @@
                 android:background="#FF9800"
                 android:text="GUARDAR FAVORITO"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="5sp"
                 android:layout_marginBottom="3dp" />
 
             <Button
@@ -227,8 +227,8 @@
                 android:background="#FF9800"
                 android:text="CARREGAR FAVORITO"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
-                android:layout_marginBottom="8dp" />
+                android:textSize="5sp"
+                android:layout_marginBottom="5dp" />
 
             <!-- SEÇÃO: CONFIGURAÇÕES -->
             <TextView
@@ -236,9 +236,9 @@
                 android:layout_height="wrap_content"
                 android:text="CONFIG WEB"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="5sp"
                 android:textStyle="bold"
-                android:layout_marginBottom="4dp" />
+                android:layout_marginBottom="3dp" />
 
             <CheckBox
                 android:id="@+id/cbAllowScripts"
@@ -247,7 +247,7 @@
                 android:checked="true"
                 android:text="JavaScript"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="5sp"
                 android:layout_marginBottom="2dp" />
 
             <CheckBox
@@ -257,7 +257,7 @@
                 android:checked="true"
                 android:text="Formulários"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="5sp"
                 android:layout_marginBottom="2dp" />
 
             <CheckBox
@@ -267,7 +267,7 @@
                 android:checked="true"
                 android:text="Popups"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="5sp"
                 android:layout_marginBottom="2dp" />
 
             <CheckBox
@@ -277,7 +277,7 @@
                 android:checked="false"
                 android:text="Bloq Redirects"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="5sp"
                 android:layout_marginBottom="2dp" />
 
             <CheckBox
@@ -287,8 +287,8 @@
                 android:checked="false"
                 android:text="Bloq Anúncios"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
-                android:layout_marginBottom="6dp" />
+                android:textSize="5sp"
+                android:layout_marginBottom="3dp" />
 
             <!-- SEÇÃO: URLs -->
             <TextView
@@ -296,7 +296,7 @@
                 android:layout_height="wrap_content"
                 android:text="URLs (ENTER)"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="5sp"
                 android:textStyle="bold"
                 android:layout_marginBottom="4dp" />
 
@@ -311,7 +311,7 @@
                 android:padding="4dp"
                 android:text="https://www.youtube.com"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="5sp"
                 android:layout_marginBottom="2dp" />
 
             <EditText
@@ -325,7 +325,7 @@
                 android:padding="4dp"
                 android:text="https://www.twitch.tv"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="5sp"
                 android:layout_marginBottom="2dp" />
 
             <EditText
@@ -339,7 +339,7 @@
                 android:padding="4dp"
                 android:text="https://vimeo.com"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="5sp"
                 android:layout_marginBottom="2dp" />
 
             <EditText
@@ -353,7 +353,7 @@
                 android:padding="4dp"
                 android:text="https://www.dailymotion.com"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="5sp"
                 android:layout_marginBottom="6dp" />
 
             <!-- Botões de ação -->
@@ -364,7 +364,7 @@
                 android:background="#1e3c72"
                 android:text="CARREGAR TODAS"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="5sp"
                 android:layout_marginBottom="2dp" />
 
             <Button
@@ -374,7 +374,7 @@
                 android:background="#1e3c72"
                 android:text="RECARREGAR TODAS"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp"
+                android:textSize="5sp"
                 android:layout_marginBottom="2dp" />
 
             <Button
@@ -384,7 +384,7 @@
                 android:background="#ff4444"
                 android:text="LIMPAR TODAS"
                 android:textColor="#FFFFFF"
-                android:textSize="10sp" />
+                android:textSize="5sp" />
         </LinearLayout>
     </ScrollView>
 </RelativeLayout>
