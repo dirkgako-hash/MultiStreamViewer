@@ -323,7 +323,7 @@
                 android:imeOptions="actionDone"
                 android:inputType="textUri"
                 android:padding="4dp"
-                android:text="https://www.twitch.tv"
+                android:text="https://www.youtube.com"
                 android:textColor="#FFFFFF"
                 android:textSize="5sp"
                 android:layout_marginBottom="2dp" />
@@ -337,7 +337,7 @@
                 android:imeOptions="actionDone"
                 android:inputType="textUri"
                 android:padding="4dp"
-                android:text="https://vimeo.com"
+                android:text="https://www.youtube.com"
                 android:textColor="#FFFFFF"
                 android:textSize="5sp"
                 android:layout_marginBottom="2dp" />
@@ -351,7 +351,7 @@
                 android:imeOptions="actionDone"
                 android:inputType="textUri"
                 android:padding="4dp"
-                android:text="https://www.dailymotion.com"
+                android:text="https://www.youtube.com"
                 android:textColor="#FFFFFF"
                 android:textSize="5sp"
                 android:layout_marginBottom="6dp" />
