@@ -1,7 +1,9 @@
-name: Android Build
+name: Android Build and Release
 
 on:
   push:
+    branches: [ main ]
+  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
@@ -25,22 +27,34 @@ jobs:
     - name: Make gradlew executable
       run: chmod +x ./gradlew
       
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug || echo "Build attempted"
-      
-    - name: Check if APK was created
+    # Configurar keystore a partir de secrets
+    - name: Setup Keystore
       run: |
-        if [ -f "app/build/outputs/apk/debug/*.apk" ]; then
-          echo "APK created successfully"
-        else
-          echo "No APK found, listing directory:"
-          find app/build -type f -name "*.apk" 2>/dev/null || echo "No APKs in build directory"
-        fi
+        echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > multistreamviewer.jks
+        cat > keystore.properties << EOL
+        storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+        keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+        storeFile=multistreamviewer.jks
+        EOL
+        
+    - name: Build Release APK
+      run: ./gradlew assembleRelease
       
-    - name: Upload APK if exists
+    - name: List APKs
+      run: find app/build -name "*.apk" -type f | xargs ls -la
+      
+    - name: Upload Release APK
       uses: actions/upload-artifact@v4
-      if: success()
       with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/
-        if-no-files-found: warn
+        name: MultiStreamViewer-Release
+        path: app/build/outputs/apk/release/*.apk
+        retention-days: 7
+        
+    - name: Upload Mapping File
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: Mapping-Files
+        path: app/build/outputs/mapping/release/
+        retention-days: 7

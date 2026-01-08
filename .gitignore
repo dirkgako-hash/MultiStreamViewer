@@ -1,0 +1,12 @@
+
+# Keystore files
+*.jks
+*.keystore
+keystore.properties
+
+# Build artifacts
+app/build/
+build/
+
+# Secrets
+setup_secrets.sh
