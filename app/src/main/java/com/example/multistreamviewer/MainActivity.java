@@ -758,10 +758,10 @@ public class MainActivity extends AppCompatActivity {
     
     private String getDefaultUrl(int boxIndex) {
         switch (boxIndex) {
-            case 0: return "https://www.youtube.com";
-            case 1: return "https://www.twitch.tv";
-            case 2: return "https://vimeo.com";
-            case 3: return "https://www.dailymotion.com";
+            case 0: return "https://streamed.pk/";
+            case 1: return "https://en12.sportplus.live";
+            case 2: return "https://kevinsport.pro/live/football/";
+            case 3: return "https://beta.sport71.pro/tv.php";
             default: return "https://www.google.com";
         }
     }
