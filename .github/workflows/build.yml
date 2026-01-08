@@ -24,77 +24,115 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       
-    - name: Install ImageMagick for icon generation
-      run: sudo apt-get update && sudo apt-get install -y imagemagick
+    - name: Install required packages
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y expect imagemagick
       
     - name: Fix Android Icons
       run: |
-        # Criar diretórios se não existirem
+        # Criar diretórios de ícones
         mkdir -p app/src/main/res/mipmap-hdpi
         mkdir -p app/src/main/res/mipmap-mdpi
         mkdir -p app/src/main/res/mipmap-xhdpi
         mkdir -p app/src/main/res/mipmap-xxhdpi
         mkdir -p app/src/main/res/mipmap-xxxhdpi
         
-        # Remover ícones corrompidos
-        rm -f app/src/main/res/mipmap-*/ic_launcher_round.png
-        
-        # Criar ícones simples
+        # Criar ícones básicos
         for density in hdpi mdpi xhdpi xxhdpi xxxhdpi; do
           case $density in
-            mdpi) size="48x48" ;;
-            hdpi) size="72x72" ;;
-            xhdpi) size="96x96" ;;
-            xxhdpi) size="144x144" ;;
-            xxxhdpi) size="192x192" ;;
+            mdpi) size="48" ;;
+            hdpi) size="72" ;;
+            xhdpi) size="96" ;;
+            xxhdpi) size="144" ;;
+            xxxhdpi) size="192" ;;
           esac
           
-          # Criar ícone quadrado
-          convert -size $size xc:"#2196F3" \
+          # Criar ícone simples com ImageMagick
+          convert -size ${size}x${size} xc:"#2196F3" \
             -fill "#FFFFFF" \
-            -gravity Center \
-            -pointsize $(echo $size | cut -dx -f1 | awk '{print int($1*0.4)}') \
-            -annotate 0 "MSV" \
+            -gravity center \
+            -pointsize $(($size/3)) \
+            -annotate 0 "MS" \
             "app/src/main/res/mipmap-$density/ic_launcher.png"
-            
-          # Criar ícone redondo (mesmo que quadrado por enquanto)
+          
+          # Copiar para ícone redondo
           cp "app/src/main/res/mipmap-$density/ic_launcher.png" \
              "app/src/main/res/mipmap-$density/ic_launcher_round.png"
         done
-        
-        echo "Ícones corrigidos!"
       
     - name: Make gradlew executable
       run: chmod +x ./gradlew
       
-    # Configurar keystore a partir de secrets
-    - name: Setup Keystore
+    # Criar keystore para CI
+    - name: Create Keystore for CI
       run: |
-        echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > multistreamviewer.jks
-        cat > keystore.properties << EOL
-        storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-        keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-        keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-        storeFile=multistreamviewer.jks
-        EOL
+        echo "Criando keystore para CI..."
         
+        # Método mais confiável para criar keystore
+        cat > create_keystore.exp << 'SCRIPT'
+#!/usr/bin/expect
+set timeout 10
+spawn keytool -genkey -v -keystore multistreamviewer.jks -alias key0 -keyalg RSA -keysize 2048 -validity 10000
+expect "Enter keystore password:"
+send "123456\r"
+expect "Re-enter new password:"
+send "123456\r"
+expect "What is your first and last name?"
+send "Android Developer\r"
+expect "What is the name of your organizational unit?"
+send "Android\r"
+expect "What is the name of your organization?"
+send "MultiStreamViewer\r"
+expect "What is the name of your City or Locality?"
+send "City\r"
+expect "What is the name of your State or Province?"
+send "State\r"
+expect "What is the two-letter country code for this unit?"
+send "BR\r"
+expect "Is CN=Android Developer, OU=Android, O=MultiStreamViewer, L=City, ST=State, C=BR correct?"
+send "yes\r"
+expect eof
+SCRIPT
+        
+        chmod +x create_keystore.exp
+        ./create_keystore.exp
+        
+        # Criar keystore.properties
+        cat > keystore.properties << EOL
+storePassword=123456
+keyPassword=123456
+keyAlias=key0
+storeFile=multistreamviewer.jks
+EOL
+        
+        echo "✅ Keystore criado com sucesso!"
+        ls -la multistreamviewer.jks keystore.properties
+      
     - name: Build Release APK
       run: ./gradlew assembleRelease --stacktrace
       
-    - name: List APKs
-      run: find app/build -name "*.apk" -type f | xargs ls -la
+    - name: List generated files
+      run: |
+        echo "=== Arquivos gerados ==="
+        find . -name "*.apk" -type f 2>/dev/null || echo "Nenhum APK encontrado"
+        echo ""
+        echo "=== Conteúdo do diretório build ==="
+        ls -la app/build/outputs/apk/ || echo "Diretório não existe"
       
     - name: Upload Release APK
       uses: actions/upload-artifact@v4
       with:
         name: MultiStreamViewer-Release
-        path: app/build/outputs/apk/release/*.apk
+        path: app/build/outputs/apk/release/
+        if-no-files-found: warn
         retention-days: 7
         
-    - name: Upload Mapping File
-      uses: actions/upload-artifact@v4
+    - name: Upload Debug APK
       if: always()
+      uses: actions/upload-artifact@v4
       with:
-        name: Mapping-Files
-        path: app/build/outputs/mapping/release/
+        name: MultiStreamViewer-Debug
+        path: app/build/outputs/apk/debug/
+        if-no-files-found: warn
         retention-days: 7
