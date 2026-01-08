@@ -2,9 +2,9 @@ name: Android Build and Release
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -25,107 +25,110 @@ jobs:
       uses: android-actions/setup-android@v3
       
     - name: Install required packages
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y expect imagemagick
+      run: sudo apt-get update && sudo apt-get install -y imagemagick
       
     - name: Fix Android Icons
       run: |
-        # Criar diretórios de ícones
+        echo "Corrigindo ícones Android..."
         mkdir -p app/src/main/res/mipmap-hdpi
         mkdir -p app/src/main/res/mipmap-mdpi
         mkdir -p app/src/main/res/mipmap-xhdpi
         mkdir -p app/src/main/res/mipmap-xxhdpi
         mkdir -p app/src/main/res/mipmap-xxxhdpi
         
-        # Criar ícones básicos
-        for density in hdpi mdpi xhdpi xxhdpi xxxhdpi; do
-          case $density in
-            mdpi) size="48" ;;
-            hdpi) size="72" ;;
-            xhdpi) size="96" ;;
-            xxhdpi) size="144" ;;
-            xxxhdpi) size="192" ;;
-          esac
-          
-          # Criar ícone simples com ImageMagick
-          convert -size ${size}x${size} xc:"#2196F3" \
-            -fill "#FFFFFF" \
-            -gravity center \
-            -pointsize $(($size/3)) \
-            -annotate 0 "MS" \
-            "app/src/main/res/mipmap-$density/ic_launcher.png"
-          
-          # Copiar para ícone redondo
-          cp "app/src/main/res/mipmap-$density/ic_launcher.png" \
-             "app/src/main/res/mipmap-$density/ic_launcher_round.png"
-        done
+        if command -v convert &> /dev/null; then
+          echo "Usando ImageMagick para criar ícones..."
+          for density in hdpi mdpi xhdpi xxhdpi xxxhdpi; do
+            case $density in
+              mdpi) size="48" ;;
+              hdpi) size="72" ;;
+              xhdpi) size="96" ;;
+              xxhdpi) size="144" ;;
+              xxxhdpi) size="192" ;;
+            esac
+            convert -size ${size}x${size} xc:"#2196F3" -fill "#FFFFFF" -gravity center -pointsize $(($size/3)) -annotate 0 "MS" "app/src/main/res/mipmap-$density/ic_launcher.png"
+            cp "app/src/main/res/mipmap-$density/ic_launcher.png" "app/src/main/res/mipmap-$density/ic_launcher_round.png"
+          done
+        else
+          echo "ImageMagick não disponível, criando placeholders..."
+          for density in hdpi mdpi xhdpi xxhdpi xxxhdpi; do
+            echo -n "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" | base64 -d > "app/src/main/res/mipmap-$density/ic_launcher.png"
+            cp "app/src/main/res/mipmap-$density/ic_launcher.png" "app/src/main/res/mipmap-$density/ic_launcher_round.png"
+          done
+        fi
       
     - name: Make gradlew executable
       run: chmod +x ./gradlew
       
-    # Criar keystore para CI
     - name: Create Keystore for CI
       run: |
         echo "Criando keystore para CI..."
+        keytool -genkeypair -keystore multistreamviewer.jks -alias key0 -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=Android, OU=Android, O=Android, L=City, ST=State, C=US" -noprompt
         
-        # Método mais confiável para criar keystore
-        cat > create_keystore.exp << 'SCRIPT'
-#!/usr/bin/expect
-set timeout 10
-spawn keytool -genkey -v -keystore multistreamviewer.jks -alias key0 -keyalg RSA -keysize 2048 -validity 10000
-expect "Enter keystore password:"
-send "123456\r"
-expect "Re-enter new password:"
-send "123456\r"
-expect "What is your first and last name?"
-send "Android Developer\r"
-expect "What is the name of your organizational unit?"
-send "Android\r"
-expect "What is the name of your organization?"
-send "MultiStreamViewer\r"
-expect "What is the name of your City or Locality?"
-send "City\r"
-expect "What is the name of your State or Province?"
-send "State\r"
-expect "What is the two-letter country code for this unit?"
-send "BR\r"
-expect "Is CN=Android Developer, OU=Android, O=MultiStreamViewer, L=City, ST=State, C=BR correct?"
-send "yes\r"
-expect eof
-SCRIPT
+        if [ $? -eq 0 ] && [ -f "multistreamviewer.jks" ]; then
+          echo "✅ Keystore criado com sucesso!"
+          echo "storePassword=123456" > keystore.properties
+          echo "keyPassword=123456" >> keystore.properties
+          echo "keyAlias=key0" >> keystore.properties
+          echo "storeFile=multistreamviewer.jks" >> keystore.properties
+          echo "keystore.properties criado:"
+          cat keystore.properties
+        else
+          echo "❌ Falha ao criar keystore, tentando método alternativo..."
+          keytool -genkey -keystore multistreamviewer.jks -alias key0 -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=Android"
+        fi
         
-        chmod +x create_keystore.exp
-        ./create_keystore.exp
-        
-        # Criar keystore.properties
-        cat > keystore.properties << EOL
-storePassword=123456
-keyPassword=123456
-keyAlias=key0
-storeFile=multistreamviewer.jks
-EOL
-        
-        echo "✅ Keystore criado com sucesso!"
-        ls -la multistreamviewer.jks keystore.properties
+        ls -la multistreamviewer.jks 2>/dev/null || echo "Keystore não criado"
+      
+    - name: Verify Keystore
+      run: |
+        echo "Verificando keystore..."
+        if [ -f "multistreamviewer.jks" ]; then
+          echo "Keystore encontrado, verificando conteúdo..."
+          keytool -list -keystore multistreamviewer.jks -storepass 123456 || echo "Não foi possível verificar keystore"
+        else
+          echo "⚠️ Keystore não encontrado, criando keystore de debug..."
+          keytool -genkeypair -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug, O=Android, C=US" -noprompt
+          cp debug.keystore multistreamviewer.jks
+          echo "storePassword=android" > keystore.properties
+          echo "keyPassword=android" >> keystore.properties
+          echo "keyAlias=androiddebugkey" >> keystore.properties
+          echo "storeFile=multistreamviewer.jks" >> keystore.properties
+        fi
+      
+    - name: Build Debug APK
+      run: |
+        echo "Construindo APK de debug para teste..."
+        ./gradlew assembleDebug --stacktrace || echo "Build debug falhou"
+        find app/build -name "*debug*.apk" -type f 2>/dev/null | while read file; do
+          echo "Debug APK: $file ($(stat -c%s "$file") bytes)"
+        done
       
     - name: Build Release APK
-      run: ./gradlew assembleRelease --stacktrace
-      
-    - name: List generated files
       run: |
-        echo "=== Arquivos gerados ==="
-        find . -name "*.apk" -type f 2>/dev/null || echo "Nenhum APK encontrado"
+        echo "Construindo APK de release..."
+        ./gradlew assembleRelease --stacktrace
+        if [ $? -eq 0 ]; then
+          echo "✅ Build de release bem-sucedido!"
+        else
+          echo "❌ Build de release falhou"
+          exit 1
+        fi
+      
+    - name: List generated APKs
+      run: |
+        echo "=== APKs Gerados ==="
+        find app/build -name "*.apk" -type f 2>/dev/null | xargs -I {} sh -c 'echo "{} - $(stat -c%s "{}") bytes"'
         echo ""
-        echo "=== Conteúdo do diretório build ==="
-        ls -la app/build/outputs/apk/ || echo "Diretório não existe"
+        echo "=== Estrutura de saída ==="
+        ls -la app/build/outputs/apk/ 2>/dev/null || echo "Diretório não existe"
       
     - name: Upload Release APK
       uses: actions/upload-artifact@v4
       with:
         name: MultiStreamViewer-Release
         path: app/build/outputs/apk/release/
-        if-no-files-found: warn
+        if-no-files-found: error
         retention-days: 7
         
     - name: Upload Debug APK
@@ -134,5 +137,16 @@ EOL
       with:
         name: MultiStreamViewer-Debug
         path: app/build/outputs/apk/debug/
-        if-no-files-found: warn
+        if-no-files-found: ignore
         retention-days: 7
+        
+    - name: Upload Keystore Info
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Build-Info
+        path: |
+          keystore.properties
+          multistreamviewer.jks
+        if-no-files-found: ignore
+        retention-days: 1
