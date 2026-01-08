@@ -739,7 +739,7 @@ public class MainActivity extends AppCompatActivity {
             cbAllowScripts.setChecked(preferences.getBoolean("allow_scripts", true));
             cbAllowForms.setChecked(preferences.getBoolean("allow_forms", true));
             cbAllowPopups.setChecked(preferences.getBoolean("allow_popups", true));
-            cbBlockRedirects.setChecked(preferences.getBoolean("block_redirects", false));
+            cbBlockRedirects.setChecked(preferences.getBoolean("block_redirects", true));
             cbBlockAds.setChecked(preferences.getBoolean("block_ads", false));
             
             if (!silent) {

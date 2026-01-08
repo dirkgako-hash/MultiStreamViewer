@@ -309,7 +309,7 @@
                 android:imeOptions="actionDone"
                 android:inputType="textUri"
                 android:padding="4dp"
-                android:text="https://www.youtube.com"
+                android:text="https://en12.sportplus.live/"
                 android:textColor="#FFFFFF"
                 android:textSize="5sp"
                 android:layout_marginBottom="2dp" />
@@ -323,7 +323,7 @@
                 android:imeOptions="actionDone"
                 android:inputType="textUri"
                 android:padding="4dp"
-                android:text="https://www.youtube.com"
+                android:text="https://kevinsport.pro/live/football/"
                 android:textColor="#FFFFFF"
                 android:textSize="5sp"
                 android:layout_marginBottom="2dp" />
@@ -337,7 +337,7 @@
                 android:imeOptions="actionDone"
                 android:inputType="textUri"
                 android:padding="4dp"
-                android:text="https://www.youtube.com"
+                android:text="https://beta.sport71.pro/tv.php"
                 android:textColor="#FFFFFF"
                 android:textSize="5sp"
                 android:layout_marginBottom="2dp" />
@@ -351,7 +351,7 @@
                 android:imeOptions="actionDone"
                 android:inputType="textUri"
                 android:padding="4dp"
-                android:text="https://www.youtube.com"
+                android:text="https://streamed.pk/"
                 android:textColor="#FFFFFF"
                 android:textSize="5sp"
                 android:layout_marginBottom="6dp" />
