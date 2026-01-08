@@ -24,6 +24,46 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       
+    - name: Install ImageMagick for icon generation
+      run: sudo apt-get update && sudo apt-get install -y imagemagick
+      
+    - name: Fix Android Icons
+      run: |
+        # Criar diretórios se não existirem
+        mkdir -p app/src/main/res/mipmap-hdpi
+        mkdir -p app/src/main/res/mipmap-mdpi
+        mkdir -p app/src/main/res/mipmap-xhdpi
+        mkdir -p app/src/main/res/mipmap-xxhdpi
+        mkdir -p app/src/main/res/mipmap-xxxhdpi
+        
+        # Remover ícones corrompidos
+        rm -f app/src/main/res/mipmap-*/ic_launcher_round.png
+        
+        # Criar ícones simples
+        for density in hdpi mdpi xhdpi xxhdpi xxxhdpi; do
+          case $density in
+            mdpi) size="48x48" ;;
+            hdpi) size="72x72" ;;
+            xhdpi) size="96x96" ;;
+            xxhdpi) size="144x144" ;;
+            xxxhdpi) size="192x192" ;;
+          esac
+          
+          # Criar ícone quadrado
+          convert -size $size xc:"#2196F3" \
+            -fill "#FFFFFF" \
+            -gravity Center \
+            -pointsize $(echo $size | cut -dx -f1 | awk '{print int($1*0.4)}') \
+            -annotate 0 "MSV" \
+            "app/src/main/res/mipmap-$density/ic_launcher.png"
+            
+          # Criar ícone redondo (mesmo que quadrado por enquanto)
+          cp "app/src/main/res/mipmap-$density/ic_launcher.png" \
+             "app/src/main/res/mipmap-$density/ic_launcher_round.png"
+        done
+        
+        echo "Ícones corrigidos!"
+      
     - name: Make gradlew executable
       run: chmod +x ./gradlew
       
@@ -39,7 +79,7 @@ jobs:
         EOL
         
     - name: Build Release APK
-      run: ./gradlew assembleRelease
+      run: ./gradlew assembleRelease --stacktrace
       
     - name: List APKs
       run: find app/build -name "*.apk" -type f | xargs ls -la
