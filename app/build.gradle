@@ -2,10 +2,17 @@ plugins {
     id 'com.android.application'
 }
 
-def keystorePropertiesFile = rootProject.file("keystore.properties")
+// Configuração do keystore
 def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+} else {
+    // Valores padrão para debug
+    keystoreProperties.setProperty('storeFile', 'debug.keystore')
+    keystoreProperties.setProperty('storePassword', 'android')
+    keystoreProperties.setProperty('keyAlias', 'androiddebugkey')
+    keystoreProperties.setProperty('keyPassword', 'android')
 }
 
 android {
@@ -18,16 +25,22 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
-
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
+        debug {
+            storeFile file('../debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        
         release {
-            storeFile file(keystoreProperties.getProperty("storeFile", "multistreamviewer.jks"))
-            storePassword keystoreProperties.getProperty("storePassword", "")
-            keyAlias keystoreProperties.getProperty("keyAlias", "key0")
-            keyPassword keystoreProperties.getProperty("keyPassword", "")
+            storeFile file(keystoreProperties['storeFile'])
+            storePassword keystoreProperties['storePassword']
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
         }
     }
 
@@ -37,43 +50,16 @@ android {
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
-            
-            // Otimizações
-            debuggable false
-            jniDebuggable false
-            renderscriptDebuggable false
-            renderscriptOptimLevel 3
-            
-            // Nome do APK
-            applicationVariants.all { variant ->
-                variant.outputs.all { output ->
-                    def formattedDate = new Date().format('yyyyMMdd')
-                    def version = variant.versionName
-                    outputFileName = "MultiStreamViewer_v${version}_${formattedDate}.apk"
-                }
-            }
         }
         
         debug {
-            minifyEnabled false
-            debuggable true
-            applicationIdSuffix ".debug"
+            signingConfig signingConfigs.debug
         }
     }
-    
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
-    }
-    
-    // Para reduzir tamanho do APK
-    splits {
-        abi {
-            enable true
-            reset()
-            include 'x86', 'x86_64', 'armeabi-v7a', 'arm64-v8a'
-            universalApk true
-        }
     }
 }
 
