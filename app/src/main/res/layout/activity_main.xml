@@ -26,7 +26,7 @@
         <!-- Botão BACK -->
         <Button
             android:id="@+id/btnBack"
-            android:layout_width="10dp"
+            android:layout_width="20dp"
             android:layout_height="32dp"
             android:layout_marginEnd="8dp"
             android:background="#333333"
@@ -37,7 +37,7 @@
         <!-- Botão MENU -->
         <Button
             android:id="@+id/btnMenu"
-            android:layout_width="10dp"
+            android:layout_width="20dp"
             android:layout_height="32dp"
             android:background="#1e3c72"
             android:text="☰"
@@ -47,7 +47,7 @@
         <!-- Botão ORIENTAÇÃO -->
         <Button
             android:id="@+id/btnOrientation"
-            android:layout_width="10dp"
+            android:layout_width="20dp"
             android:layout_height="32dp"
             android:layout_marginStart="4dp"
             android:background="#1e3c72"
