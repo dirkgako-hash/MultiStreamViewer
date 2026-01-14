@@ -3,6 +3,7 @@ package com.example.multistreamviewer;
 import android.annotation.SuppressLint;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.os.Build;
@@ -62,43 +63,32 @@ public class MainActivity extends AppCompatActivity {
     // Estado
     private boolean[] boxEnabled = {true, true, true, true};
     private boolean isSidebarVisible = false;
-    private int currentOrientation = Configuration.ORIENTATION_PORTRAIT;
-    private int focusedBoxIndex = 0; // Box em foco para o botão BACK
+    private int currentOrientation = Configuration.ORIENTATION_LANDSCAPE; // Fixo para TV
+    private int focusedBoxIndex = 0;
+    
+    // Navegação por D-Pad
+    private int currentFocusIndex = 0;
+    private View[] focusableViews;
     
     // Favoritos
     private ArrayList<String> favoritesList = new ArrayList<>();
     private SharedPreferences preferences;
     
-    // Lista de domínios de anúncios para bloquear
+    // Lista de domínios de anúncios
     private final List<String> adDomains = Arrays.asList(
-        "doubleclick.net",
-        "googleadservices.com",
-        "googlesyndication.com",
-        "ads.google.com",
-        "adservice.google.com",
-        "ads.facebook.com",
-        "ad.doubleclick.net",
-        "adserver.google.com",
-        "pagead2.googlesyndication.com",
-        "ads.youtube.com",
-        "ad.youtube.com",
-        "pubads.g.doubleclick.net",
-        "securepubads.g.doubleclick.net",
-        "www.googletagservices.com",
-        "googletagservices.com",
-        "ads-twitter.com",
-        "ads.twitter.com",
-        "ads.reddit.com",
-        "ad.reddit.com"
+        "doubleclick.net", "googleadservices.com", "googlesyndication.com"
     );
 
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Forçar landscape para TV
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+        
         setContentView(R.layout.activity_main);
         
-        // Inicializar SharedPreferences
         preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
         
         // Configurar tela cheia
@@ -108,27 +98,59 @@ public class MainActivity extends AppCompatActivity {
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         );
         
-        // Inicializar componentes
         initViews();
         initWebViews();
         initEventListeners();
+        setupDPadNavigation();
         
-        // Carregar estado salvo AUTOMATICAMENTE
         loadSavedState(true);
-        
-        // Carregar lista de favoritos
         loadFavoritesList();
-        
-        // Configurar layout inicial
         updateLayout();
         updateFocusedBoxIndicator();
-        
-        // Configurar overlay para fechar sidebar
         setupSidebarOverlay();
         
-        // Carregar URLs iniciais apenas se não tiver estado salvo
         if (!hasSavedState()) {
             new Handler().postDelayed(this::loadInitialURLs, 1000);
+        }
+    }
+    
+    private void setupDPadNavigation() {
+        // Configurar navegação por D-Pad para TV
+        View.OnKeyListener dpadKeyListener = new View.OnKeyListener() {
+            @Override
+            public boolean onKey(View v, int keyCode, KeyEvent event) {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    switch (keyCode) {
+                        case KeyEvent.KEYCODE_DPAD_CENTER:
+                        case KeyEvent.KEYCODE_ENTER:
+                            v.performClick();
+                            return true;
+                        case KeyEvent.KEYCODE_MENU:
+                            toggleSidebar();
+                            return true;
+                        case KeyEvent.KEYCODE_BACK:
+                            if (isSidebarVisible) {
+                                closeSidebar();
+                                return true;
+                            }
+                            break;
+                    }
+                }
+                return false;
+            }
+        };
+        
+        // Aplicar a todos os botões
+        btnBack.setOnKeyListener(dpadKeyListener);
+        btnMenu.setOnKeyListener(dpadKeyListener);
+        btnCloseMenu.setOnKeyListener(dpadKeyListener);
+    }
+    
+    private void toggleSidebar() {
+        if (isSidebarVisible) {
+            closeSidebar();
+        } else {
+            openSidebar();
         }
     }
     
@@ -139,43 +161,47 @@ public class MainActivity extends AppCompatActivity {
         sidebarOverlay = findViewById(R.id.sidebarOverlay);
         tvFocusedBox = findViewById(R.id.tvFocusedBox);
         
-        // Botões na barra inferior
         btnMenu = findViewById(R.id.btnMenu);
-        btnOrientation = findViewById(R.id.btnOrientation);
         btnBack = findViewById(R.id.btnBack);
         
-        // Botões do menu lateral
+        // Remover botão de orientação para TV
+        btnOrientation = findViewById(R.id.btnOrientation);
+        if (btnOrientation != null) {
+            btnOrientation.setVisibility(View.GONE);
+        }
+        
         btnCloseMenu = findViewById(R.id.btnCloseMenu);
         btnLoadAll = findViewById(R.id.btnLoadAll);
         btnReloadAll = findViewById(R.id.btnReloadAll);
         btnClearAll = findViewById(R.id.btnClearAll);
         
-        // Botões de estado e favoritos
         btnSaveState = findViewById(R.id.btnSaveState);
         btnLoadState = findViewById(R.id.btnLoadState);
         btnSaveFavorites = findViewById(R.id.btnSaveFavorites);
         btnLoadFavorites = findViewById(R.id.btnLoadFavorites);
         
-        // Checkboxes
         checkBoxes[0] = findViewById(R.id.checkBox1);
         checkBoxes[1] = findViewById(R.id.checkBox2);
         checkBoxes[2] = findViewById(R.id.checkBox3);
         checkBoxes[3] = findViewById(R.id.checkBox4);
         
-        // Configurações
         cbAllowScripts = findViewById(R.id.cbAllowScripts);
         cbAllowForms = findViewById(R.id.cbAllowForms);
         cbAllowPopups = findViewById(R.id.cbAllowPopups);
         cbBlockRedirects = findViewById(R.id.cbBlockRedirects);
         cbBlockAds = findViewById(R.id.cbBlockAds);
         
-        // URLs
         urlInputs[0] = findViewById(R.id.urlInput1);
         urlInputs[1] = findViewById(R.id.urlInput2);
         urlInputs[2] = findViewById(R.id.urlInput3);
         urlInputs[3] = findViewById(R.id.urlInput4);
         
-        // Configurar ENTER para carregar em cada EditText
+        // URLs padrão otimizadas para TV
+        urlInputs[0].setText("https://www.youtube.com/tv");
+        urlInputs[1].setText("https://www.twitch.tv");
+        urlInputs[2].setText("https://vimeo.com");
+        urlInputs[3].setText("https://www.dailymotion.com");
+        
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
             urlInputs[i].setOnEditorActionListener(new TextView.OnEditorActionListener() {
@@ -183,7 +209,6 @@ public class MainActivity extends AppCompatActivity {
                 public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
                     if (actionId == EditorInfo.IME_ACTION_DONE || 
                         (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER)) {
-                        // Carregar URL na box correspondente
                         String url = urlInputs[boxIndex].getText().toString().trim();
                         if (!url.isEmpty()) {
                             loadURL(boxIndex, url);
@@ -204,11 +229,10 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         
-        // Impedir que toques passem através do overlay
         sidebarOverlay.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
-                return true; // Consumir o evento
+                return true;
             }
         });
     }
@@ -217,104 +241,87 @@ public class MainActivity extends AppCompatActivity {
         sidebarMenu.setVisibility(View.GONE);
         sidebarOverlay.setVisibility(View.GONE);
         isSidebarVisible = false;
+        btnMenu.requestFocus(); // Retornar foco para o botão menu
     }
     
     private void openSidebar() {
         sidebarMenu.setVisibility(View.VISIBLE);
         sidebarOverlay.setVisibility(View.VISIBLE);
         isSidebarVisible = true;
+        btnCloseMenu.requestFocus(); // Focar no botão de fechar
     }
     
     @SuppressLint("SetJavaScriptEnabled")
     private void initWebViews() {
-        // Criar containers e WebViews dinamicamente
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
             
-            // Criar container
             boxContainers[i] = new FrameLayout(this);
             boxContainers[i].setId(View.generateViewId());
             boxContainers[i].setBackgroundColor(Color.BLACK);
             
-            // Criar WebView
             webViews[i] = new WebView(this);
             webViews[i].setId(View.generateViewId());
             setupWebView(webViews[i], boxIndex);
             
-            // Adicionar WebView ao container
             boxContainers[i].addView(webViews[i], 
                 new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));
             
-            // Configurar clique duplo para fullscreen e clique simples para foco
             boxContainers[i].setOnClickListener(new View.OnClickListener() {
                 private long lastClickTime = 0;
                 
                 @Override
                 public void onClick(View v) {
                     long clickTime = System.currentTimeMillis();
-                    if (clickTime - lastClickTime < 300) {
-                        // Clique duplo detectado - ativar fullscreen
+                    if (clickTime - lastClickTime < 500) {
                         activateFullscreen(boxIndex);
                     } else {
-                        // Clique simples - mudar foco
                         focusedBoxIndex = boxIndex;
                         updateFocusedBoxIndicator();
                         Toast.makeText(MainActivity.this, 
-                            "Box " + (boxIndex + 1) + " em foco", Toast.LENGTH_SHORT).show();
+                            "Box " + (boxIndex + 1) + " selecionada", Toast.LENGTH_SHORT).show();
                     }
                     lastClickTime = clickTime;
                 }
             });
         }
         
-        // Adicionar containers ao grid
         for (int i = 0; i < 4; i++) {
             gridLayout.addView(boxContainers[i]);
         }
     }
     
     private void updateFocusedBoxIndicator() {
-        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-            tvFocusedBox.setVisibility(View.VISIBLE);
-            tvFocusedBox.setText("Foco: " + (focusedBoxIndex + 1));
-        } else {
-            tvFocusedBox.setVisibility(View.GONE);
-        }
+        tvFocusedBox.setText("Foco: " + (focusedBoxIndex + 1));
     }
     
     @SuppressLint("SetJavaScriptEnabled")
     private void setupWebView(WebView webView, int boxIndex) {
         WebSettings settings = webView.getSettings();
         
-        // Configurações básicas
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         
-        // Configurações de zoom
         settings.setSupportZoom(true);
         settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
         
-        // Otimizações
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
         
-        // Bloquear anúncios
         settings.setBlockNetworkLoads(cbBlockAds.isChecked());
         settings.setBlockNetworkImage(cbBlockAds.isChecked());
         
-        // User agent
-        settings.setUserAgentString("Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36");
+        // User agent para TV
+        settings.setUserAgentString("Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36");
         
-        // Cor de fundo
         webView.setBackgroundColor(Color.BLACK);
         
-        // WebViewClient com bloqueio de redirecionamentos e anúncios
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -327,36 +334,26 @@ public class MainActivity extends AppCompatActivity {
             }
             
             private boolean handleUrlLoading(WebView view, String url) {
-                Log.d("URL_LOADING", "Tentando carregar: " + url);
-                
-                // 1. Bloqueio de redirecionamentos
                 if (cbBlockRedirects.isChecked()) {
                     String currentUrl = view.getUrl();
                     if (currentUrl != null && !isSameDomain(currentUrl, url)) {
                         Toast.makeText(MainActivity.this, 
-                            "Redirecionamento bloqueado: " + getDomain(url), 
-                            Toast.LENGTH_SHORT).show();
-                        return true; // Bloquear
+                            "Redirecionamento bloqueado", Toast.LENGTH_SHORT).show();
+                        return true;
                     }
                 }
                 
-                // 2. Bloqueio de anúncios
                 if (cbBlockAds.isChecked() && isAdUrl(url)) {
                     Toast.makeText(MainActivity.this, 
-                        "Anúncio bloqueado: " + getDomain(url), 
-                        Toast.LENGTH_SHORT).show();
-                    return true; // Bloquear
+                        "Anúncio bloqueado", Toast.LENGTH_SHORT).show();
+                    return true;
                 }
                 
-                return false; // Permitir carregamento
+                return false;
             }
             
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-                super.onPageStarted(view, url, favicon);
-                Log.d("PAGE_STARTED", "Carregando: " + url);
-                
-                // Injetar script para remover anúncios
                 if (cbBlockAds.isChecked()) {
                     injectAdBlocker(view);
                 }
@@ -364,9 +361,6 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-                
-                // Injetar JavaScript para permitir fullscreen
                 String fullscreenJS = 
                     "var videos = document.getElementsByTagName('video');" +
                     "for(var i = 0; i < videos.length; i++) {" +
@@ -381,14 +375,12 @@ public class MainActivity extends AppCompatActivity {
                     view.loadUrl("javascript:" + fullscreenJS);
                 }
                 
-                // Injetar script para remover anúncios após carregamento
                 if (cbBlockAds.isChecked()) {
                     injectAdBlocker(view);
                 }
             }
         });
         
-        // WebChromeClient para fullscreen
         webView.setWebChromeClient(new WebChromeClient() {
             private View mCustomView;
             private WebChromeClient.CustomViewCallback mCustomViewCallback;
@@ -398,19 +390,15 @@ public class MainActivity extends AppCompatActivity {
                 mCustomView = view;
                 mCustomViewCallback = callback;
                 
-                // Ocultar controles inferiores
                 bottomControls.setVisibility(View.GONE);
                 
-                // Adicionar a view customizada
                 boxContainers[boxIndex].addView(view, 
                     new FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT));
                 
-                // Ocultar WebView original
                 webView.setVisibility(View.GONE);
                 
-                // Forçar fullscreen
                 getWindow().setFlags(
                     WindowManager.LayoutParams.FLAG_FULLSCREEN,
                     WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -420,10 +408,7 @@ public class MainActivity extends AppCompatActivity {
             public void onHideCustomView() {
                 if (mCustomView == null) return;
                 
-                // Mostrar WebView original
                 webView.setVisibility(View.VISIBLE);
-                
-                // Remover view customizada
                 boxContainers[boxIndex].removeView(mCustomView);
                 
                 if (mCustomViewCallback != null) {
@@ -433,10 +418,7 @@ public class MainActivity extends AppCompatActivity {
                 mCustomView = null;
                 mCustomViewCallback = null;
                 
-                // Restaurar controles
                 bottomControls.setVisibility(View.VISIBLE);
-                
-                // Sair do fullscreen
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             }
         });
@@ -444,38 +426,17 @@ public class MainActivity extends AppCompatActivity {
     
     private void injectAdBlocker(WebView view) {
         String adBlockJS = 
-            "// Remover elementos de anúncios comuns" +
             "var selectors = [" +
-            "   'div[class*=\"ad\"]'," +
-            "   'div[id*=\"ad\"]'," +
-            "   'iframe[src*=\"ad\"]'," +
-            "   'ins.adsbygoogle'," +
-            "   'div.ad-container'," +
-            "   'div.advertisement'," +
-            "   'div.ad-banner'," +
-            "   'div.ad-wrapper'," +
-            "   'div[data-ad-status]'," +
-            "   'div.google-ad'," +
-            "   'div#ad-wrap'," +
-            "   'div#ad-container'" +
+            "   'div[class*=\"ad\"]', 'div[id*=\"ad\"]', 'iframe[src*=\"ad\"]'," +
+            "   'ins.adsbygoogle', 'div.ad-container', 'div.advertisement'" +
             "];" +
-            "" +
             "selectors.forEach(function(selector) {" +
             "   var elements = document.querySelectorAll(selector);" +
             "   elements.forEach(function(el) {" +
             "       el.style.display = 'none';" +
             "       el.parentNode.removeChild(el);" +
             "   });" +
-            "});" +
-            "" +
-            "// Remover scripts de anúncios" +
-            "var scripts = document.getElementsByTagName('script');" +
-            "for(var i = scripts.length - 1; i >= 0; i--) {" +
-            "   var src = scripts[i].src || '';" +
-            "   if(src.includes('doubleclick') || src.includes('googlesyndication') || src.includes('ads.google')) {" +
-            "       scripts[i].parentNode.removeChild(scripts[i]);" +
-            "   }" +
-            "}";
+            "});";
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             view.evaluateJavascript(adBlockJS, null);
@@ -514,49 +475,25 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void initEventListeners() {
-        // Botão BACK para retroceder na box em foco
         btnBack.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (webViews[focusedBoxIndex].canGoBack()) {
                     webViews[focusedBoxIndex].goBack();
-                    Toast.makeText(MainActivity.this, 
-                        "Retrocedendo na Box " + (focusedBoxIndex + 1), Toast.LENGTH_SHORT).show();
                 } else {
                     Toast.makeText(MainActivity.this, 
-                        "Não há páginas para retroceder na Box " + (focusedBoxIndex + 1), 
-                        Toast.LENGTH_SHORT).show();
+                        "Não há páginas para retroceder", Toast.LENGTH_SHORT).show();
                 }
             }
         });
         
-        // Botão menu
         btnMenu.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (isSidebarVisible) {
-                    closeSidebar();
-                } else {
-                    openSidebar();
-                }
+                toggleSidebar();
             }
         });
         
-        // Botão orientação - alternar entre portrait e landscape
-        btnOrientation.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (currentOrientation == Configuration.ORIENTATION_PORTRAIT) {
-                    setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-                    btnOrientation.setText("↻");
-                } else {
-                    setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-                    btnOrientation.setText("📱");
-                }
-            }
-        });
-        
-        // Botão fechar menu lateral
         btnCloseMenu.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -564,7 +501,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         
-        // Botões de ação no menu lateral
         btnLoadAll.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -586,7 +522,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         
-        // Botões de estado e favoritos
         btnSaveState.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -615,7 +550,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         
-        // Checkboxes de boxes
         for (int i = 0; i < 4; i++) {
             final int index = i;
             checkBoxes[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -627,7 +561,6 @@ public class MainActivity extends AppCompatActivity {
             });
         }
         
-        // Configurações de segurança
         cbAllowScripts.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -636,8 +569,6 @@ public class MainActivity extends AppCompatActivity {
                         webView.getSettings().setJavaScriptEnabled(isChecked);
                     }
                 }
-                Toast.makeText(MainActivity.this, "JavaScript: " + (isChecked ? "Ativado" : "Desativado"), 
-                    Toast.LENGTH_SHORT).show();
             }
         });
         
@@ -651,13 +582,9 @@ public class MainActivity extends AppCompatActivity {
                         settings.setBlockNetworkImage(isChecked);
                     }
                 }
-                Toast.makeText(MainActivity.this, "Bloqueio de anúncios: " + (isChecked ? "Ativado" : "Desativado"), 
-                    Toast.LENGTH_SHORT).show();
             }
         });
     }
-    
-    // ==================== ESTADO ====================
     
     private boolean hasSavedState() {
         return preferences.contains("url_0") || preferences.contains("box_enabled_0");
@@ -667,7 +594,6 @@ public class MainActivity extends AppCompatActivity {
         try {
             SharedPreferences.Editor editor = preferences.edit();
             
-            // Salvar URLs
             for (int i = 0; i < 4; i++) {
                 String currentUrl = urlInputs[i].getText().toString().trim();
                 if (currentUrl.isEmpty()) {
@@ -676,15 +602,12 @@ public class MainActivity extends AppCompatActivity {
                 editor.putString("url_" + i, currentUrl);
             }
             
-            // Salvar estado das checkboxes
             for (int i = 0; i < 4; i++) {
                 editor.putBoolean("box_enabled_" + i, boxEnabled[i]);
             }
             
-            // Salvar orientação
             editor.putInt("orientation", currentOrientation);
             
-            // Salvar configurações
             editor.putBoolean("allow_scripts", cbAllowScripts.isChecked());
             editor.putBoolean("allow_forms", cbAllowForms.isChecked());
             editor.putBoolean("allow_popups", cbAllowPopups.isChecked());
@@ -693,57 +616,50 @@ public class MainActivity extends AppCompatActivity {
             
             editor.apply();
             
-            Toast.makeText(this, "✅ Estado guardado com sucesso!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "✅ Estado guardado!", Toast.LENGTH_SHORT).show();
             
         } catch (Exception e) {
-            Toast.makeText(this, "❌ Erro ao guardar estado: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "❌ Erro ao guardar estado", Toast.LENGTH_SHORT).show();
         }
     }
     
     private void loadSavedState(boolean silent) {
         try {
-            // Carregar URLs
             boolean hasSavedUrls = false;
             for (int i = 0; i < 4; i++) {
                 String savedUrl = preferences.getString("url_" + i, "");
                 if (!savedUrl.isEmpty()) {
                     hasSavedUrls = true;
                     urlInputs[i].setText(savedUrl);
-                    // Carregar a URL no WebView
                     if (boxEnabled[i]) {
                         loadURL(i, savedUrl);
                     }
                 }
             }
             
-            // Se não tiver URLs salvas, usar URLs padrão
             if (!hasSavedUrls) {
                 for (int i = 0; i < 4; i++) {
                     urlInputs[i].setText(getDefaultUrl(i));
                 }
             }
             
-            // Carregar estado das checkboxes
             for (int i = 0; i < 4; i++) {
                 boolean savedState = preferences.getBoolean("box_enabled_" + i, true);
                 boxEnabled[i] = savedState;
                 checkBoxes[i].setChecked(savedState);
             }
             
-            // Carregar orientação
-            int savedOrientation = preferences.getInt("orientation", Configuration.ORIENTATION_PORTRAIT);
+            int savedOrientation = preferences.getInt("orientation", Configuration.ORIENTATION_LANDSCAPE);
             currentOrientation = savedOrientation;
-            btnOrientation.setText(currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "📱" : "↻");
             
-            // Carregar configurações
             cbAllowScripts.setChecked(preferences.getBoolean("allow_scripts", true));
             cbAllowForms.setChecked(preferences.getBoolean("allow_forms", true));
             cbAllowPopups.setChecked(preferences.getBoolean("allow_popups", true));
-            cbBlockRedirects.setChecked(preferences.getBoolean("block_redirects", true));
+            cbBlockRedirects.setChecked(preferences.getBoolean("block_redirects", false));
             cbBlockAds.setChecked(preferences.getBoolean("block_ads", false));
             
             if (!silent) {
-                Toast.makeText(this, "✅ Estado carregado com sucesso!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "✅ Estado carregado!", Toast.LENGTH_SHORT).show();
             }
             
             updateLayout();
@@ -751,22 +667,20 @@ public class MainActivity extends AppCompatActivity {
             
         } catch (Exception e) {
             if (!silent) {
-                Toast.makeText(this, "❌ Erro ao carregar estado: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "❌ Erro ao carregar estado", Toast.LENGTH_SHORT).show();
             }
         }
     }
     
     private String getDefaultUrl(int boxIndex) {
         switch (boxIndex) {
-            case 0: return "https://streamed.pk/";
-            case 1: return "https://en12.sportplus.live";
-            case 2: return "https://kevinsport.pro/live/football/";
-            case 3: return "https://beta.sport71.pro/tv.php";
+            case 0: return "https://www.youtube.com/tv";
+            case 1: return "https://www.twitch.tv";
+            case 2: return "https://vimeo.com";
+            case 3: return "https://www.dailymotion.com";
             default: return "https://www.google.com";
         }
     }
-    
-    // ==================== FAVORITOS ====================
     
     private void loadFavoritesList() {
         try {
@@ -798,13 +712,11 @@ public class MainActivity extends AppCompatActivity {
     
     private void saveFavorite(String favoriteName) {
         try {
-            // Verificar se já existe
             if (favoritesList.contains(favoriteName)) {
                 Toast.makeText(this, "❌ Já existe um favorito com este nome!", Toast.LENGTH_SHORT).show();
                 return;
             }
             
-            // Criar JSON com as URLs atuais
             JSONObject favoriteData = new JSONObject();
             favoriteData.put("name", favoriteName);
             
@@ -818,19 +730,17 @@ public class MainActivity extends AppCompatActivity {
             }
             favoriteData.put("urls", urlsArray);
             
-            // Adicionar à lista e salvar
             favoritesList.add(favoriteName);
             saveFavoritesList();
             
-            // Salvar os dados do favorito
             SharedPreferences.Editor editor = preferences.edit();
             editor.putString("favorite_" + favoriteName, favoriteData.toString());
             editor.apply();
             
-            Toast.makeText(this, "✅ Favorito '" + favoriteName + "' guardado!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "✅ Favorito guardado!", Toast.LENGTH_SHORT).show();
             
         } catch (Exception e) {
-            Toast.makeText(this, "❌ Erro ao guardar favorito: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "❌ Erro ao guardar favorito", Toast.LENGTH_SHORT).show();
         }
     }
     
@@ -846,7 +756,6 @@ public class MainActivity extends AppCompatActivity {
             JSONArray urlsArray = favoriteData.getJSONArray("urls");
             
             if (targetBox == -1) {
-                // Carregar em todas as boxes
                 for (int i = 0; i < 4 && i < urlsArray.length(); i++) {
                     String url = urlsArray.getString(i);
                     urlInputs[i].setText(url);
@@ -856,7 +765,6 @@ public class MainActivity extends AppCompatActivity {
                 }
                 Toast.makeText(this, "✅ Favorito carregado em todas as boxes!", Toast.LENGTH_SHORT).show();
             } else {
-                // Carregar apenas na box específica
                 if (targetBox < urlsArray.length()) {
                     String url = urlsArray.getString(targetBox);
                     urlInputs[targetBox].setText(url);
@@ -875,29 +783,24 @@ public class MainActivity extends AppCompatActivity {
     
     private void deleteFavorite(String favoriteName) {
         try {
-            // Remover da lista
             favoritesList.remove(favoriteName);
             saveFavoritesList();
             
-            // Remover dados
             SharedPreferences.Editor editor = preferences.edit();
             editor.remove("favorite_" + favoriteName);
             editor.apply();
             
-            Toast.makeText(this, "✅ Favorito '" + favoriteName + "' removido!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "✅ Favorito removido!", Toast.LENGTH_SHORT).show();
             
         } catch (Exception e) {
-            Toast.makeText(this, "❌ Erro ao remover favorito: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "❌ Erro ao remover favorito", Toast.LENGTH_SHORT).show();
         }
     }
-    
-    // ==================== DIALOGS ====================
     
     private void showSaveFavoriteDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Guardar Favorito");
         
-        // Configurar a view do dialog
         final EditText input = new EditText(this);
         input.setHint("Nome do favorito");
         builder.setView(input);
@@ -909,7 +812,7 @@ public class MainActivity extends AppCompatActivity {
                 if (!favoriteName.isEmpty()) {
                     saveFavorite(favoriteName);
                 } else {
-                    Toast.makeText(MainActivity.this, "❌ Digite um nome para o favorito!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "❌ Digite um nome!", Toast.LENGTH_SHORT).show();
                 }
             }
         });
@@ -933,7 +836,6 @@ public class MainActivity extends AppCompatActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Carregar Favorito");
         
-        // Converter lista para array
         final String[] favoriteNames = favoritesList.toArray(new String[0]);
         
         builder.setItems(favoriteNames, new DialogInterface.OnClickListener() {
@@ -965,27 +867,13 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 switch (which) {
-                    case 0: // Carregar em Todas
-                        loadFavorite(favoriteName, -1);
-                        break;
-                    case 1: // Carregar em Box 1
-                        loadFavorite(favoriteName, 0);
-                        break;
-                    case 2: // Carregar em Box 2
-                        loadFavorite(favoriteName, 1);
-                        break;
-                    case 3: // Carregar em Box 3
-                        loadFavorite(favoriteName, 2);
-                        break;
-                    case 4: // Carregar em Box 4
-                        loadFavorite(favoriteName, 3);
-                        break;
-                    case 5: // Eliminar
-                        showDeleteConfirmDialog(favoriteName);
-                        break;
-                    case 6: // Cancelar
-                        dialog.dismiss();
-                        break;
+                    case 0: loadFavorite(favoriteName, -1); break;
+                    case 1: loadFavorite(favoriteName, 0); break;
+                    case 2: loadFavorite(favoriteName, 1); break;
+                    case 3: loadFavorite(favoriteName, 2); break;
+                    case 4: loadFavorite(favoriteName, 3); break;
+                    case 5: showDeleteConfirmDialog(favoriteName); break;
+                    case 6: dialog.dismiss(); break;
                 }
             }
         });
@@ -996,7 +884,7 @@ public class MainActivity extends AppCompatActivity {
     private void showDeleteConfirmDialog(final String favoriteName) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Confirmar Eliminação");
-        builder.setMessage("Tem certeza que deseja eliminar o favorito '" + favoriteName + "'?");
+        builder.setMessage("Eliminar o favorito '" + favoriteName + "'?");
         
         builder.setPositiveButton("ELIMINAR", new DialogInterface.OnClickListener() {
             @Override
@@ -1015,10 +903,7 @@ public class MainActivity extends AppCompatActivity {
         builder.show();
     }
     
-    // ==================== OUTROS MÉTODOS ====================
-    
     private void activateFullscreen(int boxIndex) {
-        // Ativar fullscreen via JavaScript
         WebView webView = webViews[boxIndex];
         String fullscreenJS = 
             "var videos = document.getElementsByTagName('video');" +
@@ -1038,41 +923,26 @@ public class MainActivity extends AppCompatActivity {
         }
         
         if (activeBoxes == 0) {
-            // Nenhuma box ativa, mostrar todas
             for (int i = 0; i < 4; i++) {
                 boxEnabled[i] = true;
                 checkBoxes[i].setChecked(true);
             }
             activeBoxes = 4;
-            Toast.makeText(this, "Todas as boxes ativadas", Toast.LENGTH_SHORT).show();
         }
         
         int rows, cols;
         
-        // Layout automático baseado em boxes ativas e orientação
+        // Layout 2x2 para TV em landscape
         if (activeBoxes == 1) {
             rows = 1; cols = 1;
         } else if (activeBoxes == 2) {
-            if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-                rows = 1; cols = 2;
-            } else {
-                rows = 2; cols = 1;
-            }
+            rows = 1; cols = 2;
         } else if (activeBoxes == 3) {
-            if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-                rows = 1; cols = 3;
-            } else {
-                rows = 3; cols = 1;
-            }
-        } else { // 4 boxes
-            if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-                rows = 2; cols = 2;
-            } else {
-                rows = 4; cols = 1;
-            }
+            rows = 2; cols = 2;
+        } else {
+            rows = 2; cols = 2;
         }
         
-        // Aplicar layout
         gridLayout.removeAllViews();
         gridLayout.setRowCount(rows);
         gridLayout.setColumnCount(cols);
@@ -1086,7 +956,7 @@ public class MainActivity extends AppCompatActivity {
                 GridLayout.LayoutParams params = new GridLayout.LayoutParams(rowSpec, colSpec);
                 params.width = 0;
                 params.height = 0;
-                params.setMargins(2, 2, 2, 2);
+                params.setMargins(4, 4, 4, 4);
                 
                 boxContainers[i].setVisibility(View.VISIBLE);
                 gridLayout.addView(boxContainers[i], params);
@@ -1130,7 +1000,6 @@ public class MainActivity extends AppCompatActivity {
                 url = "https://" + url;
             }
             webViews[boxIndex].loadUrl(url);
-            Toast.makeText(this, "Carregando Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             Toast.makeText(this, "❌ Erro ao carregar Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
         }
@@ -1157,52 +1026,77 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        currentOrientation = newConfig.orientation;
-        
-        // Atualizar ícone do botão de orientação
-        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-            btnOrientation.setText("↻");
-            // Centralizar conteúdo da barra inferior em landscape
-            bottomControls.setGravity(android.view.Gravity.CENTER);
-        } else {
-            btnOrientation.setText("📱");
-            // Alinhar verticalmente em portrait
-            bottomControls.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        // Para TV, manter sempre landscape
+        if (newConfig.orientation != Configuration.ORIENTATION_LANDSCAPE) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         }
-        
         updateLayout();
-        updateFocusedBoxIndicator();
     }
     
     @Override
     protected void onPause() {
         super.onPause();
-        // Guardar estado automaticamente ao sair
         saveCurrentState();
     }
     
     @Override
     protected void onResume() {
         super.onResume();
-        // Recarregar favoritos
         loadFavoritesList();
     }
     
     @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        // Controle por D-Pad para TV
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+                // Navegar para cima
+                return true;
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                // Navegar para baixo
+                return true;
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                // Mover foco entre boxes
+                if (focusedBoxIndex > 0) {
+                    focusedBoxIndex--;
+                    updateFocusedBoxIndicator();
+                    return true;
+                }
+                break;
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                // Mover foco entre boxes
+                if (focusedBoxIndex < 3) {
+                    focusedBoxIndex++;
+                    updateFocusedBoxIndicator();
+                    return true;
+                }
+                break;
+            case KeyEvent.KEYCODE_BACK:
+                if (isSidebarVisible) {
+                    closeSidebar();
+                    return true;
+                }
+                if (webViews[focusedBoxIndex].canGoBack()) {
+                    webViews[focusedBoxIndex].goBack();
+                    return true;
+                }
+                break;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+    
+    @Override
     public void onBackPressed() {
-        // 1. Fechar sidebar se aberto
         if (isSidebarVisible) {
             closeSidebar();
             return;
         }
         
-        // 2. Tentar retroceder na box em foco
         if (webViews[focusedBoxIndex].canGoBack()) {
             webViews[focusedBoxIndex].goBack();
             return;
         }
         
-        // 3. Tentar retroceder em qualquer WebView que possa
         for (WebView webView : webViews) {
             if (webView != null && webView.canGoBack()) {
                 webView.goBack();
@@ -1210,10 +1104,9 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         
-        // 4. Confirmar saída do app
         new AlertDialog.Builder(this)
             .setTitle("Sair do App")
-            .setMessage("Deseja realmente sair?")
+            .setMessage("Deseja sair?")
             .setPositiveButton("SIM", new DialogInterface.OnClickListener() {
                 @Override
                 public void onClick(DialogInterface dialog, int which) {
