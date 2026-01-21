@@ -3,27 +3,16 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.example.multistreamviewer">
 
-    <!-- Permissões -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Suportar TV -->
     <uses-feature android:name="android.software.leanback"
         android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen"
         android:required="false" />
-    <uses-feature android:name="android.hardware.faketouch"
-        android:required="false" />
-
-    <!-- Suportar ambas orientações -->
-    <uses-feature android:name="android.hardware.screen.portrait"
-        android:required="false" />
-    <uses-feature android:name="android.hardware.screen.landscape"
-        android:required="true" />
 
     <application
         android:allowBackup="true"
-        android:banner="@mipmap/ic_launcher"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
