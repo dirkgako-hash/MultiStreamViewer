@@ -377,14 +377,15 @@
             android:focusable="false" />
     </LinearLayout>
 
-    <!-- Sidebar compacto (150dp largura) -->
-    <FrameLayout
+    <!-- Sidebar compacto (160dp largura para garantir cliques) -->
+    <LinearLayout
         android:id="@+id/sidebarContainer"
-        android:layout_width="150dp"
+        android:layout_width="160dp"
         android:layout_height="match_parent"
         android:layout_alignParentEnd="true"
         android:layout_above="@id/bottomControls"
         android:background="#1a1a1a"
+        android:orientation="vertical"
         android:visibility="gone"
         android:focusable="true"
         android:focusableInTouchMode="true"
@@ -392,7 +393,8 @@
 
         <ScrollView
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
             android:scrollbars="vertical"
             android:fillViewport="true">
 
@@ -421,14 +423,14 @@
 
                     <Button
                         android:id="@+id/btnCloseMenu"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
                         android:background="#ff4444"
                         android:focusable="true"
                         android:focusableInTouchMode="true"
                         android:text="✕"
                         android:textColor="#FFFFFF"
-                        android:textSize="10sp" />
+                        android:textSize="12sp" />
                 </LinearLayout>
 
                 <!-- GUARDAR/CARREGAR -->
@@ -450,7 +452,7 @@
                     <Button
                         android:id="@+id/btnSaveState"
                         android:layout_width="0dp"
-                        android:layout_height="24dp"
+                        android:layout_height="26dp"
                         android:layout_weight="1"
                         android:background="#4CAF50"
                         android:focusable="true"
@@ -462,7 +464,7 @@
                     <Button
                         android:id="@+id/btnLoadState"
                         android:layout_width="0dp"
-                        android:layout_height="24dp"
+                        android:layout_height="26dp"
                         android:layout_weight="1"
                         android:layout_marginStart="2dp"
                         android:background="#4CAF50"
@@ -482,25 +484,25 @@
                     <Button
                         android:id="@+id/btnSaveFavorites"
                         android:layout_width="0dp"
-                        android:layout_height="24dp"
+                        android:layout_height="26dp"
                         android:layout_weight="1"
                         android:background="#FF9800"
                         android:focusable="true"
                         android:focusableInTouchMode="true"
-                        android:text="FAV SALVAR"
+                        android:text="FAV SAVE"
                         android:textColor="#FFFFFF"
                         android:textSize="9sp" />
                     
                     <Button
                         android:id="@+id/btnLoadFavorites"
                         android:layout_width="0dp"
-                        android:layout_height="24dp"
+                        android:layout_height="26dp"
                         android:layout_weight="1"
                         android:layout_marginStart="2dp"
                         android:background="#FF9800"
                         android:focusable="true"
                         android:focusableInTouchMode="true"
-                        android:text="FAV CARREGAR"
+                        android:text="FAV LOAD"
                         android:textColor="#FFFFFF"
                         android:textSize="9sp" />
                 </LinearLayout>
@@ -556,7 +558,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:checked="false"
-                    android:text="Bloq. Redirects"
+                    android:text="No Redirects"
                     android:textColor="#FFFFFF"
                     android:textSize="9sp"
                     android:layout_marginBottom="1dp"
@@ -568,7 +570,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:checked="false"
-                    android:text="Bloq. Ads"
+                    android:text="No Ads"
                     android:textColor="#FFFFFF"
                     android:textSize="9sp"
                     android:layout_marginBottom="6dp"
@@ -595,7 +597,7 @@
                     <EditText
                         android:id="@+id/urlInput1"
                         android:layout_width="0dp"
-                        android:layout_height="24dp"
+                        android:layout_height="26dp"
                         android:layout_weight="1"
                         android:background="#333333"
                         android:focusable="true"
@@ -603,15 +605,15 @@
                         android:hint="Box1"
                         android:imeOptions="actionDone"
                         android:inputType="textUri"
-                        android:padding="3dp"
+                        android:padding="4dp"
                         android:text="https://dzritv.com/sport/football/"
                         android:textColor="#FFFFFF"
                         android:textSize="9sp" />
                     
                     <Button
                         android:id="@+id/btnLoadUrl1"
-                        android:layout_width="36dp"
-                        android:layout_height="24dp"
+                        android:layout_width="40dp"
+                        android:layout_height="26dp"
                         android:layout_marginStart="2dp"
                         android:background="#1e3c72"
                         android:focusable="true"
@@ -631,7 +633,7 @@
                     <EditText
                         android:id="@+id/urlInput2"
                         android:layout_width="0dp"
-                        android:layout_height="24dp"
+                        android:layout_height="26dp"
                         android:layout_weight="1"
                         android:background="#333333"
                         android:focusable="true"
@@ -639,15 +641,15 @@
                         android:hint="Box2"
                         android:imeOptions="actionDone"
                         android:inputType="textUri"
-                        android:padding="3dp"
+                        android:padding="4dp"
                         android:text="https://dzritv.com/sport/football/"
                         android:textColor="#FFFFFF"
                         android:textSize="9sp" />
                     
                     <Button
                         android:id="@+id/btnLoadUrl2"
-                        android:layout_width="36dp"
-                        android:layout_height="24dp"
+                        android:layout_width="40dp"
+                        android:layout_height="26dp"
                         android:layout_marginStart="2dp"
                         android:background="#1e3c72"
                         android:focusable="true"
@@ -667,7 +669,7 @@
                     <EditText
                         android:id="@+id/urlInput3"
                         android:layout_width="0dp"
-                        android:layout_height="24dp"
+                        android:layout_height="26dp"
                         android:layout_weight="1"
                         android:background="#333333"
                         android:focusable="true"
@@ -675,15 +677,15 @@
                         android:hint="Box3"
                         android:imeOptions="actionDone"
                         android:inputType="textUri"
-                        android:padding="3dp"
+                        android:padding="4dp"
                         android:text="https://dzritv.com/sport/football/"
                         android:textColor="#FFFFFF"
                         android:textSize="9sp" />
                     
                     <Button
                         android:id="@+id/btnLoadUrl3"
-                        android:layout_width="36dp"
-                        android:layout_height="24dp"
+                        android:layout_width="40dp"
+                        android:layout_height="26dp"
                         android:layout_marginStart="2dp"
                         android:background="#1e3c72"
                         android:focusable="true"
@@ -703,7 +705,7 @@
                     <EditText
                         android:id="@+id/urlInput4"
                         android:layout_width="0dp"
-                        android:layout_height="24dp"
+                        android:layout_height="26dp"
                         android:layout_weight="1"
                         android:background="#333333"
                         android:focusable="true"
@@ -711,15 +713,15 @@
                         android:hint="Box4"
                         android:imeOptions="actionDone"
                         android:inputType="textUri"
-                        android:padding="3dp"
+                        android:padding="4dp"
                         android:text="https://dzritv.com/sport/football/"
                         android:textColor="#FFFFFF"
                         android:textSize="9sp" />
                     
                     <Button
                         android:id="@+id/btnLoadUrl4"
-                        android:layout_width="36dp"
-                        android:layout_height="24dp"
+                        android:layout_width="40dp"
+                        android:layout_height="26dp"
                         android:layout_marginStart="2dp"
                         android:background="#1e3c72"
                         android:focusable="true"
@@ -739,7 +741,7 @@
                     <Button
                         android:id="@+id/btnLoadAll"
                         android:layout_width="0dp"
-                        android:layout_height="24dp"
+                        android:layout_height="26dp"
                         android:layout_weight="1"
                         android:background="#1e3c72"
                         android:focusable="true"
@@ -751,7 +753,7 @@
                     <Button
                         android:id="@+id/btnReloadAll"
                         android:layout_width="0dp"
-                        android:layout_height="24dp"
+                        android:layout_height="26dp"
                         android:layout_weight="1"
                         android:layout_marginStart="2dp"
                         android:background="#1e3c72"
@@ -765,14 +767,14 @@
                 <Button
                     android:id="@+id/btnClearAll"
                     android:layout_width="match_parent"
-                    android:layout_height="24dp"
+                    android:layout_height="26dp"
                     android:background="#ff4444"
                     android:focusable="true"
                     android:focusableInTouchMode="true"
-                    android:text="LIMPAR TODAS"
+                    android:text="CLEAR ALL"
                     android:textColor="#FFFFFF"
                     android:textSize="9sp" />
             </LinearLayout>
         </ScrollView>
-    </FrameLayout>
+    </LinearLayout>
 </RelativeLayout>

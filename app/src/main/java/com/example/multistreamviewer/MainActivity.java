@@ -11,8 +11,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.view.KeyEvent;
 import android.view.View;
-import android.view.ViewGroup;
-import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -46,7 +44,7 @@ public class MainActivity extends AppCompatActivity {
     private WebView[] webViews = new WebView[4];
     private FrameLayout[] boxContainers = new FrameLayout[4];
     private LinearLayout bottomControls;
-    private FrameLayout sidebarContainer;
+    private LinearLayout sidebarContainer;
     private RelativeLayout mainLayout;
     
     private Button btnMenu;
@@ -67,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
     private boolean isVideoMuted = true;
-    private int[] zoomLevels = {100, 100, 100, 100}; // Percentagem do zoom (100% = zoom normal)
+    private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
     
     private ArrayList<String> favoritesList = new ArrayList<>();
     private SharedPreferences preferences;
@@ -86,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
         
         preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
         
+        // Configurar fullscreen
         getWindow().getDecorView().setSystemUiVisibility(
             View.SYSTEM_UI_FLAG_FULLSCREEN |
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
@@ -155,6 +154,7 @@ public class MainActivity extends AppCompatActivity {
         btnNext[2] = findViewById(R.id.btnNext3);
         btnNext[3] = findViewById(R.id.btnNext4);
         
+        // Inicializar botões GO
         btnLoadUrl[0] = findViewById(R.id.btnLoadUrl1);
         btnLoadUrl[1] = findViewById(R.id.btnLoadUrl2);
         btnLoadUrl[2] = findViewById(R.id.btnLoadUrl3);
@@ -176,6 +176,7 @@ public class MainActivity extends AppCompatActivity {
             urlInput.setText(defaultUrl);
         }
         
+        // Configurar ação ENTER para cada input
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
             urlInputs[i].setOnEditorActionListener(new TextView.OnEditorActionListener() {
@@ -293,7 +294,8 @@ public class MainActivity extends AppCompatActivity {
         settings.setBlockNetworkImage(cbBlockAds.isChecked());
         
         // Configurar zoom inicial
-        webView.setInitialScale(zoomLevels[boxIndex]);
+        settings.setTextZoom((int)(zoomLevels[boxIndex] * 100));
+        webView.setInitialScale((int)(zoomLevels[boxIndex] * 100));
         
         settings.setUserAgentString("Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) AppleWebKit/537.36");
         
@@ -354,7 +356,7 @@ public class MainActivity extends AppCompatActivity {
                     view.loadUrl("javascript:" + muteJS);
                 }
                 
-                // Aplicar zoom atual
+                // Aplicar zoom atual (sem recarregar)
                 applyZoom(boxIndex);
                 
                 if (cbBlockAds.isChecked()) {
@@ -373,9 +375,6 @@ public class MainActivity extends AppCompatActivity {
                 mCustomView = view;
                 mCustomViewCallback = callback;
                 
-                // NÃO esconder controles - manter sempre visível
-                // bottomControls.setVisibility(View.VISIBLE);
-                
                 // Adicionar a view de fullscreen diretamente na box
                 boxContainers[boxIndex].addView(view, 
                     new FrameLayout.LayoutParams(
@@ -385,9 +384,12 @@ public class MainActivity extends AppCompatActivity {
                 // Esconder o WebView original
                 webView.setVisibility(View.GONE);
                 
-                getWindow().setFlags(
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                // NÃO esconder controles - manter sempre visível
+                // bottomControls.setVisibility(View.VISIBLE);
+                
+                // Aplicar fullscreen na janela
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
             }
             
             @Override
@@ -410,6 +412,7 @@ public class MainActivity extends AppCompatActivity {
                 // Mostrar controles (já deveriam estar visíveis)
                 bottomControls.setVisibility(View.VISIBLE);
                 
+                // Remover fullscreen da janela
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             }
         });
@@ -418,27 +421,33 @@ public class MainActivity extends AppCompatActivity {
     private void applyZoom(int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
-            // Usar setInitialScale para zoom real na página
-            webView.setInitialScale(zoomLevels[boxIndex]);
-            webView.invalidate();
-            webView.reload(); // Recarregar para aplicar o zoom
+            // Usar JavaScript para aplicar zoom no conteúdo da página
+            String zoomJS = "document.body.style.zoom = '" + (zoomLevels[boxIndex] * 100) + "%';";
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                webView.evaluateJavascript(zoomJS, null);
+            } else {
+                webView.loadUrl("javascript:" + zoomJS);
+            }
+            
+            // Atualizar zoom das configurações
+            webView.getSettings().setTextZoom((int)(zoomLevels[boxIndex] * 100));
         }
     }
     
     private void zoomIn(int boxIndex) {
-        if (zoomLevels[boxIndex] < 200) {
-            zoomLevels[boxIndex] += 10;
+        if (zoomLevels[boxIndex] < 2.0f) {
+            zoomLevels[boxIndex] += 0.1f;
             applyZoom(boxIndex);
-            Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + zoomLevels[boxIndex] + "%", 
+            Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + String.format("%.0f", zoomLevels[boxIndex] * 100) + "%", 
                 Toast.LENGTH_SHORT).show();
         }
     }
     
     private void zoomOut(int boxIndex) {
-        if (zoomLevels[boxIndex] > 50) {
-            zoomLevels[boxIndex] -= 10;
+        if (zoomLevels[boxIndex] > 0.5f) {
+            zoomLevels[boxIndex] -= 0.1f;
             applyZoom(boxIndex);
-            Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + zoomLevels[boxIndex] + "%", 
+            Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + String.format("%.0f", zoomLevels[boxIndex] * 100) + "%", 
                 Toast.LENGTH_SHORT).show();
         }
     }
@@ -565,18 +574,20 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
             
-            // Botão para carregar URL específica
-            btnLoadUrl[i].setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    String url = urlInputs[boxIndex].getText().toString().trim();
-                    if (url.isEmpty()) {
-                        url = getDefaultUrl(boxIndex);
-                        urlInputs[boxIndex].setText(url);
+            // Botão GO para carregar URL específica
+            if (btnLoadUrl[i] != null) {
+                btnLoadUrl[i].setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        String url = urlInputs[boxIndex].getText().toString().trim();
+                        if (!url.isEmpty()) {
+                            loadURL(boxIndex, url);
+                            Toast.makeText(MainActivity.this, "Box " + (boxIndex + 1) + " carregando...", 
+                                Toast.LENGTH_SHORT).show();
+                        }
                     }
-                    loadURL(boxIndex, url);
-                }
-            });
+                });
+            }
             
             // Checkbox para ativar/desativar box
             checkBoxes[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -804,7 +815,7 @@ public class MainActivity extends AppCompatActivity {
             
             // Salvar níveis de zoom
             for (int i = 0; i < 4; i++) {
-                editor.putInt("zoom_level_" + i, zoomLevels[i]);
+                editor.putFloat("zoom_level_" + i, zoomLevels[i]);
             }
             
             editor.putBoolean("allow_scripts", cbAllowScripts.isChecked());
@@ -850,7 +861,7 @@ public class MainActivity extends AppCompatActivity {
             
             // Carregar níveis de zoom
             for (int i = 0; i < 4; i++) {
-                zoomLevels[i] = preferences.getInt("zoom_level_" + i, 100);
+                zoomLevels[i] = preferences.getFloat("zoom_level_" + i, 1.0f);
                 applyZoom(i);
             }
             
@@ -994,11 +1005,15 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void showSaveFavoriteDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Guardar Favorito");
-        
+        // Criar um EditText programaticamente para garantir que funciona como o favorito
         final EditText input = new EditText(this);
         input.setHint("Nome do favorito");
+        input.setTextColor(Color.BLACK);
+        input.setHintTextColor(Color.GRAY);
+        input.setBackgroundResource(android.R.drawable.edit_text);
+        
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Guardar Favorito");
         builder.setView(input);
         
         builder.setPositiveButton("GUARDAR", new DialogInterface.OnClickListener() {
@@ -1012,7 +1027,12 @@ public class MainActivity extends AppCompatActivity {
         });
         
         builder.setNegativeButton("CANCELAR", null);
-        builder.show();
+        
+        AlertDialog dialog = builder.create();
+        dialog.show();
+        
+        // Focar no input quando o dialog aparecer
+        input.requestFocus();
     }
     
     private void showLoadFavoritesDialog() {
