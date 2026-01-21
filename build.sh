@@ -20,6 +20,7 @@ if [ $? -eq 0 ]; then
         echo "📏 Tamanho: $(du -h "$APK" | cut -f1)"
         echo ""
         echo "🔧 CORREÇÕES APLICADAS:"
+        echo "• ✓ Import WindowManager corrigido"
         echo "• ✓ Auto refresh removido"
         echo "• ✓ Zoom corrigido (usa JavaScript para conteúdo)"
         echo "• ✓ Botões GO funcionando"
