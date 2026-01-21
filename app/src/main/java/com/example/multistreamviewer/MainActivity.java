@@ -10,7 +10,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.KeyEvent;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -26,6 +25,7 @@ import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -47,12 +47,16 @@ public class MainActivity extends AppCompatActivity {
     private FrameLayout[] boxContainers = new FrameLayout[4];
     private LinearLayout bottomControls;
     private FrameLayout sidebarContainer;
-    private View sidebarOverlay;
+    private RelativeLayout mainLayout;
     
-    private Button btnMenu, btnBack;
+    private Button btnMenu;
     private Button btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
-    private Button[] btnLoadUrls = new Button[4];
+    private Button[] btnRefresh = new Button[4];
+    private Button[] btnZoomIn = new Button[4];
+    private Button[] btnZoomOut = new Button[4];
+    private Button[] btnPrevious = new Button[4];
+    private Button[] btnNext = new Button[4];
     private CheckBox[] checkBoxes = new CheckBox[4];
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
     private EditText[] urlInputs = new EditText[4];
@@ -62,6 +66,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
     private boolean isVideoMuted = true;
+    private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
     
     private ArrayList<String> favoritesList = new ArrayList<>();
     private SharedPreferences preferences;
@@ -104,11 +109,10 @@ public class MainActivity extends AppCompatActivity {
         gridLayout = findViewById(R.id.gridLayout);
         bottomControls = findViewById(R.id.bottomControls);
         sidebarContainer = findViewById(R.id.sidebarContainer);
-        sidebarOverlay = findViewById(R.id.sidebarOverlay);
+        mainLayout = findViewById(R.id.main_layout);
         tvFocusedBox = findViewById(R.id.tvFocusedBox);
         
         btnMenu = findViewById(R.id.btnMenu);
-        btnBack = findViewById(R.id.btnBack);
         
         btnCloseMenu = findViewById(R.id.btnCloseMenu);
         btnLoadAll = findViewById(R.id.btnLoadAll);
@@ -125,10 +129,30 @@ public class MainActivity extends AppCompatActivity {
         checkBoxes[2] = findViewById(R.id.checkBox3);
         checkBoxes[3] = findViewById(R.id.checkBox4);
         
-        btnLoadUrls[0] = findViewById(R.id.btnLoadUrl1);
-        btnLoadUrls[1] = findViewById(R.id.btnLoadUrl2);
-        btnLoadUrls[2] = findViewById(R.id.btnLoadUrl3);
-        btnLoadUrls[3] = findViewById(R.id.btnLoadUrl4);
+        btnRefresh[0] = findViewById(R.id.btnRefresh1);
+        btnRefresh[1] = findViewById(R.id.btnRefresh2);
+        btnRefresh[2] = findViewById(R.id.btnRefresh3);
+        btnRefresh[3] = findViewById(R.id.btnRefresh4);
+        
+        btnZoomIn[0] = findViewById(R.id.btnZoomIn1);
+        btnZoomIn[1] = findViewById(R.id.btnZoomIn2);
+        btnZoomIn[2] = findViewById(R.id.btnZoomIn3);
+        btnZoomIn[3] = findViewById(R.id.btnZoomIn4);
+        
+        btnZoomOut[0] = findViewById(R.id.btnZoomOut1);
+        btnZoomOut[1] = findViewById(R.id.btnZoomOut2);
+        btnZoomOut[2] = findViewById(R.id.btnZoomOut3);
+        btnZoomOut[3] = findViewById(R.id.btnZoomOut4);
+        
+        btnPrevious[0] = findViewById(R.id.btnPrevious1);
+        btnPrevious[1] = findViewById(R.id.btnPrevious2);
+        btnPrevious[2] = findViewById(R.id.btnPrevious3);
+        btnPrevious[3] = findViewById(R.id.btnPrevious4);
+        
+        btnNext[0] = findViewById(R.id.btnNext1);
+        btnNext[1] = findViewById(R.id.btnNext2);
+        btnNext[2] = findViewById(R.id.btnNext3);
+        btnNext[3] = findViewById(R.id.btnNext4);
         
         cbAllowScripts = findViewById(R.id.cbAllowScripts);
         cbAllowForms = findViewById(R.id.cbAllowForms);
@@ -163,49 +187,31 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
-        
-        // Configurar overlay para bloquear cliques
-        sidebarOverlay.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                closeSidebar();
-            }
-        });
-        
-        sidebarOverlay.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                return true;
-            }
-        });
-        
-        // Configurar bottomControls para não propagar
-        bottomControls.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                // Apenas consome o clique
-            }
-        });
-        
-        bottomControls.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                return true;
-            }
-        });
     }
     
     private void closeSidebar() {
         sidebarContainer.setVisibility(View.GONE);
-        sidebarOverlay.setVisibility(View.GONE);
         isSidebarVisible = false;
+        
+        // Restaurar largura total das boxes
+        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
+        params.width = RelativeLayout.LayoutParams.MATCH_PARENT;
+        params.removeRule(RelativeLayout.LEFT_OF);
+        gridLayout.setLayoutParams(params);
+        
         btnMenu.requestFocus();
     }
     
     private void openSidebar() {
         sidebarContainer.setVisibility(View.VISIBLE);
-        sidebarOverlay.setVisibility(View.VISIBLE);
         isSidebarVisible = true;
+        
+        // Reduzir largura das boxes para dar espaço ao sidebar
+        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
+        params.width = RelativeLayout.LayoutParams.MATCH_PARENT;
+        params.addRule(RelativeLayout.LEFT_OF, R.id.sidebarContainer);
+        gridLayout.setLayoutParams(params);
+        
         btnCloseMenu.requestFocus();
     }
     
@@ -237,10 +243,6 @@ public class MainActivity extends AppCompatActivity {
             webViews[i].setId(View.generateViewId());
             setupWebView(webViews[i], boxIndex);
             
-            // Habilitar scroll nas boxes
-            webViews[i].setVerticalScrollBarEnabled(true);
-            webViews[i].setHorizontalScrollBarEnabled(true);
-            
             boxContainers[i].addView(webViews[i], 
                 new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
@@ -258,7 +260,6 @@ public class MainActivity extends AppCompatActivity {
             gridLayout.addView(boxContainers[i]);
         }
         
-        // Focar no menu inicialmente
         btnMenu.requestFocus();
     }
     
@@ -286,7 +287,9 @@ public class MainActivity extends AppCompatActivity {
         settings.setBlockNetworkLoads(cbBlockAds.isChecked());
         settings.setBlockNetworkImage(cbBlockAds.isChecked());
         
-        // User agent para TV
+        // Zoom inicial
+        webView.setInitialScale(100);
+        
         settings.setUserAgentString("Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) AppleWebKit/537.36");
         
         webView.setBackgroundColor(Color.BLACK);
@@ -338,17 +341,16 @@ public class MainActivity extends AppCompatActivity {
                     "   videos[i].style.height = '100%';" +
                     "}" +
                     "document.body.style.margin = '0';" +
-                    "document.body.style.padding = '0';" +
-                    "if(document.documentElement) {" +
-                    "   document.documentElement.style.margin = '0';" +
-                    "   document.documentElement.style.padding = '0';" +
-                    "}";
+                    "document.body.style.padding = '0';";
                 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                     view.evaluateJavascript(muteJS, null);
                 } else {
                     view.loadUrl("javascript:" + muteJS);
                 }
+                
+                // Aplicar zoom atual
+                applyZoom(boxIndex);
                 
                 if (cbBlockAds.isChecked()) {
                     injectAdBlocker(view);
@@ -378,24 +380,6 @@ public class MainActivity extends AppCompatActivity {
                 // Esconder o WebView original
                 webView.setVisibility(View.GONE);
                 
-                // Usar JavaScript para manter o vídeo dentro da box
-                String fullscreenJS = 
-                    "var videos = document.getElementsByTagName('video');" +
-                    "for(var i = 0; i < videos.length; i++) {" +
-                    "   videos[i].style.position = 'absolute';" +
-                    "   videos[i].style.top = '0';" +
-                    "   videos[i].style.left = '0';" +
-                    "   videos[i].style.width = '100%';" +
-                    "   videos[i].style.height = '100%';" +
-                    "   videos[i].style.zIndex = '9999';" +
-                    "}";
-                
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                    webView.evaluateJavascript(fullscreenJS, null);
-                } else {
-                    webView.loadUrl("javascript:" + fullscreenJS);
-                }
-                
                 getWindow().setFlags(
                     WindowManager.LayoutParams.FLAG_FULLSCREEN,
                     WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -424,6 +408,33 @@ public class MainActivity extends AppCompatActivity {
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             }
         });
+    }
+    
+    private void applyZoom(int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null) {
+            webView.setScaleX(zoomLevels[boxIndex]);
+            webView.setScaleY(zoomLevels[boxIndex]);
+            webView.invalidate();
+        }
+    }
+    
+    private void zoomIn(int boxIndex) {
+        if (zoomLevels[boxIndex] < 2.0f) {
+            zoomLevels[boxIndex] += 0.1f;
+            applyZoom(boxIndex);
+            Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + String.format("%.1f", zoomLevels[boxIndex]), 
+                Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private void zoomOut(int boxIndex) {
+        if (zoomLevels[boxIndex] > 0.5f) {
+            zoomLevels[boxIndex] -= 0.1f;
+            applyZoom(boxIndex);
+            Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + String.format("%.1f", zoomLevels[boxIndex]), 
+                Toast.LENGTH_SHORT).show();
+        }
     }
     
     private void injectAdBlocker(WebView view) {
@@ -477,15 +488,6 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void initEventListeners() {
-        btnBack.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (webViews[focusedBoxIndex].canGoBack()) {
-                    webViews[focusedBoxIndex].goBack();
-                }
-            }
-        });
-        
         btnMenu.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -553,26 +555,64 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         
+        // Configurar listeners para controles individuais de cada box
         for (int i = 0; i < 4; i++) {
-            final int index = i;
-            btnLoadUrls[i].setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    String url = urlInputs[index].getText().toString().trim();
-                    if (!url.isEmpty()) {
-                        loadURL(index, url);
-                    }
-                }
-            });
-        }
-        
-        for (int i = 0; i < 4; i++) {
-            final int index = i;
+            final int boxIndex = i;
+            
+            // Checkbox para ativar/desativar box
             checkBoxes[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
                 public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                    boxEnabled[index] = isChecked;
+                    boxEnabled[boxIndex] = isChecked;
                     updateLayout();
+                }
+            });
+            
+            // Botão Refresh
+            btnRefresh[i].setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (webViews[boxIndex] != null) {
+                        webViews[boxIndex].reload();
+                        Toast.makeText(MainActivity.this, 
+                            "Box " + (boxIndex + 1) + " recarregada", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            });
+            
+            // Botão Zoom In
+            btnZoomIn[i].setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    zoomIn(boxIndex);
+                }
+            });
+            
+            // Botão Zoom Out
+            btnZoomOut[i].setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    zoomOut(boxIndex);
+                }
+            });
+            
+            // Botão Previous
+            btnPrevious[i].setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (webViews[boxIndex] != null && webViews[boxIndex].canGoBack()) {
+                        webViews[boxIndex].goBack();
+                    }
+                }
+            });
+            
+            // Botão Next
+            btnNext[i].setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (webViews[boxIndex] != null && webViews[boxIndex].canGoForward()) {
+                        webViews[boxIndex].goForward();
+                    }
                 }
             });
         }
@@ -743,6 +783,11 @@ public class MainActivity extends AppCompatActivity {
                 editor.putBoolean("box_enabled_" + i, boxEnabled[i]);
             }
             
+            // Salvar níveis de zoom
+            for (int i = 0; i < 4; i++) {
+                editor.putFloat("zoom_level_" + i, zoomLevels[i]);
+            }
+            
             editor.putBoolean("allow_scripts", cbAllowScripts.isChecked());
             editor.putBoolean("allow_forms", cbAllowForms.isChecked());
             editor.putBoolean("allow_popups", cbAllowPopups.isChecked());
@@ -782,6 +827,12 @@ public class MainActivity extends AppCompatActivity {
                 boolean savedState = preferences.getBoolean("box_enabled_" + i, true);
                 boxEnabled[i] = savedState;
                 checkBoxes[i].setChecked(savedState);
+            }
+            
+            // Carregar níveis de zoom
+            for (int i = 0; i < 4; i++) {
+                zoomLevels[i] = preferences.getFloat("zoom_level_" + i, 1.0f);
+                applyZoom(i);
             }
             
             cbAllowScripts.setChecked(preferences.getBoolean("allow_scripts", true));
