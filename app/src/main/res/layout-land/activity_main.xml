@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:background="#000000">
 
-    <!-- GridLayout para os players -->
+    <!-- Area dos Videos -->
     <androidx.gridlayout.widget.GridLayout
         android:id="@+id/gridLayout"
         android:layout_width="match_parent"
@@ -13,48 +13,49 @@
         android:layout_above="@+id/bottomControls"
         android:background="#000000" />
 
-    <!-- BARRA INFERIOR (Altura reduzida para ~54dp, que Ã© 2/3 de 80dp) -->
+    <!-- MENU INFERIOR COMPACTO -->
     <LinearLayout
         android:id="@+id/bottomControls"
         android:layout_width="match_parent"
-        android:layout_height="54dp"
+        android:layout_height="40dp"
         android:layout_alignParentBottom="true"
         android:background="#1a1a1a"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingLeft="12dp"
-        android:paddingRight="12dp">
+        android:paddingLeft="8dp"
+        android:paddingRight="8dp">
 
         <Button
             android:id="@+id/btnBack"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:text="â†"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:text="&#8592;"
             android:textColor="#FFFFFF"
             android:background="#333333"
-            android:focusable="true" />
+            android:textSize="12sp" />
 
         <Button
             android:id="@+id/btnMenu"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginLeft="8dp"
-            android:text="â˜°"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginLeft="6dp"
+            android:text="&#9776;"
             android:textColor="#FFFFFF"
             android:background="#1e3c72"
-            android:focusable="true" />
+            android:textSize="12sp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="BOX:"
             android:textColor="#FFFFFF"
-            android:layout_marginLeft="12dp" />
+            android:textSize="11sp"
+            android:layout_marginLeft="10dp" />
 
-        <CheckBox android:id="@+id/checkBox1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1" android:textColor="#FFFFFF" android:checked="true" android:focusable="true" />
-        <CheckBox android:id="@+id/checkBox2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="2" android:textColor="#FFFFFF" android:checked="true" android:focusable="true" />
-        <CheckBox android:id="@+id/checkBox3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="3" android:textColor="#FFFFFF" android:checked="true" android:focusable="true" />
-        <CheckBox android:id="@+id/checkBox4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="4" android:textColor="#FFFFFF" android:checked="true" android:focusable="true" />
+        <CheckBox android:id="@+id/checkBox1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1" android:textColor="#FFFFFF" android:textSize="11sp" android:checked="true" />
+        <CheckBox android:id="@+id/checkBox2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="2" android:textColor="#FFFFFF" android:textSize="11sp" android:checked="true" />
+        <CheckBox android:id="@+id/checkBox3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="3" android:textColor="#FFFFFF" android:textSize="11sp" android:checked="true" />
+        <CheckBox android:id="@+id/checkBox4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="4" android:textColor="#FFFFFF" android:textSize="11sp" android:checked="true" />
 
         <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
@@ -64,23 +65,23 @@
             android:layout_height="wrap_content"
             android:text="Foco: 1"
             android:textColor="#FF9800"
-            android:textSize="14sp" />
+            android:textSize="11sp" />
     </LinearLayout>
 
-    <!-- Overlay para bloquear cliques nas boxes quando o menu estÃ¡ aberto -->
+    <!-- Overlay para bloquear cliques -->
     <View
         android:id="@+id/sidebarOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#80000000"
+        android:background="#99000000"
         android:visibility="gone"
         android:clickable="true"
         android:focusable="true" />
 
-    <!-- Sidebar Menu (Sem transparÃªncia, BotÃ£o fechar fixo) -->
+    <!-- SIDEBAR ESTRUTURADA -->
     <LinearLayout
         android:id="@+id/sidebarContainer"
-        android:layout_width="320dp"
+        android:layout_width="280dp"
         android:layout_height="match_parent"
         android:layout_alignParentEnd="true"
         android:background="#1a1a1a"
@@ -89,31 +90,32 @@
         android:clickable="true"
         android:focusable="true">
 
-        <!-- CabeÃ§alho Fixo -->
+        <!-- Cabecalho Fixo -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="16dp"
+            android:padding="12dp"
             android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:gravity="center_vertical"
+            android:background="#222222">
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="CONFIGURAÃ‡Ã•ES"
+                android:text="MENU"
                 android:textColor="#FFFFFF"
+                android:textSize="14sp"
                 android:textStyle="bold" />
             <Button
                 android:id="@+id/btnCloseMenu"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:text="âœ•"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:text="&#10005;"
                 android:textColor="#FFFFFF"
                 android:background="#ff4444"
-                android:focusable="true" />
+                android:textSize="12sp" />
         </LinearLayout>
 
-        <!-- ConteÃºdo com Scroll -->
         <ScrollView
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -122,39 +124,34 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="12dp">
 
-                <!-- Inputs de URL com botÃ£o de carregar individual -->
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="URLS INDIVIDUAIS" android:textColor="#FFFFFF" android:layout_marginBottom="8dp"/>
-                
-                <!-- Box 1 -->
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="8dp">
-                    <EditText android:id="@+id/urlInput1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:hint="URL 1" android:textColor="#FFFFFF" android:background="#333333" android:padding="8dp" android:textSize="12sp"/>
-                    <Button android:id="@+id/btnGo1" android:layout_width="40dp" android:layout_height="40dp" android:text="OK" android:textSize="10sp" android:focusable="true"/>
-                </LinearLayout>
-                <!-- Box 2 -->
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="8dp">
-                    <EditText android:id="@+id/urlInput2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:hint="URL 2" android:textColor="#FFFFFF" android:background="#333333" android:padding="8dp" android:textSize="12sp"/>
-                    <Button android:id="@+id/btnGo2" android:layout_width="40dp" android:layout_height="40dp" android:text="OK" android:textSize="10sp" android:focusable="true"/>
-                </LinearLayout>
-                <!-- Box 3 -->
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="8dp">
-                    <EditText android:id="@+id/urlInput3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:hint="URL 3" android:textColor="#FFFFFF" android:background="#333333" android:padding="8dp" android:textSize="12sp"/>
-                    <Button android:id="@+id/btnGo3" android:layout_width="40dp" android:layout_height="40dp" android:text="OK" android:textSize="10sp" android:focusable="true"/>
-                </LinearLayout>
-                <!-- Box 4 -->
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="16dp">
-                    <EditText android:id="@+id/urlInput4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:hint="URL 4" android:textColor="#FFFFFF" android:background="#333333" android:padding="8dp" android:textSize="12sp"/>
-                    <Button android:id="@+id/btnGo4" android:layout_width="40dp" android:layout_height="40dp" android:text="OK" android:textSize="10sp" android:focusable="true"/>
-                </LinearLayout>
+                <!-- SECAO: GUARDAR/CARREGAR -->
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="GUARDAR / CARREGAR" android:textColor="#888888" android:textSize="10sp" android:layout_marginBottom="6dp" android:textStyle="bold"/>
+                <Button android:id="@+id/btnSaveState" android:layout_width="match_parent" android:layout_height="36dp" android:text="GUARDAR ESTADO" android:textSize="11sp" android:layout_marginBottom="4dp" android:background="#333333" android:textColor="#FFFFFF"/>
+                <Button android:id="@+id/btnLoadState" android:layout_width="match_parent" android:layout_height="36dp" android:text="CARREGAR ESTADO" android:textSize="11sp" android:layout_marginBottom="4dp" android:background="#333333" android:textColor="#FFFFFF"/>
+                <Button android:id="@+id/btnSaveFavorites" android:layout_width="match_parent" android:layout_height="36dp" android:text="GUARDAR FAVORITO" android:textSize="11sp" android:layout_marginBottom="4dp" android:background="#333333" android:textColor="#FFFFFF"/>
+                <Button android:id="@+id/btnLoadFavorites" android:layout_width="match_parent" android:layout_height="36dp" android:text="CARREGAR FAVORITO" android:textSize="11sp" android:layout_marginBottom="12dp" android:background="#333333" android:textColor="#FFFFFF"/>
 
-                <Button android:id="@+id/btnSaveState" android:layout_width="match_parent" android:layout_height="48dp" android:text="GUARDAR ESTADO" android:layout_marginBottom="8dp" android:focusable="true"/>
-                <Button android:id="@+id/btnLoadState" android:layout_width="match_parent" android:layout_height="48dp" android:text="CARREGAR ESTADO" android:layout_marginBottom="8dp" android:focusable="true"/>
-                <Button android:id="@+id/btnSaveFavorites" android:layout_width="match_parent" android:layout_height="48dp" android:text="GUARDAR FAVORITO" android:layout_marginBottom="8dp" android:focusable="true"/>
-                <Button android:id="@+id/btnLoadFavorites" android:layout_width="match_parent" android:layout_height="48dp" android:text="CARREGAR FAVORITO" android:layout_marginBottom="16dp" android:focusable="true"/>
+                <!-- SECAO: CONFIG WEB -->
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="CONFIG WEB" android:textColor="#888888" android:textSize="10sp" android:layout_marginBottom="6dp" android:textStyle="bold"/>
+                <CheckBox android:id="@+id/cbAllowScripts" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="JavaScript" android:textColor="#FFFFFF" android:textSize="11sp" android:checked="true"/>
+                <CheckBox android:id="@+id/cbAllowForms" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Formularios" android:textColor="#FFFFFF" android:textSize="11sp" android:checked="true"/>
+                <CheckBox android:id="@+id/cbAllowPopups" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Popups" android:textColor="#FFFFFF" android:textSize="11sp" />
+                <CheckBox android:id="@+id/cbBlockRedirects" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Bloq Redirects" android:textColor="#FFFFFF" android:textSize="11sp" />
+                <CheckBox android:id="@+id/cbBlockAds" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Bloq Anuncios" android:textColor="#FFFFFF" android:textSize="11sp" android:layout_marginBottom="12dp"/>
 
-                <CheckBox android:id="@+id/cbAllowScripts" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Scripts" android:textColor="#FFFFFF" android:checked="true" android:focusable="true"/>
-                <CheckBox android:id="@+id/cbBlockAds" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Bloquear Ads" android:textColor="#FFFFFF" android:focusable="true"/>
+                <!-- SECAO: URLS -->
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="URLS (ENTER)" android:textColor="#888888" android:textSize="10sp" android:layout_marginBottom="6dp" android:textStyle="bold"/>
+                <EditText android:id="@+id/urlInput1" android:layout_width="match_parent" android:layout_height="32dp" android:hint="URL 1" android:textColor="#FFFFFF" android:background="#222222" android:padding="6dp" android:textSize="10sp" android:layout_marginBottom="4dp" android:singleLine="true" android:imeOptions="actionDone"/>
+                <EditText android:id="@+id/urlInput2" android:layout_width="match_parent" android:layout_height="32dp" android:hint="URL 2" android:textColor="#FFFFFF" android:background="#222222" android:padding="6dp" android:textSize="10sp" android:layout_marginBottom="4dp" android:singleLine="true" android:imeOptions="actionDone"/>
+                <EditText android:id="@+id/urlInput3" android:layout_width="match_parent" android:layout_height="32dp" android:hint="URL 3" android:textColor="#FFFFFF" android:background="#222222" android:padding="6dp" android:textSize="10sp" android:layout_marginBottom="4dp" android:singleLine="true" android:imeOptions="actionDone"/>
+                <EditText android:id="@+id/urlInput4" android:layout_width="match_parent" android:layout_height="32dp" android:hint="URL 4" android:textColor="#FFFFFF" android:background="#222222" android:padding="6dp" android:textSize="10sp" android:layout_marginBottom="12dp" android:singleLine="true" android:imeOptions="actionDone"/>
+
+                <!-- ACOES GLOBAIS -->
+                <Button android:id="@+id/btnLoadAll" android:layout_width="match_parent" android:layout_height="36dp" android:text="CARREGAR TODAS" android:textSize="11sp" android:layout_marginBottom="4dp" android:background="#1e3c72" android:textColor="#FFFFFF"/>
+                <Button android:id="@+id/btnReloadAll" android:layout_width="match_parent" android:layout_height="36dp" android:text="RECARREGAR TODAS" android:textSize="11sp" android:layout_marginBottom="4dp" android:background="#1e3c72" android:textColor="#FFFFFF"/>
+                <Button android:id="@+id/btnClearAll" android:layout_width="match_parent" android:layout_height="36dp" android:text="LIMPAR TODAS" android:textSize="11sp" android:background="#ff4444" android:textColor="#FFFFFF"/>
             </LinearLayout>
         </ScrollView>
     </LinearLayout>

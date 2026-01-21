@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -34,10 +35,10 @@ public class MainActivity extends AppCompatActivity {
     private FrameLayout[] boxContainers = new FrameLayout[4];
     private View sidebarContainer, sidebarOverlay;
     private Button btnMenu, btnBack, btnCloseMenu;
-    private Button[] btnGo = new Button[4];
+    private Button btnLoadAll, btnReloadAll, btnClearAll;
     private CheckBox[] checkBoxes = new CheckBox[4];
     private EditText[] urlInputs = new EditText[4];
-    private CheckBox cbAllowScripts, cbBlockAds;
+    private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
     private TextView tvFocusedBox;
 
     private boolean[] boxEnabled = {true, true, true, true};
@@ -74,36 +75,60 @@ public class MainActivity extends AppCompatActivity {
         urlInputs[2] = findViewById(R.id.urlInput3);
         urlInputs[3] = findViewById(R.id.urlInput4);
 
-        btnGo[0] = findViewById(R.id.btnGo1);
-        btnGo[1] = findViewById(R.id.btnGo2);
-        btnGo[2] = findViewById(R.id.btnGo3);
-        btnGo[3] = findViewById(R.id.btnGo4);
-
         checkBoxes[0] = findViewById(R.id.checkBox1);
         checkBoxes[1] = findViewById(R.id.checkBox2);
         checkBoxes[2] = findViewById(R.id.checkBox3);
         checkBoxes[3] = findViewById(R.id.checkBox4);
 
         cbAllowScripts = findViewById(R.id.cbAllowScripts);
+        cbAllowForms = findViewById(R.id.cbAllowForms);
+        cbAllowPopups = findViewById(R.id.cbAllowPopups);
+        cbBlockRedirects = findViewById(R.id.cbBlockRedirects);
         cbBlockAds = findViewById(R.id.cbBlockAds);
+
+        btnLoadAll = findViewById(R.id.btnLoadAll);
+        btnReloadAll = findViewById(R.id.btnReloadAll);
+        btnClearAll = findViewById(R.id.btnClearAll);
 
         btnMenu.setOnClickListener(v -> openSidebar());
         btnCloseMenu.setOnClickListener(v -> closeSidebar());
-        
-        // Fechar sidebar ao clicar no overlay (fora do menu)
         sidebarOverlay.setOnClickListener(v -> closeSidebar());
+
+        sidebarContainer.setOnClickListener(v -> {});
 
         for (int i = 0; i < 4; i++) {
             final int index = i;
-            btnGo[i].setOnClickListener(v -> {
+            urlInputs[i].setOnEditorActionListener((v, actionId, event) -> {
                 String url = urlInputs[index].getText().toString().trim();
                 if (!url.isEmpty()) loadURL(index, url);
+                return true;
             });
             checkBoxes[i].setOnCheckedChangeListener((buttonView, isChecked) -> {
                 boxEnabled[index] = isChecked;
                 updateLayout();
             });
         }
+
+        btnLoadAll.setOnClickListener(v -> {
+            for(int i=0; i<4; i++) {
+                String url = urlInputs[i].getText().toString().trim();
+                if(!url.isEmpty() && boxEnabled[i]) loadURL(i, url);
+            }
+            closeSidebar();
+        });
+
+        btnReloadAll.setOnClickListener(v -> {
+            for(int i=0; i<4; i++) if(boxEnabled[i]) webViews[i].reload();
+            closeSidebar();
+        });
+
+        btnClearAll.setOnClickListener(v -> {
+            for(int i=0; i<4; i++) {
+                webViews[i].loadUrl("about:blank");
+                urlInputs[i].setText("");
+            }
+            closeSidebar();
+        });
 
         findViewById(R.id.btnSaveState).setOnClickListener(v -> saveCurrentState());
         findViewById(R.id.btnLoadState).setOnClickListener(v -> loadSavedState(false));
@@ -134,10 +159,29 @@ public class MainActivity extends AppCompatActivity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
+        s.setSupportMultipleWindows(true);
+        s.setJavaScriptCanOpenWindowsAutomatically(true);
+        
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
-                view.evaluateJavascript("var videos = document.getElementsByTagName('video'); for(var i=0; i<videos.length; i++) { videos[i].muted = true; videos[i].play(); }", null);
+                String js = "var videos = document.getElementsByTagName('video'); " +
+                           "for(var i=0; i<videos.length; i++) { " +
+                           "  videos[i].muted = true; " +
+                           "  videos[i].play(); " +
+                           "}";
+                view.evaluateJavascript(js, null);
+            }
+        });
+
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onShowCustomView(View view, CustomViewCallback callback) {
+                webView.evaluateJavascript(
+                    "var v = document.querySelector('video'); " +
+                    "if(v) { v.style.position='fixed'; v.style.top='0'; v.style.left='0'; v.style.width='100%'; v.style.height='100%'; v.style.zIndex='9999'; }", 
+                    null
+                );
             }
         });
     }
@@ -146,7 +190,6 @@ public class MainActivity extends AppCompatActivity {
         gridLayout.removeAllViews();
         int activeCount = 0;
         for (boolean b : boxEnabled) if (b) activeCount++;
-
         if (activeCount == 0) return;
 
         int rows = 1, cols = 1;
@@ -249,8 +292,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // Removida navegaÃ§Ã£o D-Pad especÃ­fica para foco entre boxes
-        // Mantido apenas o comportamento de Back para navegaÃ§Ã£o na WebView
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             if (sidebarContainer.getVisibility() == View.VISIBLE) {
                 closeSidebar();
