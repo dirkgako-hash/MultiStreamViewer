@@ -15,35 +15,35 @@
         android:background="#000000"
         android:focusable="false" />
 
-    <!-- BARRA INFERIOR OTIMIZADA PARA TV -->
+    <!-- BARRA INFERIOR OTIMIZADA PARA TV (altura reduzida 2/3) -->
     <LinearLayout
         android:id="@+id/bottomControls"
         android:layout_width="match_parent"
-        android:layout_height="80dp"
+        android:layout_height="55dp"
         android:layout_alignParentBottom="true"
-        android:background="#1a1a1aCC"
+        android:background="#1a1a1a"
         android:gravity="center"
         android:orientation="horizontal"
-        android:padding="12dp">
+        android:padding="8dp">
 
         <!-- Botão BACK -->
         <Button
             android:id="@+id/btnBack"
             android:layout_width="wrap_content"
-            android:layout_height="56dp"
+            android:layout_height="40dp"
             android:layout_marginEnd="16dp"
             android:background="#333333"
             android:focusable="true"
             android:nextFocusRight="@+id/btnMenu"
             android:text="←"
             android:textColor="#FFFFFF"
-            android:textSize="20sp" />
+            android:textSize="18sp" />
 
         <!-- Botão MENU -->
         <Button
             android:id="@+id/btnMenu"
             android:layout_width="wrap_content"
-            android:layout_height="56dp"
+            android:layout_height="40dp"
             android:layout_marginEnd="16dp"
             android:background="#1e3c72"
             android:focusable="true"
@@ -51,7 +51,7 @@
             android:nextFocusRight="@+id/checkBox1"
             android:text="☰"
             android:textColor="#FFFFFF"
-            android:textSize="20sp" />
+            android:textSize="18sp" />
 
         <!-- Checkboxes maiores para TV -->
         <TextView
@@ -59,7 +59,7 @@
             android:layout_height="wrap_content"
             android:text="BOX:"
             android:textColor="#FFFFFF"
-            android:textSize="16sp"
+            android:textSize="14sp"
             android:layout_marginEnd="8dp"
             android:layout_gravity="center_vertical" />
 
@@ -69,7 +69,7 @@
             android:layout_height="wrap_content"
             android:text="1"
             android:textColor="#FFFFFF"
-            android:textSize="16sp"
+            android:textSize="14sp"
             android:layout_marginEnd="16dp"
             android:checked="true"
             android:focusable="true"
@@ -82,7 +82,7 @@
             android:layout_height="wrap_content"
             android:text="2"
             android:textColor="#FFFFFF"
-            android:textSize="16sp"
+            android:textSize="14sp"
             android:layout_marginEnd="16dp"
             android:checked="true"
             android:focusable="true"
@@ -95,7 +95,7 @@
             android:layout_height="wrap_content"
             android:text="3"
             android:textColor="#FFFFFF"
-            android:textSize="16sp"
+            android:textSize="14sp"
             android:layout_marginEnd="16dp"
             android:checked="true"
             android:focusable="true"
@@ -108,7 +108,7 @@
             android:layout_height="wrap_content"
             android:text="4"
             android:textColor="#FFFFFF"
-            android:textSize="16sp"
+            android:textSize="14sp"
             android:checked="true"
             android:focusable="true"
             android:nextFocusLeft="@+id/checkBox3" />
@@ -126,7 +126,7 @@
             android:layout_height="wrap_content"
             android:text="Foco: 1"
             android:textColor="#FF9800"
-            android:textSize="16sp"
+            android:textSize="14sp"
             android:layout_marginStart="16dp"
             android:focusable="false" />
     </LinearLayout>
@@ -141,17 +141,19 @@
         android:focusable="true"
         android:visibility="gone" />
 
-    <!-- Sidebar Menu OTIMIZADO PARA TV -->
+    <!-- Sidebar Menu OTIMIZADO PARA TV (sem transparência) -->
     <ScrollView
         android:id="@+id/sidebarMenu"
         android:layout_width="300dp"
         android:layout_height="match_parent"
         android:layout_alignParentEnd="true"
         android:layout_above="@id/bottomControls"
-        android:background="#1a1a1aEE"
+        android:background="#1a1a1a"
         android:scrollbars="vertical"
         android:visibility="gone"
-        android:focusable="true">
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:descendantFocusability="blocksDescendants">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -159,7 +161,7 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- Cabeçalho para TV -->
+            <!-- Cabeçalho para TV fixo -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -181,6 +183,7 @@
                     android:layout_height="48dp"
                     android:background="#ff4444"
                     android:focusable="true"
+                    android:focusableInTouchMode="true"
                     android:text="✕"
                     android:textColor="#FFFFFF"
                     android:textSize="18sp" />
@@ -202,6 +205,7 @@
                 android:layout_height="56dp"
                 android:background="#4CAF50"
                 android:focusable="true"
+                android:focusableInTouchMode="true"
                 android:text="GUARDAR ESTADO"
                 android:textColor="#FFFFFF"
                 android:textSize="16sp"
@@ -213,6 +217,7 @@
                 android:layout_height="56dp"
                 android:background="#4CAF50"
                 android:focusable="true"
+                android:focusableInTouchMode="true"
                 android:text="CARREGAR ESTADO"
                 android:textColor="#FFFFFF"
                 android:textSize="16sp"
@@ -224,6 +229,7 @@
                 android:layout_height="56dp"
                 android:background="#FF9800"
                 android:focusable="true"
+                android:focusableInTouchMode="true"
                 android:text="GUARDAR FAVORITO"
                 android:textColor="#FFFFFF"
                 android:textSize="16sp"
@@ -235,6 +241,7 @@
                 android:layout_height="56dp"
                 android:background="#FF9800"
                 android:focusable="true"
+                android:focusableInTouchMode="true"
                 android:text="CARREGAR FAVORITO"
                 android:textColor="#FFFFFF"
                 android:textSize="16sp"
@@ -259,7 +266,8 @@
                 android:textColor="#FFFFFF"
                 android:textSize="16sp"
                 android:layout_marginBottom="8dp"
-                android:focusable="true" />
+                android:focusable="true"
+                android:focusableInTouchMode="true" />
 
             <CheckBox
                 android:id="@+id/cbAllowForms"
@@ -270,7 +278,8 @@
                 android:textColor="#FFFFFF"
                 android:textSize="16sp"
                 android:layout_marginBottom="8dp"
-                android:focusable="true" />
+                android:focusable="true"
+                android:focusableInTouchMode="true" />
 
             <CheckBox
                 android:id="@+id/cbAllowPopups"
@@ -281,7 +290,8 @@
                 android:textColor="#FFFFFF"
                 android:textSize="16sp"
                 android:layout_marginBottom="8dp"
-                android:focusable="true" />
+                android:focusable="true"
+                android:focusableInTouchMode="true" />
 
             <CheckBox
                 android:id="@+id/cbBlockRedirects"
@@ -292,7 +302,8 @@
                 android:textColor="#FFFFFF"
                 android:textSize="16sp"
                 android:layout_marginBottom="8dp"
-                android:focusable="true" />
+                android:focusable="true"
+                android:focusableInTouchMode="true" />
 
             <CheckBox
                 android:id="@+id/cbBlockAds"
@@ -303,77 +314,150 @@
                 android:textColor="#FFFFFF"
                 android:textSize="16sp"
                 android:layout_marginBottom="24dp"
-                android:focusable="true" />
+                android:focusable="true"
+                android:focusableInTouchMode="true" />
 
             <!-- SEÇÃO: URLs -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="URLs (ENTER para carregar)"
+                android:text="URLs (ENTER ou botão para carregar)"
                 android:textColor="#FFFFFF"
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:layout_marginBottom="12dp" />
 
-            <EditText
-                android:id="@+id/urlInput1"
+            <!-- URL 1 -->
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:background="#333333"
-                android:focusable="true"
-                android:hint="Box 1"
-                android:imeOptions="actionDone"
-                android:inputType="textUri"
-                android:padding="12dp"
-                android:text="https://www.youtube.com/tv"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:layout_marginBottom="8dp" />
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+                <EditText
+                    android:id="@+id/urlInput1"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_weight="1"
+                    android:background="#333333"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:hint="Box 1"
+                    android:imeOptions="actionDone"
+                    android:inputType="textUri"
+                    android:padding="12dp"
+                    android:text="https://dzritv.com/sport/football/"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+                <Button
+                    android:id="@+id/btnLoadUrl1"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="#1e3c72"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="▶"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+            </LinearLayout>
 
-            <EditText
-                android:id="@+id/urlInput2"
+            <!-- URL 2 -->
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:background="#333333"
-                android:focusable="true"
-                android:hint="Box 2"
-                android:imeOptions="actionDone"
-                android:inputType="textUri"
-                android:padding="12dp"
-                android:text="https://www.twitch.tv"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:layout_marginBottom="8dp" />
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+                <EditText
+                    android:id="@+id/urlInput2"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_weight="1"
+                    android:background="#333333"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:hint="Box 2"
+                    android:imeOptions="actionDone"
+                    android:inputType="textUri"
+                    android:padding="12dp"
+                    android:text="https://dzritv.com/sport/football/"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+                <Button
+                    android:id="@+id/btnLoadUrl2"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="#1e3c72"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="▶"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+            </LinearLayout>
 
-            <EditText
-                android:id="@+id/urlInput3"
+            <!-- URL 3 -->
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:background="#333333"
-                android:focusable="true"
-                android:hint="Box 3"
-                android:imeOptions="actionDone"
-                android:inputType="textUri"
-                android:padding="12dp"
-                android:text="https://vimeo.com"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:layout_marginBottom="8dp" />
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+                <EditText
+                    android:id="@+id/urlInput3"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_weight="1"
+                    android:background="#333333"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:hint="Box 3"
+                    android:imeOptions="actionDone"
+                    android:inputType="textUri"
+                    android:padding="12dp"
+                    android:text="https://dzritv.com/sport/football/"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+                <Button
+                    android:id="@+id/btnLoadUrl3"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="#1e3c72"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="▶"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+            </LinearLayout>
 
-            <EditText
-                android:id="@+id/urlInput4"
+            <!-- URL 4 -->
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:background="#333333"
-                android:focusable="true"
-                android:hint="Box 4"
-                android:imeOptions="actionDone"
-                android:inputType="textUri"
-                android:padding="12dp"
-                android:text="https://www.dailymotion.com"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:layout_marginBottom="24dp" />
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+                <EditText
+                    android:id="@+id/urlInput4"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_weight="1"
+                    android:background="#333333"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:hint="Box 4"
+                    android:imeOptions="actionDone"
+                    android:inputType="textUri"
+                    android:padding="12dp"
+                    android:text="https://dzritv.com/sport/football/"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+                <Button
+                    android:id="@+id/btnLoadUrl4"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="#1e3c72"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="▶"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+            </LinearLayout>
 
             <!-- Botões de ação para TV -->
             <Button
@@ -382,6 +466,7 @@
                 android:layout_height="56dp"
                 android:background="#1e3c72"
                 android:focusable="true"
+                android:focusableInTouchMode="true"
                 android:text="CARREGAR TODAS"
                 android:textColor="#FFFFFF"
                 android:textSize="16sp"
@@ -393,6 +478,7 @@
                 android:layout_height="56dp"
                 android:background="#1e3c72"
                 android:focusable="true"
+                android:focusableInTouchMode="true"
                 android:text="RECARREGAR TODAS"
                 android:textColor="#FFFFFF"
                 android:textSize="16sp"
@@ -404,6 +490,7 @@
                 android:layout_height="56dp"
                 android:background="#ff4444"
                 android:focusable="true"
+                android:focusableInTouchMode="true"
                 android:text="LIMPAR TODAS"
                 android:textColor="#FFFFFF"
                 android:textSize="16sp" />
