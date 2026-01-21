@@ -20,11 +20,11 @@ if [ $? -eq 0 ]; then
         echo "📏 Tamanho: $(du -h "$APK" | cut -f1)"
         echo ""
         echo "🎮 Controles:"
-        echo "• D-Pad Up/Down: Scroll dentro das boxes"
-        echo "• D-Pad Left/Right: Navegar entre boxes"
-        echo "• Enter/Long Press: Fullscreen dentro da box"
         echo "• Menu: Abrir/fechar sidebar"
-        echo "• Back: Sair do fullscreen/retroceder"
+        echo "• Back: Retroceder/fechar sidebar"
+        echo "• Clique em box: Focar na box"
+        echo "• Fullscreen: Capturado e mantido dentro da box"
+        echo "• Scroll: Funciona dentro das boxes e sidebar"
     else
         echo "❌ APK não encontrado"
         exit 1
