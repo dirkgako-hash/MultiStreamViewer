@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.WindowManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -49,6 +50,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Ativar aceleracao por hardware para video
+        getWindow().setFlags(
+            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
+            
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         setContentView(R.layout.activity_main);
 
@@ -93,7 +100,6 @@ public class MainActivity extends AppCompatActivity {
         btnMenu.setOnClickListener(v -> openSidebar());
         btnCloseMenu.setOnClickListener(v -> closeSidebar());
         sidebarOverlay.setOnClickListener(v -> closeSidebar());
-
         sidebarContainer.setOnClickListener(v -> {});
 
         for (int i = 0; i < 4; i++) {
@@ -161,15 +167,30 @@ public class MainActivity extends AppCompatActivity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setSupportMultipleWindows(true);
         s.setJavaScriptCanOpenWindowsAutomatically(true);
+        s.setAllowFileAccess(true);
+        s.setPluginState(WebSettings.PluginState.ON);
         
+        // User Agent de Desktop para forcar players melhores
+        s.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
+                // Injetar JS para Mute, Auto-play e forcar Fullscreen Inline
                 String js = "var videos = document.getElementsByTagName('video'); " +
                            "for(var i=0; i<videos.length; i++) { " +
                            "  videos[i].muted = true; " +
                            "  videos[i].play(); " +
-                           "}";
+                           "  videos[i].setAttribute('webkit-playsinline', 'true'); " +
+                           "  videos[i].setAttribute('playsinline', 'true'); " +
+                           "} " +
+                           "document.addEventListener('webkitfullscreenchange', function(e) { " +
+                           "  var v = document.webkitFullscreenElement; " +
+                           "  if(v) { " +
+                           "    document.webkitExitFullscreen(); " +
+                           "    v.style.position='fixed'; v.style.top='0'; v.style.left='0'; v.style.width='100%'; v.style.height='100%'; v.style.zIndex='9999'; " +
+                           "  } " +
+                           "}, false);";
                 view.evaluateJavascript(js, null);
             }
         });
@@ -177,11 +198,13 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onShowCustomView(View view, CustomViewCallback callback) {
+                // Intercetar pedido de fullscreen do sistema e forcar inline
                 webView.evaluateJavascript(
                     "var v = document.querySelector('video'); " +
                     "if(v) { v.style.position='fixed'; v.style.top='0'; v.style.left='0'; v.style.width='100%'; v.style.height='100%'; v.style.zIndex='9999'; }", 
                     null
                 );
+                if (callback != null) callback.onCustomViewHidden();
             }
         });
     }
