@@ -7,6 +7,7 @@ echo ""
 ./gradlew clean
 
 # Construir APK
+echo "Construindo APK..."
 ./gradlew assembleDebug
 
 if [ $? -eq 0 ]; then
@@ -16,16 +17,14 @@ if [ $? -eq 0 ]; then
         echo "✅ BUILD COMPLETO!"
         echo ""
         echo "📦 APK gerado: $APK"
-        echo ""
-        echo "📺 Para instalar no Fire Stick:"
-        echo "1. adb install -r \"$APK\""
+        echo "📏 Tamanho: $(du -h "$APK" | cut -f1)"
         echo ""
         echo "🎮 Controles:"
-        echo "• Botão CURSOR: Alterna entre modo cursor/DPAD"
-        echo "• Modo CURSOR: D-Pad move cursor, Enter clica"
-        echo "• Modo DPAD: Navegação tradicional entre boxes"
-        echo "• Menu: Abre/fecha sidebar"
-        echo "• Back: Voltar/fechar"
+        echo "• D-Pad Up/Down: Scroll dentro das boxes"
+        echo "• D-Pad Left/Right: Navegar entre boxes"
+        echo "• Enter/Long Press: Fullscreen dentro da box"
+        echo "• Menu: Abrir/fechar sidebar"
+        echo "• Back: Sair do fullscreen/retroceder"
     else
         echo "❌ APK não encontrado"
         exit 1

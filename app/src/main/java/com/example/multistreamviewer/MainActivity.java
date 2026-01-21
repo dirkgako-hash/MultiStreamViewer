@@ -62,6 +62,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
     private boolean isVideoMuted = true;
+    private boolean isBoxFullscreen = false;
+    private int fullscreenBoxIndex = -1;
     
     private ArrayList<String> favoritesList = new ArrayList<>();
     private SharedPreferences preferences;
@@ -178,6 +180,15 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
         });
+        
+        // Prevenir clique na barra inferior de propagar para boxes
+        bottomControls.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                v.performClick();
+                return true;
+            }
+        });
     }
     
     private void closeSidebar() {
@@ -208,11 +219,11 @@ public class MainActivity extends AppCompatActivity {
             boxContainers[i].setOnFocusChangeListener(new View.OnFocusChangeListener() {
                 @Override
                 public void onFocusChange(View v, boolean hasFocus) {
-                    if (hasFocus && !isSidebarVisible) {
+                    if (hasFocus && !isSidebarVisible && !isBoxFullscreen) {
                         focusedBoxIndex = boxIndex;
                         updateFocusedBoxIndicator();
                         boxContainers[boxIndex].setBackgroundResource(R.drawable.box_focused_border);
-                    } else {
+                    } else if (!hasFocus && !isBoxFullscreen) {
                         boxContainers[boxIndex].setBackgroundColor(Color.BLACK);
                     }
                 }
@@ -222,25 +233,34 @@ public class MainActivity extends AppCompatActivity {
             webViews[i].setId(View.generateViewId());
             setupWebView(webViews[i], boxIndex);
             
+            // Configurar WebView para suportar scroll
+            webViews[i].setVerticalScrollBarEnabled(true);
+            webViews[i].setHorizontalScrollBarEnabled(true);
+            webViews[i].setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
+            
             boxContainers[i].addView(webViews[i], 
                 new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));
             
+            // Clique para focar na box (não fullscreen)
             boxContainers[i].setOnClickListener(new View.OnClickListener() {
-                private long lastClickTime = 0;
-                
                 @Override
                 public void onClick(View v) {
-                    if (isSidebarVisible) return;
+                    if (isSidebarVisible || isBoxFullscreen) return;
                     
-                    long clickTime = System.currentTimeMillis();
-                    if (clickTime - lastClickTime < 500) {
-                        enterFullscreenMode(boxIndex);
-                    } else {
-                        boxContainers[boxIndex].requestFocus();
-                    }
-                    lastClickTime = clickTime;
+                    boxContainers[boxIndex].requestFocus();
+                }
+            });
+            
+            // Clique duplo para alternar fullscreen dentro da box
+            boxContainers[i].setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View v) {
+                    if (isSidebarVisible) return false;
+                    
+                    toggleBoxFullscreen(boxIndex);
+                    return true;
                 }
             });
             
@@ -248,6 +268,67 @@ public class MainActivity extends AppCompatActivity {
         }
         
         btnMenu.requestFocus();
+    }
+    
+    private void toggleBoxFullscreen(int boxIndex) {
+        if (isBoxFullscreen) {
+            // Sair do fullscreen
+            exitBoxFullscreen();
+            fullscreenBoxIndex = -1;
+        } else {
+            // Entrar em fullscreen
+            enterBoxFullscreen(boxIndex);
+            fullscreenBoxIndex = boxIndex;
+        }
+        isBoxFullscreen = !isBoxFullscreen;
+    }
+    
+    private void enterBoxFullscreen(int boxIndex) {
+        // Salvar layout original
+        GridLayout.LayoutParams originalParams = (GridLayout.LayoutParams) boxContainers[boxIndex].getLayoutParams();
+        
+        // Esconder outros elementos
+        for (int i = 0; i < 4; i++) {
+            if (i != boxIndex) {
+                boxContainers[i].setVisibility(View.GONE);
+            }
+        }
+        bottomControls.setVisibility(View.GONE);
+        
+        // Expandir box para tela cheia
+        GridLayout.Spec rowSpec = GridLayout.spec(0, 1f);
+        GridLayout.Spec colSpec = GridLayout.spec(0, 1f);
+        GridLayout.LayoutParams fullscreenParams = new GridLayout.LayoutParams(rowSpec, colSpec);
+        fullscreenParams.width = 0;
+        fullscreenParams.height = 0;
+        fullscreenParams.setMargins(0, 0, 0, 0);
+        
+        gridLayout.setRowCount(1);
+        gridLayout.setColumnCount(1);
+        gridLayout.updateViewLayout(boxContainers[boxIndex], fullscreenParams);
+        
+        // Forçar redesenho
+        boxContainers[boxIndex].requestLayout();
+        gridLayout.requestLayout();
+        
+        Toast.makeText(this, "Fullscreen Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
+    }
+    
+    private void exitBoxFullscreen() {
+        if (fullscreenBoxIndex == -1) return;
+        
+        // Restaurar visibilidade
+        for (int i = 0; i < 4; i++) {
+            if (boxEnabled[i]) {
+                boxContainers[i].setVisibility(View.VISIBLE);
+            }
+        }
+        bottomControls.setVisibility(View.VISIBLE);
+        
+        // Restaurar layout
+        updateLayout();
+        
+        Toast.makeText(this, "Sair do Fullscreen", Toast.LENGTH_SHORT).show();
     }
     
     private void updateFocusedBoxIndicator() {
@@ -264,6 +345,7 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         
+        // Habilitar scroll
         settings.setSupportZoom(true);
         settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
@@ -273,6 +355,10 @@ public class MainActivity extends AppCompatActivity {
         
         settings.setBlockNetworkLoads(cbBlockAds.isChecked());
         settings.setBlockNetworkImage(cbBlockAds.isChecked());
+        
+        // Permitir scroll com D-pad
+        settings.setBuiltInZoomControls(false);
+        settings.setDisplayZoomControls(false);
         
         settings.setUserAgentString("Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) AppleWebKit/537.36");
         
@@ -345,72 +431,8 @@ public class MainActivity extends AppCompatActivity {
         });
         
         webView.setWebChromeClient(new WebChromeClient() {
-            private View mCustomView;
-            private WebChromeClient.CustomViewCallback mCustomViewCallback;
-            
-            @Override
-            public void onShowCustomView(View view, CustomViewCallback callback) {
-                mCustomView = view;
-                mCustomViewCallback = callback;
-                
-                bottomControls.setVisibility(View.GONE);
-                gridLayout.setVisibility(View.GONE);
-                
-                ViewGroup decorView = (ViewGroup) getWindow().getDecorView();
-                decorView.addView(view, 
-                    new ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT));
-                
-                getWindow().setFlags(
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            }
-            
-            @Override
-            public void onHideCustomView() {
-                if (mCustomView == null) return;
-                
-                ViewGroup decorView = (ViewGroup) getWindow().getDecorView();
-                decorView.removeView(mCustomView);
-                
-                if (mCustomViewCallback != null) {
-                    mCustomViewCallback.onCustomViewHidden();
-                }
-                
-                mCustomView = null;
-                mCustomViewCallback = null;
-                
-                bottomControls.setVisibility(View.VISIBLE);
-                gridLayout.setVisibility(View.VISIBLE);
-                
-                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            }
+            // Não usar fullscreen padrão do WebChromeClient
         });
-    }
-    
-    private void enterFullscreenMode(int boxIndex) {
-        WebView webView = webViews[boxIndex];
-        String fullscreenJS = 
-            "var videos = document.getElementsByTagName('video');" +
-            "if (videos.length > 0) {" +
-            "   var video = videos[0];" +
-            "   if (video.requestFullscreen) {" +
-            "       video.requestFullscreen();" +
-            "   } else if (video.webkitRequestFullscreen) {" +
-            "       video.webkitRequestFullscreen();" +
-            "   } else if (video.mozRequestFullScreen) {" +
-            "       video.mozRequestFullScreen();" +
-            "   } else if (video.msRequestFullscreen) {" +
-            "       video.msRequestFullscreen();" +
-            "   }" +
-            "}";
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.evaluateJavascript(fullscreenJS, null);
-        } else {
-            webView.loadUrl("javascript:" + fullscreenJS);
-        }
     }
     
     private void injectAdBlocker(WebView view) {
@@ -467,6 +489,13 @@ public class MainActivity extends AppCompatActivity {
         btnBack.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (isBoxFullscreen) {
+                    exitBoxFullscreen();
+                    isBoxFullscreen = false;
+                    fullscreenBoxIndex = -1;
+                    return;
+                }
+                
                 if (webViews[focusedBoxIndex].canGoBack()) {
                     webViews[focusedBoxIndex].goBack();
                 }
@@ -476,6 +505,13 @@ public class MainActivity extends AppCompatActivity {
         btnMenu.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (isBoxFullscreen) {
+                    exitBoxFullscreen();
+                    isBoxFullscreen = false;
+                    fullscreenBoxIndex = -1;
+                    return;
+                }
+                
                 if (isSidebarVisible) {
                     closeSidebar();
                 } else {
@@ -1022,15 +1058,31 @@ public class MainActivity extends AppCompatActivity {
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_UP:
-                    if (isSidebarVisible) return false;
+                    if (isSidebarVisible || isBoxFullscreen) return false;
+                    
+                    // Se está na box, permite scroll interno
                     if (boxContainers[focusedBoxIndex].hasFocus()) {
-                        btnMenu.requestFocus();
+                        // Permite que o WebView lide com o scroll
+                        return false;
+                    }
+                    
+                    // Se está no menu, focar na box
+                    if (bottomControls.hasFocus()) {
+                        boxContainers[focusedBoxIndex].requestFocus();
                         return true;
                     }
                     break;
                     
                 case KeyEvent.KEYCODE_DPAD_DOWN:
-                    if (isSidebarVisible) return false;
+                    if (isSidebarVisible || isBoxFullscreen) return false;
+                    
+                    // Se está na box, permite scroll interno
+                    if (boxContainers[focusedBoxIndex].hasFocus()) {
+                        // Permite que o WebView lide com o scroll
+                        return false;
+                    }
+                    
+                    // Se está no menu, focar na box
                     if (bottomControls.hasFocus()) {
                         boxContainers[focusedBoxIndex].requestFocus();
                         return true;
@@ -1038,18 +1090,26 @@ public class MainActivity extends AppCompatActivity {
                     break;
                     
                 case KeyEvent.KEYCODE_DPAD_LEFT:
-                    if (isSidebarVisible) return false;
+                    if (isSidebarVisible || isBoxFullscreen) return false;
+                    
+                    // Se está na box, navega entre boxes
                     if (boxContainers[focusedBoxIndex].hasFocus()) {
                         if (focusedBoxIndex > 0) {
                             focusedBoxIndex--;
                             boxContainers[focusedBoxIndex].requestFocus();
+                            return true;
+                        } else {
+                            // Volta para o menu
+                            btnMenu.requestFocus();
                             return true;
                         }
                     }
                     break;
                     
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
-                    if (isSidebarVisible) return false;
+                    if (isSidebarVisible || isBoxFullscreen) return false;
+                    
+                    // Se está na box, navega entre boxes
                     if (boxContainers[focusedBoxIndex].hasFocus()) {
                         if (focusedBoxIndex < 3) {
                             focusedBoxIndex++;
@@ -1062,8 +1122,16 @@ public class MainActivity extends AppCompatActivity {
                 case KeyEvent.KEYCODE_DPAD_CENTER:
                 case KeyEvent.KEYCODE_ENTER:
                     if (isSidebarVisible) return false;
+                    
+                    if (isBoxFullscreen) {
+                        exitBoxFullscreen();
+                        isBoxFullscreen = false;
+                        fullscreenBoxIndex = -1;
+                        return true;
+                    }
+                    
                     if (boxContainers[focusedBoxIndex].hasFocus()) {
-                        enterFullscreenMode(focusedBoxIndex);
+                        toggleBoxFullscreen(focusedBoxIndex);
                         return true;
                     }
                     break;
@@ -1073,6 +1141,14 @@ public class MainActivity extends AppCompatActivity {
                         closeSidebar();
                         return true;
                     }
+                    
+                    if (isBoxFullscreen) {
+                        exitBoxFullscreen();
+                        isBoxFullscreen = false;
+                        fullscreenBoxIndex = -1;
+                        return true;
+                    }
+                    
                     if (webViews[focusedBoxIndex].canGoBack()) {
                         webViews[focusedBoxIndex].goBack();
                         return true;
@@ -1080,6 +1156,13 @@ public class MainActivity extends AppCompatActivity {
                     break;
                     
                 case KeyEvent.KEYCODE_MENU:
+                    if (isBoxFullscreen) {
+                        exitBoxFullscreen();
+                        isBoxFullscreen = false;
+                        fullscreenBoxIndex = -1;
+                        return true;
+                    }
+                    
                     if (isSidebarVisible) {
                         closeSidebar();
                     } else {
@@ -1095,6 +1178,13 @@ public class MainActivity extends AppCompatActivity {
     public void onBackPressed() {
         if (isSidebarVisible) {
             closeSidebar();
+            return;
+        }
+        
+        if (isBoxFullscreen) {
+            exitBoxFullscreen();
+            isBoxFullscreen = false;
+            fullscreenBoxIndex = -1;
             return;
         }
         
