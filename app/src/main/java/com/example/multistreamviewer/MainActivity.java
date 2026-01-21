@@ -13,6 +13,7 @@ import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.webkit.WebChromeClient;
@@ -26,7 +27,7 @@ import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -48,11 +49,11 @@ public class MainActivity extends AppCompatActivity {
     private WebView[] webViews = new WebView[4];
     private FrameLayout[] boxContainers = new FrameLayout[4];
     private LinearLayout bottomControls;
-    private ScrollView sidebarMenu;
+    private FrameLayout sidebarContainer;
     private View sidebarOverlay;
     
     // Controles
-    private Button btnMenu, btnOrientation, btnBack;
+    private Button btnMenu, btnBack;
     private Button btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
     private Button[] btnLoadUrls = new Button[4];
@@ -64,7 +65,6 @@ public class MainActivity extends AppCompatActivity {
     // Estado
     private boolean[] boxEnabled = {true, true, true, true};
     private boolean isSidebarVisible = false;
-    private int currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
     private int focusedBoxIndex = 0;
     private boolean isVideoMuted = true;
     
@@ -122,29 +122,33 @@ public class MainActivity extends AppCompatActivity {
         sidebarOverlay.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
-                return true;
+                return true; // Bloqueia todos os toques
             }
         });
     }
     
     private void closeSidebar() {
-        sidebarMenu.setVisibility(View.GONE);
+        sidebarContainer.setVisibility(View.GONE);
         sidebarOverlay.setVisibility(View.GONE);
         isSidebarVisible = false;
-        btnMenu.requestFocus();
+        
+        // Restaurar foco para a box atual
+        boxContainers[focusedBoxIndex].requestFocus();
     }
     
     private void openSidebar() {
-        sidebarMenu.setVisibility(View.VISIBLE);
+        sidebarContainer.setVisibility(View.VISIBLE);
         sidebarOverlay.setVisibility(View.VISIBLE);
         isSidebarVisible = true;
+        
+        // Focar no botão de fechar
         btnCloseMenu.requestFocus();
     }
     
     private void initViews() {
         gridLayout = findViewById(R.id.gridLayout);
         bottomControls = findViewById(R.id.bottomControls);
-        sidebarMenu = findViewById(R.id.sidebarMenu);
+        sidebarContainer = findViewById(R.id.sidebarContainer);
         sidebarOverlay = findViewById(R.id.sidebarOverlay);
         tvFocusedBox = findViewById(R.id.tvFocusedBox);
         
@@ -206,6 +210,22 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
+        
+        // Configurar clique na barra inferior para evitar propagação
+        bottomControls.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // Apenas consome o clique, não faz nada
+            }
+        });
+        
+        bottomControls.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                v.performClick();
+                return true; // Consome o toque
+            }
+        });
     }
     
     @SuppressLint("SetJavaScriptEnabled")
@@ -216,6 +236,23 @@ public class MainActivity extends AppCompatActivity {
             boxContainers[i] = new FrameLayout(this);
             boxContainers[i].setId(View.generateViewId());
             boxContainers[i].setBackgroundColor(Color.BLACK);
+            boxContainers[i].setFocusable(true);
+            boxContainers[i].setFocusableInTouchMode(true);
+            
+            // Listener de foco para atualizar indicador
+            boxContainers[i].setOnFocusChangeListener(new View.OnFocusChangeListener() {
+                @Override
+                public void onFocusChange(View v, boolean hasFocus) {
+                    if (hasFocus) {
+                        focusedBoxIndex = boxIndex;
+                        updateFocusedBoxIndicator();
+                        // Destacar a box focada com borda
+                        boxContainers[boxIndex].setBackgroundResource(R.drawable.box_focused_border);
+                    } else {
+                        boxContainers[boxIndex].setBackgroundColor(Color.BLACK);
+                    }
+                }
+            });
             
             webViews[i] = new WebView(this);
             webViews[i].setId(View.generateViewId());
@@ -226,6 +263,7 @@ public class MainActivity extends AppCompatActivity {
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));
             
+            // Clique duplo para fullscreen
             boxContainers[i].setOnClickListener(new View.OnClickListener() {
                 private long lastClickTime = 0;
                 
@@ -233,19 +271,22 @@ public class MainActivity extends AppCompatActivity {
                 public void onClick(View v) {
                     long clickTime = System.currentTimeMillis();
                     if (clickTime - lastClickTime < 500) {
-                        activateFullscreen(boxIndex);
+                        // Clique duplo - entrar em fullscreen
+                        enterFullscreenMode(boxIndex);
                     } else {
-                        focusedBoxIndex = boxIndex;
-                        updateFocusedBoxIndicator();
+                        // Clique simples - focar na box
+                        boxContainers[boxIndex].requestFocus();
                     }
                     lastClickTime = clickTime;
                 }
             });
-        }
-        
-        for (int i = 0; i < 4; i++) {
+            
+            // Adicionar ao GridLayout
             gridLayout.addView(boxContainers[i]);
         }
+        
+        // Focar na primeira box inicialmente
+        boxContainers[0].requestFocus();
     }
     
     private void updateFocusedBoxIndicator() {
@@ -272,8 +313,8 @@ public class MainActivity extends AppCompatActivity {
         settings.setBlockNetworkLoads(cbBlockAds.isChecked());
         settings.setBlockNetworkImage(cbBlockAds.isChecked());
         
-        // User agent para TV
-        settings.setUserAgentString("Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36");
+        // User agent para TV compatível com Fire Stick
+        settings.setUserAgentString("Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) AppleWebKit/537.36 (KHTML, like Gecko) Silk/96.3.10 like Chrome/96.0.4664.104 Safari/537.36");
         
         webView.setBackgroundColor(Color.BLACK);
         
@@ -292,6 +333,8 @@ public class MainActivity extends AppCompatActivity {
                 if (cbBlockRedirects.isChecked()) {
                     String currentUrl = view.getUrl();
                     if (currentUrl != null && !isSameDomain(currentUrl, url)) {
+                        Toast.makeText(MainActivity.this, 
+                            "Redirecionamento bloqueado", Toast.LENGTH_SHORT).show();
                         return true;
                     }
                 }
@@ -312,20 +355,31 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onPageFinished(WebView view, String url) {
-                // Mute videos por defeito
-                String muteJS = 
+                // Mute videos por defeito e configurações para TV
+                String tvJS = 
                     "var videos = document.getElementsByTagName('video');" +
                     "for(var i = 0; i < videos.length; i++) {" +
                     "   videos[i].muted = " + isVideoMuted + ";" +
                     "   videos[i].setAttribute('playsinline', 'false');" +
                     "   videos[i].setAttribute('webkit-playsinline', 'false');" +
+                    "   videos[i].setAttribute('x-webkit-airplay', 'deny');" +
                     "   videos[i].controls = true;" +
+                    "   videos[i].style.width = '100%';" +
+                    "   videos[i].style.height = '100%';" +
+                    "}" +
+                    "document.body.style.margin = '0';" +
+                    "document.body.style.padding = '0';" +
+                    "document.body.style.overflow = 'hidden';" +
+                    "if(document.documentElement) {" +
+                    "   document.documentElement.style.margin = '0';" +
+                    "   document.documentElement.style.padding = '0';" +
+                    "   document.documentElement.style.overflow = 'hidden';" +
                     "}";
                 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                    view.evaluateJavascript(muteJS, null);
+                    view.evaluateJavascript(tvJS, null);
                 } else {
-                    view.loadUrl("javascript:" + muteJS);
+                    view.loadUrl("javascript:" + tvJS);
                 }
                 
                 if (cbBlockAds.isChecked()) {
@@ -340,17 +394,20 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onShowCustomView(View view, CustomViewCallback callback) {
+                // Guardar referências
                 mCustomView = view;
                 mCustomViewCallback = callback;
                 
+                // Esconder controles
                 bottomControls.setVisibility(View.GONE);
+                gridLayout.setVisibility(View.GONE);
                 
-                boxContainers[boxIndex].addView(view, 
-                    new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT));
-                
-                webView.setVisibility(View.GONE);
+                // Adicionar a view de fullscreen diretamente no layout principal
+                ViewGroup decorView = (ViewGroup) getWindow().getDecorView();
+                decorView.addView(view, 
+                    new ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT));
                 
                 getWindow().setFlags(
                     WindowManager.LayoutParams.FLAG_FULLSCREEN,
@@ -361,8 +418,9 @@ public class MainActivity extends AppCompatActivity {
             public void onHideCustomView() {
                 if (mCustomView == null) return;
                 
-                webView.setVisibility(View.VISIBLE);
-                boxContainers[boxIndex].removeView(mCustomView);
+                // Remover a view de fullscreen
+                ViewGroup decorView = (ViewGroup) getWindow().getDecorView();
+                decorView.removeView(mCustomView);
                 
                 if (mCustomViewCallback != null) {
                     mCustomViewCallback.onCustomViewHidden();
@@ -371,10 +429,48 @@ public class MainActivity extends AppCompatActivity {
                 mCustomView = null;
                 mCustomViewCallback = null;
                 
+                // Mostrar controles novamente
                 bottomControls.setVisibility(View.VISIBLE);
+                gridLayout.setVisibility(View.VISIBLE);
+                
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             }
         });
+    }
+    
+    private void enterFullscreenMode(int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        String fullscreenJS = 
+            "var videos = document.getElementsByTagName('video');" +
+            "if (videos.length > 0) {" +
+            "   var video = videos[0];" +
+            "   if (video.requestFullscreen) {" +
+            "       video.requestFullscreen();" +
+            "   } else if (video.webkitRequestFullscreen) {" +
+            "       video.webkitRequestFullscreen();" +
+            "   } else if (video.mozRequestFullScreen) {" +
+            "       video.mozRequestFullScreen();" +
+            "   } else if (video.msRequestFullscreen) {" +
+            "       video.msRequestFullscreen();" +
+            "   }" +
+            "} else {" +
+            "   var elem = document.documentElement;" +
+            "   if (elem.requestFullscreen) {" +
+            "       elem.requestFullscreen();" +
+            "   } else if (elem.webkitRequestFullscreen) {" +
+            "       elem.webkitRequestFullscreen();" +
+            "   } else if (elem.mozRequestFullScreen) {" +
+            "       elem.mozRequestFullScreen();" +
+            "   } else if (elem.msRequestFullscreen) {" +
+            "       elem.msRequestFullscreen();" +
+            "   }" +
+            "}";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(fullscreenJS, null);
+        } else {
+            webView.loadUrl("javascript:" + fullscreenJS);
+        }
     }
     
     private void injectAdBlocker(WebView view) {
@@ -433,6 +529,9 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 if (webViews[focusedBoxIndex].canGoBack()) {
                     webViews[focusedBoxIndex].goBack();
+                } else {
+                    Toast.makeText(MainActivity.this, 
+                        "Não há páginas para retroceder", Toast.LENGTH_SHORT).show();
                 }
             }
         });
@@ -440,7 +539,11 @@ public class MainActivity extends AppCompatActivity {
         btnMenu.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                openSidebar();
+                if (isSidebarVisible) {
+                    closeSidebar();
+                } else {
+                    openSidebar();
+                }
             }
         });
         
@@ -568,7 +671,7 @@ public class MainActivity extends AppCompatActivity {
         
         int rows, cols;
         
-        // Lógica de layout corrigida
+        // Lógica de layout corrigida para TV
         switch (activeBoxes) {
             case 1:
                 rows = 1; cols = 1;
@@ -577,10 +680,10 @@ public class MainActivity extends AppCompatActivity {
                 rows = 1; cols = 2;
                 break;
             case 3:
-                rows = 1; cols = 3; // 1x3 para 3 boxes ativas
+                rows = 1; cols = 3;
                 break;
             case 4:
-                rows = 2; cols = 2; // 2x2 para 4 boxes ativas
+                rows = 2; cols = 2;
                 break;
             default:
                 rows = 1; cols = 1;
@@ -600,7 +703,16 @@ public class MainActivity extends AppCompatActivity {
                 GridLayout.LayoutParams params = new GridLayout.LayoutParams(rowSpec, colSpec);
                 params.width = 0;
                 params.height = 0;
-                params.setMargins(2, 2, 2, 2);
+                
+                // Margens ajustadas para TV
+                if (activeBoxes == 1) {
+                    // Uma box ocupa toda a tela
+                    params.setMargins(0, 0, 0, 0);
+                } else if (activeBoxes == 2) {
+                    params.setMargins(2, 2, 2, 2);
+                } else {
+                    params.setMargins(1, 1, 1, 1);
+                }
                 
                 boxContainers[i].setVisibility(View.VISIBLE);
                 gridLayout.addView(boxContainers[i], params);
@@ -973,23 +1085,6 @@ public class MainActivity extends AppCompatActivity {
         builder.show();
     }
     
-    private void activateFullscreen(int boxIndex) {
-        WebView webView = webViews[boxIndex];
-        String fullscreenJS = 
-            "var videos = document.getElementsByTagName('video');" +
-            "if (videos.length > 0) {" +
-            "   videos[0].requestFullscreen();" +
-            "} else {" +
-            "   document.documentElement.requestFullscreen();" +
-            "}";
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.evaluateJavascript(fullscreenJS, null);
-        } else {
-            webView.loadUrl("javascript:" + fullscreenJS);
-        }
-    }
-    
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
@@ -1010,81 +1105,95 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         loadFavoritesList();
+        // Restaurar foco
+        boxContainers[focusedBoxIndex].requestFocus();
     }
     
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // Controle por D-Pad para Fire Stick TV
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_DPAD_UP:
-                // Navegar para cima no sidebar quando visível
-                if (isSidebarVisible) {
-                    // Deixa o ScrollView do sidebar lidar com isso
-                    return false;
-                }
-                return true;
-                
-            case KeyEvent.KEYCODE_DPAD_DOWN:
-                // Navegar para baixo no sidebar quando visível
-                if (isSidebarVisible) {
-                    return false;
-                }
-                return true;
-                
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-                if (isSidebarVisible) {
-                    // Navegação dentro do sidebar
-                    return false;
-                }
-                // Mover foco entre boxes
-                if (focusedBoxIndex > 0) {
-                    focusedBoxIndex--;
-                    updateFocusedBoxIndicator();
+        // Navegação otimizada para Fire Stick TV (como Amazon Silk)
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_UP:
+                    if (isSidebarVisible) {
+                        // Navegação dentro do sidebar
+                        return false;
+                    }
+                    // Mover foco para o menu inferior
+                    btnMenu.requestFocus();
                     return true;
-                }
-                break;
-                
-            case KeyEvent.KEYCODE_DPAD_RIGHT:
-                if (isSidebarVisible) {
-                    // Navegação dentro do sidebar
-                    return false;
-                }
-                // Mover foco entre boxes
-                if (focusedBoxIndex < 3) {
-                    focusedBoxIndex++;
-                    updateFocusedBoxIndicator();
+                    
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    if (isSidebarVisible) {
+                        // Navegação dentro do sidebar
+                        return false;
+                    }
+                    // Se está no menu inferior, focar na box
+                    if (bottomControls.hasFocus()) {
+                        boxContainers[focusedBoxIndex].requestFocus();
+                        return true;
+                    }
                     return true;
-                }
-                break;
-                
-            case KeyEvent.KEYCODE_DPAD_CENTER:
-            case KeyEvent.KEYCODE_ENTER:
-                if (isSidebarVisible) {
-                    // Deixa o elemento focado no sidebar lidar com o clique
-                    return false;
-                }
-                // Ativar box em foco
-                activateFullscreen(focusedBoxIndex);
-                return true;
-                
-            case KeyEvent.KEYCODE_BACK:
-                if (isSidebarVisible) {
-                    closeSidebar();
+                    
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                    if (isSidebarVisible) {
+                        // Navegação dentro do sidebar
+                        return false;
+                    }
+                    // Mover foco entre boxes
+                    if (boxContainers[focusedBoxIndex].hasFocus()) {
+                        if (focusedBoxIndex > 0) {
+                            focusedBoxIndex--;
+                            boxContainers[focusedBoxIndex].requestFocus();
+                            return true;
+                        }
+                    }
+                    break;
+                    
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    if (isSidebarVisible) {
+                        // Navegação dentro do sidebar
+                        return false;
+                    }
+                    // Mover foco entre boxes
+                    if (boxContainers[focusedBoxIndex].hasFocus()) {
+                        if (focusedBoxIndex < 3) {
+                            focusedBoxIndex++;
+                            boxContainers[focusedBoxIndex].requestFocus();
+                            return true;
+                        }
+                    }
+                    break;
+                    
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                    if (isSidebarVisible) {
+                        // Deixa o elemento focado no sidebar lidar com o clique
+                        return false;
+                    }
+                    // Ativar box em foco (fullscreen)
+                    enterFullscreenMode(focusedBoxIndex);
                     return true;
-                }
-                if (webViews[focusedBoxIndex].canGoBack()) {
-                    webViews[focusedBoxIndex].goBack();
+                    
+                case KeyEvent.KEYCODE_BACK:
+                    if (isSidebarVisible) {
+                        closeSidebar();
+                        return true;
+                    }
+                    if (webViews[focusedBoxIndex].canGoBack()) {
+                        webViews[focusedBoxIndex].goBack();
+                        return true;
+                    }
+                    break;
+                    
+                case KeyEvent.KEYCODE_MENU:
+                    if (isSidebarVisible) {
+                        closeSidebar();
+                    } else {
+                        openSidebar();
+                    }
                     return true;
-                }
-                break;
-                
-            case KeyEvent.KEYCODE_MENU:
-                if (isSidebarVisible) {
-                    closeSidebar();
-                } else {
-                    openSidebar();
-                }
-                return true;
+            }
         }
         return super.onKeyDown(keyCode, event);
     }
