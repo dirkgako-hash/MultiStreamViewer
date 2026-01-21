@@ -57,6 +57,7 @@ public class MainActivity extends AppCompatActivity {
     private Button[] btnZoomOut = new Button[4];
     private Button[] btnPrevious = new Button[4];
     private Button[] btnNext = new Button[4];
+    private Button[] btnLoadUrl = new Button[4];
     private CheckBox[] checkBoxes = new CheckBox[4];
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
     private EditText[] urlInputs = new EditText[4];
@@ -66,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
     private boolean isVideoMuted = true;
-    private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
+    private int[] zoomLevels = {100, 100, 100, 100}; // Percentagem do zoom (100% = zoom normal)
     
     private ArrayList<String> favoritesList = new ArrayList<>();
     private SharedPreferences preferences;
@@ -153,6 +154,11 @@ public class MainActivity extends AppCompatActivity {
         btnNext[1] = findViewById(R.id.btnNext2);
         btnNext[2] = findViewById(R.id.btnNext3);
         btnNext[3] = findViewById(R.id.btnNext4);
+        
+        btnLoadUrl[0] = findViewById(R.id.btnLoadUrl1);
+        btnLoadUrl[1] = findViewById(R.id.btnLoadUrl2);
+        btnLoadUrl[2] = findViewById(R.id.btnLoadUrl3);
+        btnLoadUrl[3] = findViewById(R.id.btnLoadUrl4);
         
         cbAllowScripts = findViewById(R.id.cbAllowScripts);
         cbAllowForms = findViewById(R.id.cbAllowForms);
@@ -280,15 +286,14 @@ public class MainActivity extends AppCompatActivity {
         settings.setSupportZoom(true);
         settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
-        
-        settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
+        settings.setUseWideViewPort(true);
         
         settings.setBlockNetworkLoads(cbBlockAds.isChecked());
         settings.setBlockNetworkImage(cbBlockAds.isChecked());
         
-        // Zoom inicial
-        webView.setInitialScale(100);
+        // Configurar zoom inicial
+        webView.setInitialScale(zoomLevels[boxIndex]);
         
         settings.setUserAgentString("Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) AppleWebKit/537.36");
         
@@ -368,8 +373,8 @@ public class MainActivity extends AppCompatActivity {
                 mCustomView = view;
                 mCustomViewCallback = callback;
                 
-                // Esconder controles
-                bottomControls.setVisibility(View.GONE);
+                // NÃO esconder controles - manter sempre visível
+                // bottomControls.setVisibility(View.VISIBLE);
                 
                 // Adicionar a view de fullscreen diretamente na box
                 boxContainers[boxIndex].addView(view, 
@@ -402,7 +407,7 @@ public class MainActivity extends AppCompatActivity {
                 mCustomView = null;
                 mCustomViewCallback = null;
                 
-                // Mostrar controles
+                // Mostrar controles (já deveriam estar visíveis)
                 bottomControls.setVisibility(View.VISIBLE);
                 
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -413,26 +418,27 @@ public class MainActivity extends AppCompatActivity {
     private void applyZoom(int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
-            webView.setScaleX(zoomLevels[boxIndex]);
-            webView.setScaleY(zoomLevels[boxIndex]);
+            // Usar setInitialScale para zoom real na página
+            webView.setInitialScale(zoomLevels[boxIndex]);
             webView.invalidate();
+            webView.reload(); // Recarregar para aplicar o zoom
         }
     }
     
     private void zoomIn(int boxIndex) {
-        if (zoomLevels[boxIndex] < 2.0f) {
-            zoomLevels[boxIndex] += 0.1f;
+        if (zoomLevels[boxIndex] < 200) {
+            zoomLevels[boxIndex] += 10;
             applyZoom(boxIndex);
-            Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + String.format("%.1f", zoomLevels[boxIndex]), 
+            Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + zoomLevels[boxIndex] + "%", 
                 Toast.LENGTH_SHORT).show();
         }
     }
     
     private void zoomOut(int boxIndex) {
-        if (zoomLevels[boxIndex] > 0.5f) {
-            zoomLevels[boxIndex] -= 0.1f;
+        if (zoomLevels[boxIndex] > 50) {
+            zoomLevels[boxIndex] -= 10;
             applyZoom(boxIndex);
-            Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + String.format("%.1f", zoomLevels[boxIndex]), 
+            Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + zoomLevels[boxIndex] + "%", 
                 Toast.LENGTH_SHORT).show();
         }
     }
@@ -558,6 +564,19 @@ public class MainActivity extends AppCompatActivity {
         // Configurar listeners para controles individuais de cada box
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
+            
+            // Botão para carregar URL específica
+            btnLoadUrl[i].setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    String url = urlInputs[boxIndex].getText().toString().trim();
+                    if (url.isEmpty()) {
+                        url = getDefaultUrl(boxIndex);
+                        urlInputs[boxIndex].setText(url);
+                    }
+                    loadURL(boxIndex, url);
+                }
+            });
             
             // Checkbox para ativar/desativar box
             checkBoxes[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -785,7 +804,7 @@ public class MainActivity extends AppCompatActivity {
             
             // Salvar níveis de zoom
             for (int i = 0; i < 4; i++) {
-                editor.putFloat("zoom_level_" + i, zoomLevels[i]);
+                editor.putInt("zoom_level_" + i, zoomLevels[i]);
             }
             
             editor.putBoolean("allow_scripts", cbAllowScripts.isChecked());
@@ -831,7 +850,7 @@ public class MainActivity extends AppCompatActivity {
             
             // Carregar níveis de zoom
             for (int i = 0; i < 4; i++) {
-                zoomLevels[i] = preferences.getFloat("zoom_level_" + i, 1.0f);
+                zoomLevels[i] = preferences.getInt("zoom_level_" + i, 100);
                 applyZoom(i);
             }
             
