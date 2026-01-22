@@ -9,7 +9,10 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
@@ -175,6 +178,38 @@ public class MainActivity extends AppCompatActivity {
         String defaultUrl = "https://dzritv.com/sport/football/";
         for (EditText urlInput : urlInputs) {
             urlInput.setText(defaultUrl);
+            
+            // Configurar para permitir edição fácil
+            urlInput.setCursorVisible(true);
+            urlInput.setSelectAllOnFocus(true);
+            
+            // Adicionar listener para toque direto
+            urlInput.setOnTouchListener(new View.OnTouchListener() {
+                @Override
+                public boolean onTouch(View v, MotionEvent event) {
+                    if (event.getAction() == MotionEvent.ACTION_UP) {
+                        EditText et = (EditText) v;
+                        et.requestFocus();
+                        et.selectAll();
+                        return true;
+                    }
+                    return false;
+                }
+            });
+            
+            // Adicionar TextWatcher para atualizar em tempo real
+            urlInput.addTextChangedListener(new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {}
+                
+                @Override
+                public void afterTextChanged(Editable s) {
+                    // Texto alterado - nada a fazer por enquanto
+                }
+            });
         }
         
         // Configurar ação ENTER para cada input
@@ -188,12 +223,36 @@ public class MainActivity extends AppCompatActivity {
                         String url = urlInputs[boxIndex].getText().toString().trim();
                         if (!url.isEmpty()) {
                             loadURL(boxIndex, url);
+                            // Esconder teclado virtual
+                            hideKeyboard();
                         }
                         return true;
                     }
                     return false;
                 }
             });
+            
+            // Permitir foco via clique
+            urlInputs[i].setOnFocusChangeListener(new View.OnFocusChangeListener() {
+                @Override
+                public void onFocusChange(View v, boolean hasFocus) {
+                    if (hasFocus) {
+                        EditText et = (EditText) v;
+                        et.selectAll();
+                    }
+                }
+            });
+        }
+    }
+    
+    private void hideKeyboard() {
+        View view = this.getCurrentFocus();
+        if (view != null) {
+            android.view.inputmethod.InputMethodManager imm = 
+                (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+            }
         }
     }
     
@@ -211,6 +270,9 @@ public class MainActivity extends AppCompatActivity {
         params.width = RelativeLayout.LayoutParams.MATCH_PARENT;
         params.removeRule(RelativeLayout.LEFT_OF);
         gridLayout.setLayoutParams(params);
+        
+        // Esconder teclado virtual se estiver aberto
+        hideKeyboard();
         
         btnMenu.requestFocus();
     }
@@ -1010,6 +1072,8 @@ public class MainActivity extends AppCompatActivity {
         input.setTextColor(Color.BLACK);
         input.setHintTextColor(Color.GRAY);
         input.setBackgroundResource(android.R.drawable.edit_text);
+        input.setCursorVisible(true);
+        input.setSelectAllOnFocus(true);
         
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Guardar Favorito");
@@ -1032,6 +1096,7 @@ public class MainActivity extends AppCompatActivity {
         
         // Focar no input quando o dialog aparecer
         input.requestFocus();
+        input.selectAll();
     }
     
     private void showLoadFavoritesDialog() {
