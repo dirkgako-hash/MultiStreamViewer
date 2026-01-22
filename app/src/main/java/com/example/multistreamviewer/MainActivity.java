@@ -45,8 +45,7 @@ public class MainActivity extends AppCompatActivity {
     private WebView[] webViews = new WebView[4];
     private FrameLayout[] boxContainers = new FrameLayout[4];
     private LinearLayout bottomControls;
-    private LinearLayout sidebarContainer;
-    private View sidebarOverlay;
+    private FrameLayout sidebarContainer;
     private RelativeLayout mainLayout;
     
     private Button btnMenu;
@@ -111,7 +110,6 @@ public class MainActivity extends AppCompatActivity {
         gridLayout = findViewById(R.id.gridLayout);
         bottomControls = findViewById(R.id.bottomControls);
         sidebarContainer = findViewById(R.id.sidebarContainer);
-        sidebarOverlay = findViewById(R.id.sidebarOverlay);
         mainLayout = findViewById(R.id.main_layout);
         tvFocusedBox = findViewById(R.id.tvFocusedBox);
         
@@ -199,9 +197,13 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     
+    // Método público para ser chamado pelo onClick do XML
+    public void closeSidebarFromOverlay(View view) {
+        closeSidebar();
+    }
+    
     private void closeSidebar() {
         sidebarContainer.setVisibility(View.GONE);
-        sidebarOverlay.setVisibility(View.GONE);
         isSidebarVisible = false;
         
         // Restaurar largura total das boxes
@@ -215,7 +217,6 @@ public class MainActivity extends AppCompatActivity {
     
     private void openSidebar() {
         sidebarContainer.setVisibility(View.VISIBLE);
-        sidebarOverlay.setVisibility(View.VISIBLE);
         isSidebarVisible = true;
         
         // Reduzir largura das boxes para dar espaço ao sidebar
@@ -513,14 +514,6 @@ public class MainActivity extends AppCompatActivity {
         });
         
         btnCloseMenu.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                closeSidebar();
-            }
-        });
-        
-        // Overlay para fechar sidebar quando clicar fora
-        sidebarOverlay.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 closeSidebar();
