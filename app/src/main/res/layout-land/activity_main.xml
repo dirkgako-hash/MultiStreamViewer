@@ -16,7 +16,7 @@
         android:background="#000000"
         android:focusable="false" />
 
-    <!-- MENU INFERIOR COMPACTO -->
+    <!-- MENU INFERIOR COMPACTO COM BOTÃO RV -->
     <LinearLayout
         android:id="@+id/bottomControls"
         android:layout_width="match_parent"
@@ -73,6 +73,19 @@
                 android:text="R"
                 android:textColor="#FFFFFF"
                 android:textSize="10sp" />
+            
+            <!-- NOVO BOTÃO RV PARA RECARREGAR VÍDEO -->
+            <Button
+                android:id="@+id/btnReloadVideo1"
+                android:layout_width="26dp"
+                android:layout_height="20dp"
+                android:layout_marginStart="1dp"
+                android:background="#333333"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:text="RV"
+                android:textColor="#FFFFFF"
+                android:textSize="9sp" />
             
             <Button
                 android:id="@+id/btnZoomIn1"
@@ -153,6 +166,19 @@
                 android:textColor="#FFFFFF"
                 android:textSize="10sp" />
             
+            <!-- NOVO BOTÃO RV PARA RECARREGAR VÍDEO -->
+            <Button
+                android:id="@+id/btnReloadVideo2"
+                android:layout_width="26dp"
+                android:layout_height="20dp"
+                android:layout_marginStart="1dp"
+                android:background="#333333"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:text="RV"
+                android:textColor="#FFFFFF"
+                android:textSize="9sp" />
+            
             <Button
                 android:id="@+id/btnZoomIn2"
                 android:layout_width="26dp"
@@ -232,6 +258,19 @@
                 android:textColor="#FFFFFF"
                 android:textSize="10sp" />
             
+            <!-- NOVO BOTÃO RV PARA RECARREGAR VÍDEO -->
+            <Button
+                android:id="@+id/btnReloadVideo3"
+                android:layout_width="26dp"
+                android:layout_height="20dp"
+                android:layout_marginStart="1dp"
+                android:background="#333333"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:text="RV"
+                android:textColor="#FFFFFF"
+                android:textSize="9sp" />
+            
             <Button
                 android:id="@+id/btnZoomIn3"
                 android:layout_width="26dp"
@@ -309,6 +348,19 @@
                 android:text="R"
                 android:textColor="#FFFFFF"
                 android:textSize="10sp" />
+            
+            <!-- NOVO BOTÃO RV PARA RECARREGAR VÍDEO -->
+            <Button
+                android:id="@+id/btnReloadVideo4"
+                android:layout_width="26dp"
+                android:layout_height="20dp"
+                android:layout_marginStart="1dp"
+                android:background="#333333"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:text="RV"
+                android:textColor="#FFFFFF"
+                android:textSize="9sp" />
             
             <Button
                 android:id="@+id/btnZoomIn4"

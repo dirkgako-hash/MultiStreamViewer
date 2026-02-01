@@ -55,6 +55,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
     private Button[] btnRefresh = new Button[4];
+    private Button[] btnReloadVideo = new Button[4]; // NOVO: Botões RV
     private Button[] btnZoomIn = new Button[4];
     private Button[] btnZoomOut = new Button[4];
     private Button[] btnPrevious = new Button[4];
@@ -137,6 +138,12 @@ public class MainActivity extends AppCompatActivity {
         btnRefresh[1] = findViewById(R.id.btnRefresh2);
         btnRefresh[2] = findViewById(R.id.btnRefresh3);
         btnRefresh[3] = findViewById(R.id.btnRefresh4);
+        
+        // NOVO: Inicializar botões RV
+        btnReloadVideo[0] = findViewById(R.id.btnReloadVideo1);
+        btnReloadVideo[1] = findViewById(R.id.btnReloadVideo2);
+        btnReloadVideo[2] = findViewById(R.id.btnReloadVideo3);
+        btnReloadVideo[3] = findViewById(R.id.btnReloadVideo4);
         
         btnZoomIn[0] = findViewById(R.id.btnZoomIn1);
         btnZoomIn[1] = findViewById(R.id.btnZoomIn2);
@@ -430,6 +437,9 @@ public class MainActivity extends AppCompatActivity {
                 if (cbBlockAds.isChecked()) {
                     injectAdBlocker(view);
                 }
+                
+                // Detectar vídeos parados e reiniciá-los se necessário
+                detectAndReloadStuckVideos(view, boxIndex);
             }
         });
         
@@ -477,6 +487,112 @@ public class MainActivity extends AppCompatActivity {
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             }
         });
+    }
+    
+    // NOVO MÉTODO: Detectar e recarregar vídeos parados
+    private void detectAndReloadStuckVideos(WebView webView, int boxIndex) {
+        // Verificar se vídeos estão parados e reiniciá-los
+        String detectStuckVideosJS = 
+            "var videos = document.getElementsByTagName('video');" +
+            "var stuckVideos = 0;" +
+            "for(var i = 0; i < videos.length; i++) {" +
+            "   var video = videos[i];" +
+            "   if(video.error || video.ended || video.paused) {" +
+            "       if(video.error) {" +
+            "           console.log('Vídeo com erro, recarregando...');" +
+            "           video.load();" +
+            "           stuckVideos++;" +
+            "       } else if(video.ended && !video.loop) {" +
+            "           console.log('Vídeo terminado, reiniciando...');" +
+            "           video.currentTime = 0;" +
+            "           video.play();" +
+            "           stuckVideos++;" +
+            "       }" +
+            "   }" +
+            "}" +
+            "stuckVideos;";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(detectStuckVideosJS, value -> {
+                // value é uma string JSON com o número de vídeos presos
+                try {
+                    int stuckVideos = Integer.parseInt(value.replace("\"", ""));
+                    if (stuckVideos > 0) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(MainActivity.this, 
+                                "Box " + (boxIndex + 1) + ": " + stuckVideos + " vídeo(s) reiniciado(s)", 
+                                Toast.LENGTH_SHORT).show();
+                        });
+                    }
+                } catch (Exception e) {
+                    // Ignorar erros de parsing
+                }
+            });
+        } else {
+            webView.loadUrl("javascript:" + detectStuckVideosJS);
+        }
+    }
+    
+    // NOVO MÉTODO: Recarregar vídeo específico
+    private void reloadVideo(int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null) {
+            // JavaScript para recarregar todos os vídeos na página
+            String reloadVideoJS = 
+                "var videos = document.getElementsByTagName('video');" +
+                "var reloadedCount = 0;" +
+                "for(var i = 0; i < videos.length; i++) {" +
+                "   try {" +
+                "       videos[i].load();" +
+                "       reloadedCount++;" +
+                "   } catch(e) {" +
+                "       console.log('Erro ao recarregar vídeo:', e);" +
+                "   }" +
+                "}" +
+                "reloadedCount;";
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                webView.evaluateJavascript(reloadVideoJS, value -> {
+                    try {
+                        int reloadedCount = Integer.parseInt(value.replace("\"", ""));
+                        runOnUiThread(() -> {
+                            Toast.makeText(MainActivity.this, 
+                                "Box " + (boxIndex + 1) + ": " + reloadedCount + " vídeo(s) recarregado(s)", 
+                                Toast.LENGTH_SHORT).show();
+                        });
+                    } catch (Exception e) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(MainActivity.this, 
+                                "Box " + (boxIndex + 1) + ": Vídeo recarregado", 
+                                Toast.LENGTH_SHORT).show();
+                        });
+                    }
+                });
+            } else {
+                webView.loadUrl("javascript:" + reloadVideoJS);
+                Toast.makeText(this, 
+                    "Box " + (boxIndex + 1) + ": Vídeo recarregado", 
+                    Toast.LENGTH_SHORT).show();
+            }
+            
+            // Também recarrega iframes que possam conter vídeos
+            String reloadIframesJS = 
+                "var iframes = document.getElementsByTagName('iframe');" +
+                "for(var i = 0; i < iframes.length; i++) {" +
+                "   try {" +
+                "       var src = iframes[i].src;" +
+                "       iframes[i].src = src;" +
+                "   } catch(e) {" +
+                "       console.log('Erro ao recarregar iframe:', e);" +
+                "   }" +
+                "}";
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                webView.evaluateJavascript(reloadIframesJS, null);
+            } else {
+                webView.loadUrl("javascript:" + reloadIframesJS);
+            }
+        }
     }
     
     private void applyZoom(int boxIndex) {
@@ -668,6 +784,14 @@ public class MainActivity extends AppCompatActivity {
                         Toast.makeText(MainActivity.this, 
                             "Box " + (boxIndex + 1) + " recarregada", Toast.LENGTH_SHORT).show();
                     }
+                }
+            });
+            
+            // NOVO: Botão Reload Video (RV)
+            btnReloadVideo[i].setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    reloadVideo(boxIndex);
                 }
             });
             
