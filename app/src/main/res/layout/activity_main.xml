@@ -16,7 +16,7 @@
         android:background="@color/background_black"
         android:focusable="false" />
 
-    <!-- MENU INFERIOR COMPACTO COM BOTÃO RV -->
+    <!-- MENU INFERIOR COMPACTO COM CHECKBOX AUTO RELOAD -->
     <LinearLayout
         android:id="@+id/bottomControls"
         android:layout_width="match_parent"
@@ -74,18 +74,17 @@
                 android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
-            <!-- BOTÃO RV PARA RECARREGAR VÍDEO -->
-            <Button
-                android:id="@+id/btnReloadVideo1"
-                android:layout_width="26dp"
-                android:layout_height="20dp"
-                android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:text="RV"
+            <!-- CHECKBOX AUTO RELOAD -->
+            <CheckBox
+                android:id="@+id/cbAutoReload1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="A"
                 android:textColor="@color/text_white"
-                android:textSize="9sp" />
+                android:textSize="9sp"
+                android:checked="false"
+                android:focusable="true"
+                android:focusableInTouchMode="true" />
             
             <Button
                 android:id="@+id/btnZoomIn1"
@@ -166,18 +165,17 @@
                 android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
-            <!-- BOTÃO RV PARA RECARREGAR VÍDEO -->
-            <Button
-                android:id="@+id/btnReloadVideo2"
-                android:layout_width="26dp"
-                android:layout_height="20dp"
-                android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:text="RV"
+            <!-- CHECKBOX AUTO RELOAD -->
+            <CheckBox
+                android:id="@+id/cbAutoReload2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="A"
                 android:textColor="@color/text_white"
-                android:textSize="9sp" />
+                android:textSize="9sp"
+                android:checked="false"
+                android:focusable="true"
+                android:focusableInTouchMode="true" />
             
             <Button
                 android:id="@+id/btnZoomIn2"
@@ -258,18 +256,17 @@
                 android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
-            <!-- BOTÃO RV PARA RECARREGAR VÍDEO -->
-            <Button
-                android:id="@+id/btnReloadVideo3"
-                android:layout_width="26dp"
-                android:layout_height="20dp"
-                android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:text="RV"
+            <!-- CHECKBOX AUTO RELOAD -->
+            <CheckBox
+                android:id="@+id/cbAutoReload3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="A"
                 android:textColor="@color/text_white"
-                android:textSize="9sp" />
+                android:textSize="9sp"
+                android:checked="false"
+                android:focusable="true"
+                android:focusableInTouchMode="true" />
             
             <Button
                 android:id="@+id/btnZoomIn3"
@@ -349,18 +346,17 @@
                 android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
-            <!-- BOTÃO RV PARA RECARREGAR VÍDEO -->
-            <Button
-                android:id="@+id/btnReloadVideo4"
-                android:layout_width="26dp"
-                android:layout_height="20dp"
-                android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:text="RV"
+            <!-- CHECKBOX AUTO RELOAD -->
+            <CheckBox
+                android:id="@+id/cbAutoReload4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="A"
                 android:textColor="@color/text_white"
-                android:textSize="9sp" />
+                android:textSize="9sp"
+                android:checked="false"
+                android:focusable="true"
+                android:focusableInTouchMode="true" />
             
             <Button
                 android:id="@+id/btnZoomIn4"
@@ -429,7 +425,7 @@
             android:focusable="false" />
     </LinearLayout>
 
-    <!-- SIDEBAR CORRIGIDO: Com scrollbar fixa e espaço reservado -->
+    <!-- SIDEBAR CORRIGIDO -->
     <FrameLayout
         android:id="@+id/sidebarContainer"
         android:layout_width="220dp"
@@ -456,10 +452,7 @@
             android:layout_height="match_parent"
             android:orientation="vertical"
             android:background="@color/background_dark"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp">
+            android:padding="8dp">
 
             <!-- Cabeçalho -->
             <LinearLayout
@@ -490,21 +483,18 @@
                     android:textSize="14sp" />
             </LinearLayout>
 
-            <!-- ScrollView com altura fixa e margem para scrollbar -->
+            <!-- ScrollView com altura fixa -->
             <ScrollView
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:scrollbars="vertical"
-                android:scrollbarStyle="outsideOverlay"
-                android:scrollbarSize="8dp"
                 android:fillViewport="true">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingEnd="4dp">
+                    android:orientation="vertical">
 
                     <!-- GUARDAR/CARREGAR -->
                     <TextView
