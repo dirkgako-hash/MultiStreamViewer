@@ -54,19 +54,19 @@ public class MainActivity extends AppCompatActivity {
     private Button btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
     private Button[] btnRefresh = new Button[4];
+    private CheckBox[] cbAutoReload = new CheckBox[4]; // Checkboxes para auto-reload
     private Button[] btnZoomIn = new Button[4];
     private Button[] btnZoomOut = new Button[4];
     private Button[] btnPrevious = new Button[4];
     private Button[] btnNext = new Button[4];
     private Button[] btnLoadUrl = new Button[4];
     private CheckBox[] checkBoxes = new CheckBox[4];
-    private CheckBox[] cbAutoReload = new CheckBox[4];
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
     private EditText[] urlInputs = new EditText[4];
     private TextView tvFocusedBox;
     
     private boolean[] boxEnabled = {true, true, true, true};
-    private boolean[] autoReloadEnabled = {false, false, false, false};
+    private boolean[] autoReloadEnabled = {false, false, false, false}; // Auto-reload por box
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
     private boolean isVideoMuted = true;
@@ -74,7 +74,10 @@ public class MainActivity extends AppCompatActivity {
     
     private ArrayList<String> favoritesList = new ArrayList<>();
     private SharedPreferences preferences;
+    
     private Handler autoReloadHandler = new Handler();
+    private Runnable autoReloadRunnable;
+    private final long AUTO_RELOAD_INTERVAL = 5000; // 5 segundos
     
     private final List<String> adDomains = Arrays.asList(
         "doubleclick.net", "googleadservices.com", "googlesyndication.com"
@@ -106,8 +109,8 @@ public class MainActivity extends AppCompatActivity {
         updateLayout();
         updateFocusedBoxIndicator();
         
-        // Iniciar monitor de auto-reload
-        startAutoReloadMonitor();
+        // Iniciar auto-reload monitoring
+        startAutoReloadMonitoring();
         
         if (!hasSavedState()) {
             new Handler().postDelayed(this::loadInitialURLs, 1000);
@@ -138,15 +141,16 @@ public class MainActivity extends AppCompatActivity {
         checkBoxes[2] = findViewById(R.id.checkBox3);
         checkBoxes[3] = findViewById(R.id.checkBox4);
         
-        cbAutoReload[0] = findViewById(R.id.cbAutoReload1);
-        cbAutoReload[1] = findViewById(R.id.cbAutoReload2);
-        cbAutoReload[2] = findViewById(R.id.cbAutoReload3);
-        cbAutoReload[3] = findViewById(R.id.cbAutoReload4);
-        
         btnRefresh[0] = findViewById(R.id.btnRefresh1);
         btnRefresh[1] = findViewById(R.id.btnRefresh2);
         btnRefresh[2] = findViewById(R.id.btnRefresh3);
         btnRefresh[3] = findViewById(R.id.btnRefresh4);
+        
+        // Inicializar checkboxes auto-reload
+        cbAutoReload[0] = findViewById(R.id.cbAutoReload1);
+        cbAutoReload[1] = findViewById(R.id.cbAutoReload2);
+        cbAutoReload[2] = findViewById(R.id.cbAutoReload3);
+        cbAutoReload[3] = findViewById(R.id.cbAutoReload4);
         
         btnZoomIn[0] = findViewById(R.id.btnZoomIn1);
         btnZoomIn[1] = findViewById(R.id.btnZoomIn2);
@@ -168,6 +172,7 @@ public class MainActivity extends AppCompatActivity {
         btnNext[2] = findViewById(R.id.btnNext3);
         btnNext[3] = findViewById(R.id.btnNext4);
         
+        // Inicializar botões GO
         btnLoadUrl[0] = findViewById(R.id.btnLoadUrl1);
         btnLoadUrl[1] = findViewById(R.id.btnLoadUrl2);
         btnLoadUrl[2] = findViewById(R.id.btnLoadUrl3);
@@ -188,6 +193,7 @@ public class MainActivity extends AppCompatActivity {
         for (EditText urlInput : urlInputs) {
             urlInput.setText(defaultUrl);
             
+            // Configurar para permitir edição fácil no FireTV
             urlInput.setCursorVisible(true);
             urlInput.setSelectAllOnFocus(true);
             
@@ -197,28 +203,20 @@ public class MainActivity extends AppCompatActivity {
                     if (hasFocus) {
                         EditText et = (EditText) v;
                         et.selectAll();
+                        // Mostrar teclado virtual para FireTV
                         showKeyboard(et);
                     }
                 }
             });
-            
-            urlInput.addTextChangedListener(new TextWatcher() {
-                @Override
-                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-                
-                @Override
-                public void onTextChanged(CharSequence s, int start, int before, int count) {}
-                
-                @Override
-                public void afterTextChanged(Editable s) {}
-            });
         }
         
+        // Configurar ação para FireTV (apenas actionDone)
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
             urlInputs[i].setOnEditorActionListener(new TextView.OnEditorActionListener() {
                 @Override
                 public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                    // Apenas actionDone do teclado virtual (FireTV)
                     if (actionId == EditorInfo.IME_ACTION_DONE) {
                         String url = urlInputs[boxIndex].getText().toString().trim();
                         if (!url.isEmpty()) {
@@ -230,6 +228,107 @@ public class MainActivity extends AppCompatActivity {
                     return false;
                 }
             });
+        }
+    }
+    
+    private void startAutoReloadMonitoring() {
+        autoReloadRunnable = new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < 4; i++) {
+                    if (boxEnabled[i] && autoReloadEnabled[i] && webViews[i] != null) {
+                        checkAndFixStuckVideo(i);
+                    }
+                }
+                autoReloadHandler.postDelayed(this, AUTO_RELOAD_INTERVAL);
+            }
+        };
+        autoReloadHandler.postDelayed(autoReloadRunnable, AUTO_RELOAD_INTERVAL);
+    }
+    
+    private void checkAndFixStuckVideo(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null) {
+            String checkVideoJS = 
+                "var videos = document.getElementsByTagName('video');" +
+                "var videoStatus = {hasVideo: false, hasError: false, isPaused: false, isEnded: false, isPlaying: false};" +
+                "for(var i = 0; i < videos.length; i++) {" +
+                "   var video = videos[i];" +
+                "   videoStatus.hasVideo = true;" +
+                "   if(video.error) {" +
+                "       videoStatus.hasError = true;" +
+                "   } else if(video.paused && !video.ended) {" +
+                "       videoStatus.isPaused = true;" +
+                "   } else if(video.ended) {" +
+                "       videoStatus.isEnded = true;" +
+                "   } else {" +
+                "       videoStatus.isPlaying = true;" +
+                "   }" +
+                "}" +
+                "JSON.stringify(videoStatus);";
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                webView.evaluateJavascript(checkVideoJS, value -> {
+                    try {
+                        String jsonStr = value.replace("\"", "").replace("\\\"", "\"");
+                        JSONObject videoStatus = new JSONObject(jsonStr);
+                        
+                        boolean hasVideo = videoStatus.getBoolean("hasVideo");
+                        boolean hasError = videoStatus.getBoolean("hasError");
+                        boolean isPaused = videoStatus.getBoolean("isPaused");
+                        boolean isEnded = videoStatus.getBoolean("isEnded");
+                        
+                        if (hasVideo && (hasError || (isPaused && !isEnded))) {
+                            // Vídeo com erro ou pausado - recarregar página
+                            runOnUiThread(() -> {
+                                reloadPageAndForceFullscreen(boxIndex);
+                            });
+                        }
+                    } catch (Exception e) {
+                        // Ignorar erros de parsing
+                    }
+                });
+            }
+        }
+    }
+    
+    private void reloadPageAndForceFullscreen(int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null) {
+            String currentUrl = webView.getUrl();
+            if (currentUrl != null && !currentUrl.equals("about:blank")) {
+                // Recarregar a página
+                webView.reload();
+                
+                // Forçar fullscreen após carregar
+                new Handler().postDelayed(() -> {
+                    String forceFullscreenJS = 
+                        "var videos = document.getElementsByTagName('video');" +
+                        "for(var i = 0; i < videos.length; i++) {" +
+                        "   var video = videos[i];" +
+                        "   video.style.width = '100%';" +
+                        "   video.style.height = '100%';" +
+                        "   video.style.position = 'absolute';" +
+                        "   video.style.top = '0';" +
+                        "   video.style.left = '0';" +
+                        "   video.style.zIndex = '9999';" +
+                        "   video.setAttribute('playsinline', 'false');" +
+                        "   video.setAttribute('webkit-playsinline', 'false');" +
+                        "   if(video.paused && !video.ended) {" +
+                        "       video.play();" +
+                        "   }" +
+                        "}" +
+                        "document.body.style.overflow = 'hidden';";
+                    
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                        webView.evaluateJavascript(forceFullscreenJS, null);
+                    }
+                }, 2000); // Esperar 2 segundos para a página carregar
+                
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Box " + (boxIndex + 1) + ": Auto-reload ativado", Toast.LENGTH_SHORT).show();
+                });
+            }
         }
     }
     
@@ -257,6 +356,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     
+    // Método público para ser chamado pelo onClick do XML
     public void closeSidebarFromOverlay(View view) {
         closeSidebar();
     }
@@ -265,12 +365,15 @@ public class MainActivity extends AppCompatActivity {
         sidebarContainer.setVisibility(View.GONE);
         isSidebarVisible = false;
         
+        // Restaurar largura total das boxes
         RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
         params.width = RelativeLayout.LayoutParams.MATCH_PARENT;
         params.removeRule(RelativeLayout.LEFT_OF);
         gridLayout.setLayoutParams(params);
         
+        // Esconder teclado virtual se estiver aberto
         hideKeyboard();
+        
         btnMenu.requestFocus();
     }
     
@@ -278,6 +381,7 @@ public class MainActivity extends AppCompatActivity {
         sidebarContainer.setVisibility(View.VISIBLE);
         isSidebarVisible = true;
         
+        // Reduzir largura das boxes para dar espaço ao sidebar
         RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
         params.width = RelativeLayout.LayoutParams.MATCH_PARENT;
         params.addRule(RelativeLayout.LEFT_OF, R.id.sidebarContainer);
@@ -319,12 +423,12 @@ public class MainActivity extends AppCompatActivity {
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));
             
+            // Clique simples para focar na box
             boxContainers[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     if (isSidebarVisible) return;
                     boxContainers[boxIndex].requestFocus();
-                    webViews[boxIndex].requestFocus();
                 }
             });
             
@@ -348,32 +452,20 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         
-        // CONFIGURAÇÕES DE CACHE SEGURAS - SEM setAppCacheEnabled que é obsoleto
-        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
-        
-        // Database e cache desativados para evitar crashes
-        settings.setDatabaseEnabled(false);
-        
-        // Evitar problemas de mixed content
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        }
-        
         settings.setSupportZoom(true);
         settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         
-        // Desativar bloqueio de rede para evitar crashes
-        settings.setBlockNetworkLoads(false);
-        settings.setBlockNetworkImage(false);
+        settings.setBlockNetworkLoads(cbBlockAds.isChecked());
+        settings.setBlockNetworkImage(cbBlockAds.isChecked());
         
+        // Configurar zoom inicial
         settings.setTextZoom((int)(zoomLevels[boxIndex] * 100));
         webView.setInitialScale((int)(zoomLevels[boxIndex] * 100));
         
-        // User agent padrão
-        settings.setUserAgentString("Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Safari/537.36");
+        settings.setUserAgentString("Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) AppleWebKit/537.36");
         
         webView.setBackgroundColor(Color.BLACK);
         
@@ -392,13 +484,11 @@ public class MainActivity extends AppCompatActivity {
                 if (cbBlockRedirects.isChecked()) {
                     String currentUrl = view.getUrl();
                     if (currentUrl != null && !isSameDomain(currentUrl, url)) {
-                        Toast.makeText(MainActivity.this, "Redirecionamento bloqueado", Toast.LENGTH_SHORT).show();
                         return true;
                     }
                 }
                 
                 if (cbBlockAds.isChecked() && isAdUrl(url)) {
-                    Toast.makeText(MainActivity.this, "Anúncio bloqueado", Toast.LENGTH_SHORT).show();
                     return true;
                 }
                 
@@ -407,129 +497,107 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-                // Limpar qualquer estado anterior
-                view.clearCache(true);
+                if (cbBlockAds.isChecked()) {
+                    injectAdBlocker(view);
+                }
             }
             
             @Override
             public void onPageFinished(WebView view, String url) {
-                // JavaScript para otimizar vídeos
-                String videoOptimizationJS = 
-                    "try {" +
-                    "   var videos = document.getElementsByTagName('video');" +
-                    "   var videoCount = videos.length;" +
-                    "   " +
-                    "   for(var i = 0; i < videoCount; i++) {" +
-                    "       var video = videos[i];" +
-                    "       " +
-                    "       video.muted = " + isVideoMuted + ";" +
-                    "       video.setAttribute('playsinline', 'true');" +
-                    "       video.setAttribute('webkit-playsinline', 'true');" +
-                    "       " +
-                    "       if(video.paused) {" +
-                    "           video.play().catch(function(e) {" +
-                    "               console.log('Auto-play não permitido: ' + e);" +
-                    "           });" +
-                    "       }" +
+                // Forçar vídeos para fullscreen automaticamente
+                String fullscreenJS = 
+                    "var videos = document.getElementsByTagName('video');" +
+                    "for(var i = 0; i < videos.length; i++) {" +
+                    "   videos[i].muted = " + isVideoMuted + ";" +
+                    "   videos[i].setAttribute('playsinline', 'false');" +
+                    "   videos[i].setAttribute('webkit-playsinline', 'false');" +
+                    "   videos[i].controls = true;" +
+                    "   videos[i].style.width = '100%';" +
+                    "   videos[i].style.height = '100%';" +
+                    "   videos[i].style.position = 'absolute';" +
+                    "   videos[i].style.top = '0';" +
+                    "   videos[i].style.left = '0';" +
+                    "   videos[i].style.zIndex = '9999';" +
+                    "   if(videos[i].paused && !videos[i].ended) {" +
+                    "       videos[i].play();" +
                     "   }" +
-                    "   " +
-                    "   document.body.style.margin = '0';" +
-                    "   document.body.style.padding = '0';" +
-                    "   document.body.style.overflow = 'hidden';" +
-                    "   " +
-                    "   return videoCount;" +
-                    "} catch(e) {" +
-                    "   return 0;" +
-                    "}";
+                    "}" +
+                    "document.body.style.overflow = 'hidden';" +
+                    "document.body.style.margin = '0';" +
+                    "document.body.style.padding = '0';";
                 
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                        view.evaluateJavascript(videoOptimizationJS, null);
-                    }
-                } catch (Exception e) {
-                    // Ignorar erros de JavaScript
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                    view.evaluateJavascript(fullscreenJS, null);
+                } else {
+                    view.loadUrl("javascript:" + fullscreenJS);
                 }
                 
+                // Aplicar zoom atual
                 applyZoom(boxIndex);
-            }
-            
-            @Override
-            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                // Tratar erros silenciosamente para evitar crashes
-                if (errorCode != -2 && errorCode != -6) { // Ignorar erros comuns
-                    runOnUiThread(() -> {
-                        Toast.makeText(MainActivity.this, 
-                            "Erro ao carregar: " + description, Toast.LENGTH_SHORT).show();
-                    });
+                
+                if (cbBlockAds.isChecked()) {
+                    injectAdBlocker(view);
                 }
             }
         });
         
         webView.setWebChromeClient(new WebChromeClient() {
+            private View mCustomView;
+            private WebChromeClient.CustomViewCallback mCustomViewCallback;
+            
             @Override
-            public void onShowCustomView(View view, WebChromeClient.CustomViewCallback callback) {
+            public void onShowCustomView(View view, CustomViewCallback callback) {
+                // Guardar referências
+                mCustomView = view;
+                mCustomViewCallback = callback;
+                
+                // Adicionar a view de fullscreen diretamente na box
                 boxContainers[boxIndex].addView(view, 
                     new FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT));
                 
+                // Esconder o WebView original
                 webView.setVisibility(View.GONE);
+                
+                // Aplicar fullscreen na janela
                 getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             }
             
             @Override
             public void onHideCustomView() {
-                View customView = boxContainers[boxIndex].getChildAt(1);
-                if (customView != null) {
-                    boxContainers[boxIndex].removeView(customView);
+                if (mCustomView == null) return;
+                
+                // Remover a view de fullscreen
+                boxContainers[boxIndex].removeView(mCustomView);
+                
+                // Mostrar o WebView original
+                webView.setVisibility(View.VISIBLE);
+                
+                if (mCustomViewCallback != null) {
+                    mCustomViewCallback.onCustomViewHidden();
                 }
                 
-                webView.setVisibility(View.VISIBLE);
+                mCustomView = null;
+                mCustomViewCallback = null;
+                
+                // Remover fullscreen da janela
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             }
         });
     }
     
-    private void startAutoReloadMonitor() {
-        autoReloadHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                checkAndAutoReloadVideos();
-                autoReloadHandler.postDelayed(this, 5000); // Aumentar intervalo para 5 segundos
-            }
-        }, 5000);
-    }
-    
-    private void checkAndAutoReloadVideos() {
-        for (int i = 0; i < 4; i++) {
-            if (cbAutoReload[i].isChecked() && boxEnabled[i] && webViews[i] != null) {
-                final int boxIndex = i;
-                
-                // Verificação simplificada para evitar crashes
-                try {
-                    webViews[i].post(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (webViews[boxIndex] != null) {
-                                webViews[boxIndex].reload();
-                            }
-                        }
-                    });
-                } catch (Exception e) {
-                    // Ignorar exceções no auto-reload
-                }
-            }
-        }
-    }
-    
     private void applyZoom(int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
-            try {
-                webView.getSettings().setTextZoom((int)(zoomLevels[boxIndex] * 100));
-            } catch (Exception e) {
-                // Ignorar exceções de zoom
+            String zoomJS = "document.body.style.zoom = '" + (zoomLevels[boxIndex] * 100) + "%';";
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                webView.evaluateJavascript(zoomJS, null);
+            } else {
+                webView.loadUrl("javascript:" + zoomJS);
             }
+            
+            webView.getSettings().setTextZoom((int)(zoomLevels[boxIndex] * 100));
         }
     }
     
@@ -548,6 +616,27 @@ public class MainActivity extends AppCompatActivity {
             applyZoom(boxIndex);
             Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + String.format("%.0f", zoomLevels[boxIndex] * 100) + "%", 
                 Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private void injectAdBlocker(WebView view) {
+        String adBlockJS = 
+            "var selectors = [" +
+            "   'div[class*=\"ad\"]', 'div[id*=\"ad\"]', 'iframe[src*=\"ad\"]'," +
+            "   'ins.adsbygoogle', 'div.ad-container', 'div.advertisement'" +
+            "];" +
+            "selectors.forEach(function(selector) {" +
+            "   var elements = document.querySelectorAll(selector);" +
+            "   elements.forEach(function(el) {" +
+            "       el.style.display = 'none';" +
+            "       el.parentNode.removeChild(el);" +
+            "   });" +
+            "});";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            view.evaluateJavascript(adBlockJS, null);
+        } else {
+            view.loadUrl("javascript:" + adBlockJS);
         }
     }
     
@@ -648,9 +737,11 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         
+        // Configurar listeners para controles individuais de cada box
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
             
+            // Botão GO para carregar URL específica
             if (btnLoadUrl[i] != null) {
                 btnLoadUrl[i].setOnClickListener(new View.OnClickListener() {
                     @Override
@@ -665,6 +756,7 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
             
+            // Checkbox para ativar/desativar box
             checkBoxes[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
                 public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -673,16 +765,18 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             
+            // Checkbox Auto Reload
             cbAutoReload[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
                 public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                     autoReloadEnabled[boxIndex] = isChecked;
                     Toast.makeText(MainActivity.this, 
-                        "Box " + (boxIndex + 1) + " Auto-reload: " + (isChecked ? "ON" : "OFF"), 
+                        "Box " + (boxIndex + 1) + " auto-reload: " + (isChecked ? "ON" : "OFF"), 
                         Toast.LENGTH_SHORT).show();
                 }
             });
             
+            // Botão Refresh
             btnRefresh[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -694,6 +788,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             
+            // Botão Zoom In
             btnZoomIn[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -701,6 +796,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             
+            // Botão Zoom Out
             btnZoomOut[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -708,6 +804,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             
+            // Botão Previous
             btnPrevious[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -717,6 +814,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             
+            // Botão Next
             btnNext[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -849,12 +947,7 @@ public class MainActivity extends AppCompatActivity {
             if (!url.startsWith("http://") && !url.startsWith("https://")) {
                 url = "https://" + url;
             }
-            
-            // Limpar cache antes de carregar nova URL
-            if (webViews[boxIndex] != null) {
-                webViews[boxIndex].clearCache(true);
-                webViews[boxIndex].loadUrl(url);
-            }
+            webViews[boxIndex].loadUrl(url);
         } catch (Exception e) {
             Toast.makeText(this, "Erro ao carregar Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
         }
@@ -873,7 +966,6 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < 4; i++) {
             if (webViews[i] != null) {
                 webViews[i].loadUrl("about:blank");
-                webViews[i].clearCache(true);
             }
         }
         Toast.makeText(this, "Limpando todas", Toast.LENGTH_SHORT).show();
@@ -897,12 +989,10 @@ public class MainActivity extends AppCompatActivity {
             
             for (int i = 0; i < 4; i++) {
                 editor.putBoolean("box_enabled_" + i, boxEnabled[i]);
+                editor.putBoolean("auto_reload_" + i, autoReloadEnabled[i]);
             }
             
-            for (int i = 0; i < 4; i++) {
-                editor.putBoolean("auto_reload_" + i, cbAutoReload[i].isChecked());
-            }
-            
+            // Salvar níveis de zoom
             for (int i = 0; i < 4; i++) {
                 editor.putFloat("zoom_level_" + i, zoomLevels[i]);
             }
@@ -946,14 +1036,15 @@ public class MainActivity extends AppCompatActivity {
                 boolean savedState = preferences.getBoolean("box_enabled_" + i, true);
                 boxEnabled[i] = savedState;
                 checkBoxes[i].setChecked(savedState);
+                
+                boolean savedAutoReload = preferences.getBoolean("auto_reload_" + i, false);
+                autoReloadEnabled[i] = savedAutoReload;
+                if (cbAutoReload[i] != null) {
+                    cbAutoReload[i].setChecked(savedAutoReload);
+                }
             }
             
-            for (int i = 0; i < 4; i++) {
-                boolean autoReloadState = preferences.getBoolean("auto_reload_" + i, false);
-                cbAutoReload[i].setChecked(autoReloadState);
-                autoReloadEnabled[i] = autoReloadState;
-            }
-            
+            // Carregar níveis de zoom
             for (int i = 0; i < 4; i++) {
                 zoomLevels[i] = preferences.getFloat("zoom_level_" + i, 1.0f);
                 applyZoom(i);
@@ -1194,22 +1285,6 @@ public class MainActivity extends AppCompatActivity {
     }
     
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        autoReloadHandler.removeCallbacksAndMessages(null);
-        
-        // Limpar WebViews para evitar memory leaks
-        for (WebView webView : webViews) {
-            if (webView != null) {
-                webView.stopLoading();
-                webView.setWebChromeClient(null);
-                webView.setWebViewClient(null);
-                webView.destroy();
-            }
-        }
-    }
-    
-    @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         if (newConfig.orientation != Configuration.ORIENTATION_LANDSCAPE) {
@@ -1222,6 +1297,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         saveCurrentState();
+        // Parar o auto-reload monitoring
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.removeCallbacks(autoReloadRunnable);
+        }
     }
     
     @Override
@@ -1229,6 +1308,19 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         loadFavoritesList();
         btnMenu.requestFocus();
+        // Reiniciar o auto-reload monitoring
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.postDelayed(autoReloadRunnable, AUTO_RELOAD_INTERVAL);
+        }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Limpar handler
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.removeCallbacks(autoReloadRunnable);
+        }
     }
     
     @Override
@@ -1241,7 +1333,7 @@ public class MainActivity extends AppCompatActivity {
                         return true;
                     }
                     
-                    if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
+                    if (webViews[focusedBoxIndex].canGoBack()) {
                         webViews[focusedBoxIndex].goBack();
                         return true;
                     }
@@ -1266,7 +1358,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         
-        if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
+        if (webViews[focusedBoxIndex].canGoBack()) {
             webViews[focusedBoxIndex].goBack();
             return;
         }
