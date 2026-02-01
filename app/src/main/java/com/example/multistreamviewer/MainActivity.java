@@ -348,11 +348,13 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         
-        // Configurações de cache otimizadas
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setDatabaseEnabled(true);
+        // CONFIGURAÇÕES DE CACHE REMOVIDAS PARA EVITAR CRASH
+        // Usar apenas cache mínimo e sempre carregar páginas frescas
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        settings.setAppCacheEnabled(false);
+        settings.setDatabaseEnabled(false);
         
-        // Configurar mais cache para vídeos
+        // Evitar problemas de mixed content
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         }
@@ -363,13 +365,15 @@ public class MainActivity extends AppCompatActivity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         
-        settings.setBlockNetworkLoads(cbBlockAds.isChecked());
-        settings.setBlockNetworkImage(cbBlockAds.isChecked());
+        // Desativar bloqueio de rede para evitar crashes
+        settings.setBlockNetworkLoads(false);
+        settings.setBlockNetworkImage(false);
         
         settings.setTextZoom((int)(zoomLevels[boxIndex] * 100));
         webView.setInitialScale((int)(zoomLevels[boxIndex] * 100));
         
-        settings.setUserAgentString("Mozilla/5.0 (Linux; Android 10; AFTMM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Safari/537.36");
+        // User agent padrão
+        settings.setUserAgentString("Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Safari/537.36");
         
         webView.setBackgroundColor(Color.BLACK);
         
@@ -388,11 +392,13 @@ public class MainActivity extends AppCompatActivity {
                 if (cbBlockRedirects.isChecked()) {
                     String currentUrl = view.getUrl();
                     if (currentUrl != null && !isSameDomain(currentUrl, url)) {
+                        Toast.makeText(MainActivity.this, "Redirecionamento bloqueado", Toast.LENGTH_SHORT).show();
                         return true;
                     }
                 }
                 
                 if (cbBlockAds.isChecked() && isAdUrl(url)) {
+                    Toast.makeText(MainActivity.this, "Anúncio bloqueado", Toast.LENGTH_SHORT).show();
                     return true;
                 }
                 
@@ -401,9 +407,8 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-                if (cbBlockAds.isChecked()) {
-                    injectAdBlocker(view);
-                }
+                // Limpar qualquer estado anterior
+                view.clearCache(true);
             }
             
             @Override
@@ -418,85 +423,44 @@ public class MainActivity extends AppCompatActivity {
                     "       var video = videos[i];" +
                     "       " +
                     "       video.muted = " + isVideoMuted + ";" +
-                    "       video.setAttribute('playsinline', 'false');" +
-                    "       video.setAttribute('webkit-playsinline', 'false');" +
-                    "       video.setAttribute('x5-playsinline', 'false');" +
-                    "       video.setAttribute('x5-video-player-type', 'h5');" +
-                    "       video.setAttribute('x5-video-player-fullscreen', 'true');" +
-                    "       video.setAttribute('x5-video-orientation', 'landscape');" +
+                    "       video.setAttribute('playsinline', 'true');" +
+                    "       video.setAttribute('webkit-playsinline', 'true');" +
                     "       " +
                     "       if(video.paused) {" +
                     "           video.play().catch(function(e) {" +
-                    "               console.log('Auto-play failed: ' + e);" +
+                    "               console.log('Auto-play não permitido: ' + e);" +
                     "           });" +
                     "       }" +
-                    "       " +
-                    "       video.style.position = 'fixed';" +
-                    "       video.style.top = '0';" +
-                    "       video.style.left = '0';" +
-                    "       video.style.width = '100%';" +
-                    "       video.style.height = '100%';" +
-                    "       video.style.zIndex = '9999';" +
-                    "       " +
-                    "       video.controls = true;" +
-                    "       " +
-                    "       video.onerror = function() {" +
-                    "           console.log('Video error detected');" +
-                    "           window.videoErrorDetected = true;" +
-                    "       };" +
-                    "       " +
-                    "       video.onended = function() {" +
-                    "           console.log('Video ended');" +
-                    "           window.videoEnded = true;" +
-                    "       };" +
-                    "       " +
-                    "       video.onstalled = function() {" +
-                    "           console.log('Video stalled');" +
-                    "           window.videoStalled = true;" +
-                    "       };" +
                     "   }" +
                     "   " +
                     "   document.body.style.margin = '0';" +
                     "   document.body.style.padding = '0';" +
                     "   document.body.style.overflow = 'hidden';" +
                     "   " +
-                    "   window.videoErrorDetected = false;" +
-                    "   window.videoEnded = false;" +
-                    "   window.videoStalled = false;" +
-                    "   " +
                     "   return videoCount;" +
                     "} catch(e) {" +
-                    "   console.log('Error optimizing videos: ' + e);" +
                     "   return 0;" +
                     "}";
                 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                    view.evaluateJavascript(videoOptimizationJS, new android.webkit.ValueCallback<String>() {
-                        @Override
-                        public void onReceiveValue(String value) {
-                            try {
-                                int videoCount = Integer.parseInt(value.replace("\"", ""));
-                                if (videoCount > 0) {
-                                    runOnUiThread(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            Toast.makeText(MainActivity.this, 
-                                                "Box " + (boxIndex + 1) + ": " + videoCount + " vídeo(s) otimizado(s)", 
-                                                Toast.LENGTH_SHORT).show();
-                                        }
-                                    });
-                                }
-                            } catch (Exception e) {}
-                        }
-                    });
-                } else {
-                    view.loadUrl("javascript:" + videoOptimizationJS);
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                        view.evaluateJavascript(videoOptimizationJS, null);
+                    }
+                } catch (Exception e) {
+                    // Ignorar erros de JavaScript
                 }
                 
                 applyZoom(boxIndex);
-                
-                if (cbBlockAds.isChecked()) {
-                    injectAdBlocker(view);
+            }
+            
+            @Override
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                // Tratar erros silenciosamente para evitar crashes
+                if (errorCode != -2 && errorCode != -6) { // Ignorar erros comuns
+                    runOnUiThread(() -> {
+                        Toast.makeText(MainActivity.this, 
+                            "Erro ao carregar: " + description, Toast.LENGTH_SHORT).show();
+                    });
                 }
             }
         });
@@ -531,9 +495,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 checkAndAutoReloadVideos();
-                autoReloadHandler.postDelayed(this, 3000);
+                autoReloadHandler.postDelayed(this, 5000); // Aumentar intervalo para 5 segundos
             }
-        }, 3000);
+        }, 5000);
     }
     
     private void checkAndAutoReloadVideos() {
@@ -541,52 +505,18 @@ public class MainActivity extends AppCompatActivity {
             if (cbAutoReload[i].isChecked() && boxEnabled[i] && webViews[i] != null) {
                 final int boxIndex = i;
                 
-                String checkVideoJS = 
-                    "try {" +
-                    "   if(window.videoErrorDetected || window.videoEnded || window.videoStalled) {" +
-                    "       window.videoErrorDetected = false;" +
-                    "       window.videoEnded = false;" +
-                    "       window.videoStalled = false;" +
-                    "       return true;" +
-                    "   }" +
-                    "   " +
-                    "   var videos = document.getElementsByTagName('video');" +
-                    "   for(var i = 0; i < videos.length; i++) {" +
-                    "       var video = videos[i];" +
-                    "       " +
-                    "       if(video.error || " +
-                    "          (video.readyState >= 4 && video.paused && !video.ended && video.currentTime > 0) || " +
-                    "          (video.ended && !video.loop)) {" +
-                    "           return true;" +
-                    "       }" +
-                    "       " +
-                    "       if(video.readyState < 3 && video.networkState === 3) {" +
-                    "           return true;" +
-                    "       }" +
-                    "   }" +
-                    "   " +
-                    "   return false;" +
-                    "} catch(e) {" +
-                    "   return false;" +
-                    "}";
-                
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                    webViews[i].evaluateJavascript(checkVideoJS, new android.webkit.ValueCallback<String>() {
+                // Verificação simplificada para evitar crashes
+                try {
+                    webViews[i].post(new Runnable() {
                         @Override
-                        public void onReceiveValue(String value) {
-                            if ("true".equals(value)) {
-                                runOnUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        webViews[boxIndex].reload();
-                                        Toast.makeText(MainActivity.this, 
-                                            "Box " + (boxIndex + 1) + ": Auto-reloading video...", 
-                                            Toast.LENGTH_SHORT).show();
-                                    }
-                                });
+                        public void run() {
+                            if (webViews[boxIndex] != null) {
+                                webViews[boxIndex].reload();
                             }
                         }
                     });
+                } catch (Exception e) {
+                    // Ignorar exceções no auto-reload
                 }
             }
         }
@@ -595,14 +525,11 @@ public class MainActivity extends AppCompatActivity {
     private void applyZoom(int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
-            String zoomJS = "document.body.style.zoom = '" + (zoomLevels[boxIndex] * 100) + "%';";
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                webView.evaluateJavascript(zoomJS, null);
-            } else {
-                webView.loadUrl("javascript:" + zoomJS);
+            try {
+                webView.getSettings().setTextZoom((int)(zoomLevels[boxIndex] * 100));
+            } catch (Exception e) {
+                // Ignorar exceções de zoom
             }
-            
-            webView.getSettings().setTextZoom((int)(zoomLevels[boxIndex] * 100));
         }
     }
     
@@ -621,27 +548,6 @@ public class MainActivity extends AppCompatActivity {
             applyZoom(boxIndex);
             Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + String.format("%.0f", zoomLevels[boxIndex] * 100) + "%", 
                 Toast.LENGTH_SHORT).show();
-        }
-    }
-    
-    private void injectAdBlocker(WebView view) {
-        String adBlockJS = 
-            "var selectors = [" +
-            "   'div[class*=\"ad\"]', 'div[id*=\"ad\"]', 'iframe[src*=\"ad\"]'," +
-            "   'ins.adsbygoogle', 'div.ad-container', 'div.advertisement'" +
-            "];" +
-            "selectors.forEach(function(selector) {" +
-            "   var elements = document.querySelectorAll(selector);" +
-            "   elements.forEach(function(el) {" +
-            "       el.style.display = 'none';" +
-            "       el.parentNode.removeChild(el);" +
-            "   });" +
-            "});";
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            view.evaluateJavascript(adBlockJS, null);
-        } else {
-            view.loadUrl("javascript:" + adBlockJS);
         }
     }
     
@@ -943,7 +849,12 @@ public class MainActivity extends AppCompatActivity {
             if (!url.startsWith("http://") && !url.startsWith("https://")) {
                 url = "https://" + url;
             }
-            webViews[boxIndex].loadUrl(url);
+            
+            // Limpar cache antes de carregar nova URL
+            if (webViews[boxIndex] != null) {
+                webViews[boxIndex].clearCache(true);
+                webViews[boxIndex].loadUrl(url);
+            }
         } catch (Exception e) {
             Toast.makeText(this, "Erro ao carregar Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
         }
@@ -962,6 +873,7 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < 4; i++) {
             if (webViews[i] != null) {
                 webViews[i].loadUrl("about:blank");
+                webViews[i].clearCache(true);
             }
         }
         Toast.makeText(this, "Limpando todas", Toast.LENGTH_SHORT).show();
@@ -1285,6 +1197,16 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         autoReloadHandler.removeCallbacksAndMessages(null);
+        
+        // Limpar WebViews para evitar memory leaks
+        for (WebView webView : webViews) {
+            if (webView != null) {
+                webView.stopLoading();
+                webView.setWebChromeClient(null);
+                webView.setWebViewClient(null);
+                webView.destroy();
+            }
+        }
     }
     
     @Override
@@ -1319,7 +1241,7 @@ public class MainActivity extends AppCompatActivity {
                         return true;
                     }
                     
-                    if (webViews[focusedBoxIndex].canGoBack()) {
+                    if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
                         webViews[focusedBoxIndex].goBack();
                         return true;
                     }
@@ -1344,7 +1266,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         
-        if (webViews[focusedBoxIndex].canGoBack()) {
+        if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
             webViews[focusedBoxIndex].goBack();
             return;
         }
