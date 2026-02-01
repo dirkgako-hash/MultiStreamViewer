@@ -12,7 +12,6 @@ import android.os.Handler;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.KeyEvent;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
@@ -331,31 +330,13 @@ public class MainActivity extends AppCompatActivity {
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));
             
-            // CORREÇÃO: Melhorar o clique para focar na box
-            boxContainers[i].setOnTouchListener(new View.OnTouchListener() {
-                private long lastClickTime = 0;
-                
+            // CORREÇÃO: Usar apenas clique simples para focar na box
+            boxContainers[i].setOnClickListener(new View.OnClickListener() {
                 @Override
-                public boolean onTouch(View v, MotionEvent event) {
-                    if (isSidebarVisible) return false;
-                    
-                    if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                        long clickTime = System.currentTimeMillis();
-                        // Prevenir clique duplo rápido
-                        if (clickTime - lastClickTime < 300) {
-                            lastClickTime = clickTime;
-                            return true;
-                        }
-                        lastClickTime = clickTime;
-                        return true;
-                    } else if (event.getAction() == MotionEvent.ACTION_UP) {
-                        // Focar na box após soltar
-                        boxContainers[boxIndex].requestFocus();
-                        // Forçar foco no WebView também
-                        webViews[boxIndex].requestFocus();
-                        return true;
-                    }
-                    return false;
+                public void onClick(View v) {
+                    if (isSidebarVisible) return;
+                    boxContainers[boxIndex].requestFocus();
+                    webViews[boxIndex].requestFocus();
                 }
             });
             
@@ -396,23 +377,8 @@ public class MainActivity extends AppCompatActivity {
         
         webView.setBackgroundColor(Color.BLACK);
         
-        // CORREÇÃO: Melhorar o toque no WebView
-        webView.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        // Permitir que o WebView processe o toque
-                        v.requestFocus();
-                        return false;
-                    case MotionEvent.ACTION_UP:
-                        // Focar na box correspondente
-                        boxContainers[boxIndex].requestFocus();
-                        return false;
-                }
-                return false;
-            }
-        });
+        // CORREÇÃO: Remover listener de toque complexo
+        // O WebView lida com seus próprios toques
         
         webView.setWebViewClient(new WebViewClient() {
             @Override
