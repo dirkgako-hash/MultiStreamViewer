@@ -348,10 +348,10 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         
-        // CONFIGURAÇÕES DE CACHE REMOVIDAS PARA EVITAR CRASH
-        // Usar apenas cache mínimo e sempre carregar páginas frescas
+        // CONFIGURAÇÕES DE CACHE SEGURAS - SEM setAppCacheEnabled que é obsoleto
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
-        settings.setAppCacheEnabled(false);
+        
+        // Database e cache desativados para evitar crashes
         settings.setDatabaseEnabled(false);
         
         // Evitar problemas de mixed content
