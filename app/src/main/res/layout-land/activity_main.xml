@@ -3,7 +3,7 @@
     android:id="@+id/main_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000"
+    android:background="@color/background_black"
     android:focusable="true"
     android:focusableInTouchMode="true">
 
@@ -13,16 +13,16 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_above="@+id/bottomControls"
-        android:background="#000000"
+        android:background="@color/background_black"
         android:focusable="false" />
 
-    <!-- MENU INFERIOR COMPACTO COM BOTÃO RV -->
+    <!-- MENU INFERIOR COMPACTO COM CHECKBOX AUTO RELOAD -->
     <LinearLayout
         android:id="@+id/bottomControls"
         android:layout_width="match_parent"
         android:layout_height="24dp"
         android:layout_alignParentBottom="true"
-        android:background="#1a1a1a"
+        android:background="@color/background_dark"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:padding="2dp"
@@ -37,11 +37,11 @@
             android:layout_width="30dp"
             android:layout_height="20dp"
             android:layout_marginEnd="8dp"
-            android:background="#1e3c72"
+            android:background="@color/button_blue"
             android:focusable="true"
             android:focusableInTouchMode="true"
             android:text="☰"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/text_white"
             android:textSize="10sp" />
 
         <!-- CONTROLES BOX 1 -->
@@ -56,7 +56,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="1"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp"
                 android:checked="true"
                 android:focusable="true"
@@ -67,36 +67,35 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="2dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="R"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
-            <!-- NOVO BOTÃO RV PARA RECARREGAR VÍDEO -->
-            <Button
-                android:id="@+id/btnReloadVideo1"
-                android:layout_width="26dp"
-                android:layout_height="20dp"
-                android:layout_marginStart="1dp"
-                android:background="#333333"
+            <!-- CHECKBOX AUTO RELOAD -->
+            <CheckBox
+                android:id="@+id/cbAutoReload1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="A"
+                android:textColor="@color/text_white"
+                android:textSize="9sp"
+                android:checked="false"
                 android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:text="RV"
-                android:textColor="#FFFFFF"
-                android:textSize="9sp" />
+                android:focusableInTouchMode="true" />
             
             <Button
                 android:id="@+id/btnZoomIn1"
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z+"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="9sp" />
             
             <Button
@@ -104,11 +103,11 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z-"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="9sp" />
             
             <Button
@@ -116,11 +115,11 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="◀"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
             <Button
@@ -128,11 +127,11 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="▶"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp" />
         </LinearLayout>
 
@@ -148,7 +147,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="2"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp"
                 android:checked="true"
                 android:focusable="true"
@@ -159,36 +158,35 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="2dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="R"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
-            <!-- NOVO BOTÃO RV PARA RECARREGAR VÍDEO -->
-            <Button
-                android:id="@+id/btnReloadVideo2"
-                android:layout_width="26dp"
-                android:layout_height="20dp"
-                android:layout_marginStart="1dp"
-                android:background="#333333"
+            <!-- CHECKBOX AUTO RELOAD -->
+            <CheckBox
+                android:id="@+id/cbAutoReload2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="A"
+                android:textColor="@color/text_white"
+                android:textSize="9sp"
+                android:checked="false"
                 android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:text="RV"
-                android:textColor="#FFFFFF"
-                android:textSize="9sp" />
+                android:focusableInTouchMode="true" />
             
             <Button
                 android:id="@+id/btnZoomIn2"
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z+"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="9sp" />
             
             <Button
@@ -196,11 +194,11 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z-"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="9sp" />
             
             <Button
@@ -208,11 +206,11 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="◀"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
             <Button
@@ -220,11 +218,11 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="▶"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp" />
         </LinearLayout>
 
@@ -240,7 +238,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="3"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp"
                 android:checked="true"
                 android:focusable="true"
@@ -251,36 +249,35 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="2dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="R"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
-            <!-- NOVO BOTÃO RV PARA RECARREGAR VÍDEO -->
-            <Button
-                android:id="@+id/btnReloadVideo3"
-                android:layout_width="26dp"
-                android:layout_height="20dp"
-                android:layout_marginStart="1dp"
-                android:background="#333333"
+            <!-- CHECKBOX AUTO RELOAD -->
+            <CheckBox
+                android:id="@+id/cbAutoReload3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="A"
+                android:textColor="@color/text_white"
+                android:textSize="9sp"
+                android:checked="false"
                 android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:text="RV"
-                android:textColor="#FFFFFF"
-                android:textSize="9sp" />
+                android:focusableInTouchMode="true" />
             
             <Button
                 android:id="@+id/btnZoomIn3"
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z+"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="9sp" />
             
             <Button
@@ -288,11 +285,11 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z-"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="9sp" />
             
             <Button
@@ -300,11 +297,11 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="◀"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
             <Button
@@ -312,11 +309,11 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="▶"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp" />
         </LinearLayout>
 
@@ -331,7 +328,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="4"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp"
                 android:checked="true"
                 android:focusable="true"
@@ -342,36 +339,35 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="2dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="R"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
-            <!-- NOVO BOTÃO RV PARA RECARREGAR VÍDEO -->
-            <Button
-                android:id="@+id/btnReloadVideo4"
-                android:layout_width="26dp"
-                android:layout_height="20dp"
-                android:layout_marginStart="1dp"
-                android:background="#333333"
+            <!-- CHECKBOX AUTO RELOAD -->
+            <CheckBox
+                android:id="@+id/cbAutoReload4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="A"
+                android:textColor="@color/text_white"
+                android:textSize="9sp"
+                android:checked="false"
                 android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:text="RV"
-                android:textColor="#FFFFFF"
-                android:textSize="9sp" />
+                android:focusableInTouchMode="true" />
             
             <Button
                 android:id="@+id/btnZoomIn4"
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z+"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="9sp" />
             
             <Button
@@ -379,11 +375,11 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z-"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="9sp" />
             
             <Button
@@ -391,11 +387,11 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="◀"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
             <Button
@@ -403,11 +399,11 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="#333333"
+                android:background="@color/background_darker"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="▶"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_white"
                 android:textSize="10sp" />
         </LinearLayout>
 
@@ -423,20 +419,20 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Foco: 1"
-            android:textColor="#FF9800"
+            android:textColor="@color/text_orange"
             android:textSize="10sp"
             android:layout_marginStart="4dp"
             android:focusable="false" />
     </LinearLayout>
 
-    <!-- SIDEBAR SIMPLIFICADO E CORRIGIDO -->
+    <!-- SIDEBAR COMPACTO SEM SCROLLBAR -->
     <FrameLayout
         android:id="@+id/sidebarContainer"
         android:layout_width="200dp"
         android:layout_height="match_parent"
         android:layout_alignParentEnd="true"
         android:layout_above="@id/bottomControls"
-        android:background="#1a1a1a"
+        android:background="@color/background_dark"
         android:visibility="gone"
         android:elevation="100dp">
 
@@ -450,19 +446,19 @@
             android:focusableInTouchMode="true"
             android:onClick="closeSidebarFromOverlay" />
 
-        <!-- Conteúdo do sidebar -->
+        <!-- Conteúdo do sidebar COMPACTO -->
         <LinearLayout
-            android:layout_width="200dp"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
-            android:background="#1a1a1a"
-            android:padding="8dp">
+            android:background="@color/background_dark"
+            android:padding="6dp">
 
-            <!-- Cabeçalho -->
+            <!-- Cabeçalho compacto -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
+                android:layout_marginBottom="6dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
@@ -471,390 +467,395 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="CONFIG"
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp"
+                    android:textColor="@color/text_white"
+                    android:textSize="11sp"
                     android:textStyle="bold" />
 
                 <Button
                     android:id="@+id/btnCloseMenu"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:background="#ff4444"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@color/button_red"
                     android:focusable="true"
                     android:focusableInTouchMode="true"
                     android:text="✕"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp" />
+                    android:textColor="@color/text_white"
+                    android:textSize="12sp" />
             </LinearLayout>
 
-            <!-- ScrollView para conteúdo rolável -->
-            <ScrollView
+            <!-- GUARDAR/CARREGAR -->
+            <TextView
                 android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:scrollbars="vertical"
-                android:fillViewport="true">
+                android:layout_height="wrap_content"
+                android:text="GUARDAR/CARREGAR"
+                android:textColor="@color/text_white"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp" />
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="4dp">
+                
+                <Button
+                    android:id="@+id/btnSaveState"
+                    android:layout_width="0dp"
+                    android:layout_height="26dp"
+                    android:layout_weight="1"
+                    android:background="@color/button_green"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="SALVAR"
+                    android:textColor="@color/text_white"
+                    android:textSize="9sp" />
+                
+                <Button
+                    android:id="@+id/btnLoadState"
+                    android:layout_width="0dp"
+                    android:layout_height="26dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="3dp"
+                    android:background="@color/button_green"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="CARREGAR"
+                    android:textColor="@color/text_white"
+                    android:textSize="9sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+                
+                <Button
+                    android:id="@+id/btnSaveFavorites"
+                    android:layout_width="0dp"
+                    android:layout_height="26dp"
+                    android:layout_weight="1"
+                    android:background="@color/button_orange"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="FAV SAVE"
+                    android:textColor="@color/text_white"
+                    android:textSize="9sp" />
+                
+                <Button
+                    android:id="@+id/btnLoadFavorites"
+                    android:layout_width="0dp"
+                    android:layout_height="26dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="3dp"
+                    android:background="@color/button_orange"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="FAV LOAD"
+                    android:textColor="@color/text_white"
+                    android:textSize="9sp" />
+            </LinearLayout>
+
+            <!-- CONFIGURAÇÕES WEB - DUAS COLUNAS -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="CONFIG WEB"
+                android:textColor="@color/text_white"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="4dp">
+                
                 <LinearLayout
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:orientation="vertical">
-
-                    <!-- GUARDAR/CARREGAR -->
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="GUARDAR/CARREGAR"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="6dp" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="6dp">
-                        
-                        <Button
-                            android:id="@+id/btnSaveState"
-                            android:layout_width="0dp"
-                            android:layout_height="32dp"
-                            android:layout_weight="1"
-                            android:background="#4CAF50"
-                            android:focusable="true"
-                            android:focusableInTouchMode="true"
-                            android:text="SALVAR"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp" />
-                        
-                        <Button
-                            android:id="@+id/btnLoadState"
-                            android:layout_width="0dp"
-                            android:layout_height="32dp"
-                            android:layout_weight="1"
-                            android:layout_marginStart="4dp"
-                            android:background="#4CAF50"
-                            android:focusable="true"
-                            android:focusableInTouchMode="true"
-                            android:text="CARREGAR"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="12dp">
-                        
-                        <Button
-                            android:id="@+id/btnSaveFavorites"
-                            android:layout_width="0dp"
-                            android:layout_height="32dp"
-                            android:layout_weight="1"
-                            android:background="#FF9800"
-                            android:focusable="true"
-                            android:focusableInTouchMode="true"
-                            android:text="FAV SAVE"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp" />
-                        
-                        <Button
-                            android:id="@+id/btnLoadFavorites"
-                            android:layout_width="0dp"
-                            android:layout_height="32dp"
-                            android:layout_weight="1"
-                            android:layout_marginStart="4dp"
-                            android:background="#FF9800"
-                            android:focusable="true"
-                            android:focusableInTouchMode="true"
-                            android:text="FAV LOAD"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp" />
-                    </LinearLayout>
-
-                    <!-- CONFIGURAÇÕES WEB -->
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="CONFIG WEB"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="6dp" />
-
+                    
                     <CheckBox
                         android:id="@+id/cbAllowScripts"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:checked="true"
                         android:text="JavaScript"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp"
-                        android:layout_marginBottom="2dp"
+                        android:textColor="@color/text_white"
+                        android:textSize="8sp"
+                        android:layout_marginBottom="1dp"
                         android:focusable="true"
                         android:focusableInTouchMode="true" />
-
+                    
                     <CheckBox
                         android:id="@+id/cbAllowForms"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:checked="true"
                         android:text="Formulários"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp"
-                        android:layout_marginBottom="2dp"
+                        android:textColor="@color/text_white"
+                        android:textSize="8sp"
+                        android:layout_marginBottom="1dp"
                         android:focusable="true"
                         android:focusableInTouchMode="true" />
-
+                    
                     <CheckBox
                         android:id="@+id/cbAllowPopups"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:checked="true"
                         android:text="Popups"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp"
-                        android:layout_marginBottom="2dp"
+                        android:textColor="@color/text_white"
+                        android:textSize="8sp"
+                        android:layout_marginBottom="1dp"
                         android:focusable="true"
                         android:focusableInTouchMode="true" />
-
+                </LinearLayout>
+                
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:layout_marginStart="8dp">
+                    
                     <CheckBox
                         android:id="@+id/cbBlockRedirects"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:checked="false"
                         android:text="Bloq. Redirects"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp"
-                        android:layout_marginBottom="2dp"
+                        android:textColor="@color/text_white"
+                        android:textSize="8sp"
+                        android:layout_marginBottom="1dp"
                         android:focusable="true"
                         android:focusableInTouchMode="true" />
-
+                    
                     <CheckBox
                         android:id="@+id/cbBlockAds"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:checked="false"
                         android:text="Bloq. Ads"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp"
-                        android:layout_marginBottom="12dp"
+                        android:textColor="@color/text_white"
+                        android:textSize="8sp"
+                        android:layout_marginBottom="1dp"
                         android:focusable="true"
                         android:focusableInTouchMode="true" />
-
-                    <!-- URLs -->
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="URLs (ENTER para carregar)"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="6dp" />
-
-                    <!-- URL 1 com botão - CORRIGIDO para edição -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="4dp">
-                        
-                        <EditText
-                            android:id="@+id/urlInput1"
-                            android:layout_width="0dp"
-                            android:layout_height="36dp"
-                            android:layout_weight="1"
-                            android:background="#333333"
-                            android:focusable="true"
-                            android:focusableInTouchMode="true"
-                            android:hint="Box 1"
-                            android:imeOptions="actionDone"
-                            android:inputType="textUri|textMultiLine"
-                            android:padding="8dp"
-                            android:text="https://dzritv.com/sport/football/"
-                            android:textColor="#FFFFFF"
-                            android:textSize="11sp"
-                            android:singleLine="false"
-                            android:lines="1"
-                            android:maxLines="2" />
-                        
-                        <Button
-                            android:id="@+id/btnLoadUrl1"
-                            android:layout_width="50dp"
-                            android:layout_height="36dp"
-                            android:layout_marginStart="4dp"
-                            android:background="#1e3c72"
-                            android:focusable="true"
-                            android:focusableInTouchMode="true"
-                            android:text="GO"
-                            android:textColor="#FFFFFF"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-
-                    <!-- URL 2 com botão -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="4dp">
-                        
-                        <EditText
-                            android:id="@+id/urlInput2"
-                            android:layout_width="0dp"
-                            android:layout_height="36dp"
-                            android:layout_weight="1"
-                            android:background="#333333"
-                            android:focusable="true"
-                            android:focusableInTouchMode="true"
-                            android:hint="Box 2"
-                            android:imeOptions="actionDone"
-                            android:inputType="textUri|textMultiLine"
-                            android:padding="8dp"
-                            android:text="https://dzritv.com/sport/football/"
-                            android:textColor="#FFFFFF"
-                            android:textSize="11sp"
-                            android:singleLine="false"
-                            android:lines="1"
-                            android:maxLines="2" />
-                        
-                        <Button
-                            android:id="@+id/btnLoadUrl2"
-                            android:layout_width="50dp"
-                            android:layout_height="36dp"
-                            android:layout_marginStart="4dp"
-                            android:background="#1e3c72"
-                            android:focusable="true"
-                            android:focusableInTouchMode="true"
-                            android:text="GO"
-                            android:textColor="#FFFFFF"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-
-                    <!-- URL 3 com botão -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="4dp">
-                        
-                        <EditText
-                            android:id="@+id/urlInput3"
-                            android:layout_width="0dp"
-                            android:layout_height="36dp"
-                            android:layout_weight="1"
-                            android:background="#333333"
-                            android:focusable="true"
-                            android:focusableInTouchMode="true"
-                            android:hint="Box 3"
-                            android:imeOptions="actionDone"
-                            android:inputType="textUri|textMultiLine"
-                            android:padding="8dp"
-                            android:text="https://dzritv.com/sport/football/"
-                            android:textColor="#FFFFFF"
-                            android:textSize="11sp"
-                            android:singleLine="false"
-                            android:lines="1"
-                            android:maxLines="2" />
-                        
-                        <Button
-                            android:id="@+id/btnLoadUrl3"
-                            android:layout_width="50dp"
-                            android:layout_height="36dp"
-                            android:layout_marginStart="4dp"
-                            android:background="#1e3c72"
-                            android:focusable="true"
-                            android:focusableInTouchMode="true"
-                            android:text="GO"
-                            android:textColor="#FFFFFF"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-
-                    <!-- URL 4 com botão -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="8dp">
-                        
-                        <EditText
-                            android:id="@+id/urlInput4"
-                            android:layout_width="0dp"
-                            android:layout_height="36dp"
-                            android:layout_weight="1"
-                            android:background="#333333"
-                            android:focusable="true"
-                            android:focusableInTouchMode="true"
-                            android:hint="Box 4"
-                            android:imeOptions="actionDone"
-                            android:inputType="textUri|textMultiLine"
-                            android:padding="8dp"
-                            android:text="https://dzritv.com/sport/football/"
-                            android:textColor="#FFFFFF"
-                            android:textSize="11sp"
-                            android:singleLine="false"
-                            android:lines="1"
-                            android:maxLines="2" />
-                        
-                        <Button
-                            android:id="@+id/btnLoadUrl4"
-                            android:layout_width="50dp"
-                            android:layout_height="36dp"
-                            android:layout_marginStart="4dp"
-                            android:background="#1e3c72"
-                            android:focusable="true"
-                            android:focusableInTouchMode="true"
-                            android:text="GO"
-                            android:textColor="#FFFFFF"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-
-                    <!-- Botões de ação -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="4dp">
-                        
-                        <Button
-                            android:id="@+id/btnLoadAll"
-                            android:layout_width="0dp"
-                            android:layout_height="36dp"
-                            android:layout_weight="1"
-                            android:background="#1e3c72"
-                            android:focusable="true"
-                            android:focusableInTouchMode="true"
-                            android:text="LOAD ALL"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp" />
-                        
-                        <Button
-                            android:id="@+id/btnReloadAll"
-                            android:layout_width="0dp"
-                            android:layout_height="36dp"
-                            android:layout_weight="1"
-                            android:layout_marginStart="4dp"
-                            android:background="#1e3c72"
-                            android:focusable="true"
-                            android:focusableInTouchMode="true"
-                            android:text="RELOAD ALL"
-                            android:textColor="#FFFFFF"
-                            android:textSize="10sp" />
-                    </LinearLayout>
-
-                    <Button
-                        android:id="@+id/btnClearAll"
-                        android:layout_width="match_parent"
-                        android:layout_height="36dp"
-                        android:background="#ff4444"
-                        android:focusable="true"
-                        android:focusableInTouchMode="true"
-                        android:text="CLEAR ALL"
-                        android:textColor="#FFFFFF"
-                        android:textSize="10sp" />
                 </LinearLayout>
-            </ScrollView>
+            </LinearLayout>
+
+            <!-- URLs -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="URLs (GO para carregar)"
+                android:textColor="@color/text_white"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp" />
+
+            <!-- URL 1 com botão - COMPACTO -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="3dp">
+                
+                <EditText
+                    android:id="@+id/urlInput1"
+                    android:layout_width="0dp"
+                    android:layout_height="30dp"
+                    android:layout_weight="1"
+                    android:background="@color/background_darker"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:hint="Box 1"
+                    android:imeOptions="actionDone"
+                    android:inputType="textUri"
+                    android:padding="6dp"
+                    android:text="https://dzritv.com/sport/football/"
+                    android:textColor="@color/text_white"
+                    android:textSize="10sp"
+                    android:singleLine="true"
+                    android:maxLines="1" />
+                
+                <Button
+                    android:id="@+id/btnLoadUrl1"
+                    android:layout_width="40dp"
+                    android:layout_height="30dp"
+                    android:layout_marginStart="3dp"
+                    android:background="@color/button_blue"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="GO"
+                    android:textColor="@color/text_white"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <!-- URL 2 com botão -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="3dp">
+                
+                <EditText
+                    android:id="@+id/urlInput2"
+                    android:layout_width="0dp"
+                    android:layout_height="30dp"
+                    android:layout_weight="1"
+                    android:background="@color/background_darker"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:hint="Box 2"
+                    android:imeOptions="actionDone"
+                    android:inputType="textUri"
+                    android:padding="6dp"
+                    android:text="https://dzritv.com/sport/football/"
+                    android:textColor="@color/text_white"
+                    android:textSize="10sp"
+                    android:singleLine="true"
+                    android:maxLines="1" />
+                
+                <Button
+                    android:id="@+id/btnLoadUrl2"
+                    android:layout_width="40dp"
+                    android:layout_height="30dp"
+                    android:layout_marginStart="3dp"
+                    android:background="@color/button_blue"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="GO"
+                    android:textColor="@color/text_white"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <!-- URL 3 com botão -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="3dp">
+                
+                <EditText
+                    android:id="@+id/urlInput3"
+                    android:layout_width="0dp"
+                    android:layout_height="30dp"
+                    android:layout_weight="1"
+                    android:background="@color/background_darker"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:hint="Box 3"
+                    android:imeOptions="actionDone"
+                    android:inputType="textUri"
+                    android:padding="6dp"
+                    android:text="https://dzritv.com/sport/football/"
+                    android:textColor="@color/text_white"
+                    android:textSize="10sp"
+                    android:singleLine="true"
+                    android:maxLines="1" />
+                
+                <Button
+                    android:id="@+id/btnLoadUrl3"
+                    android:layout_width="40dp"
+                    android:layout_height="30dp"
+                    android:layout_marginStart="3dp"
+                    android:background="@color/button_blue"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="GO"
+                    android:textColor="@color/text_white"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <!-- URL 4 com botão -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+                
+                <EditText
+                    android:id="@+id/urlInput4"
+                    android:layout_width="0dp"
+                    android:layout_height="30dp"
+                    android:layout_weight="1"
+                    android:background="@color/background_darker"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:hint="Box 4"
+                    android:imeOptions="actionDone"
+                    android:inputType="textUri"
+                    android:padding="6dp"
+                    android:text="https://dzritv.com/sport/football/"
+                    android:textColor="@color/text_white"
+                    android:textSize="10sp"
+                    android:singleLine="true"
+                    android:maxLines="1" />
+                
+                <Button
+                    android:id="@+id/btnLoadUrl4"
+                    android:layout_width="40dp"
+                    android:layout_height="30dp"
+                    android:layout_marginStart="3dp"
+                    android:background="@color/button_blue"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="GO"
+                    android:textColor="@color/text_white"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <!-- Botões de ação TODOS NA MESMA LINHA -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="4dp">
+                
+                <Button
+                    android:id="@+id/btnLoadAll"
+                    android:layout_width="0dp"
+                    android:layout_height="26dp"
+                    android:layout_weight="1"
+                    android:background="@color/button_blue"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="LOAD"
+                    android:textColor="@color/text_white"
+                    android:textSize="9sp" />
+                
+                <Button
+                    android:id="@+id/btnReloadAll"
+                    android:layout_width="0dp"
+                    android:layout_height="26dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="3dp"
+                    android:background="@color/button_blue"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="RELOAD"
+                    android:textColor="@color/text_white"
+                    android:textSize="9sp" />
+                
+                <Button
+                    android:id="@+id/btnClearAll"
+                    android:layout_width="0dp"
+                    android:layout_height="26dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="3dp"
+                    android:background="@color/button_red"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:text="CLEAR"
+                    android:textColor="@color/text_white"
+                    android:textSize="9sp" />
+            </LinearLayout>
         </LinearLayout>
     </FrameLayout>
 </RelativeLayout>
