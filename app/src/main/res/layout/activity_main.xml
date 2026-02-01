@@ -432,7 +432,7 @@
     <!-- SIDEBAR CORRIGIDO: Com scrollbar fixa e espaço reservado -->
     <FrameLayout
         android:id="@+id/sidebarContainer"
-        android:layout_width="220dp" <!-- Ligeiramente maior para scrollbar -->
+        android:layout_width="220dp"
         android:layout_height="match_parent"
         android:layout_alignParentEnd="true"
         android:layout_above="@id/bottomControls"
@@ -457,7 +457,7 @@
             android:orientation="vertical"
             android:background="#1a1a1a"
             android:paddingStart="8dp"
-            android:paddingEnd="12dp" <!-- Espaço extra para scrollbar -->
+            android:paddingEnd="12dp"
             android:paddingTop="8dp"
             android:paddingBottom="8dp">
 
@@ -836,7 +836,7 @@
                         <Button
                             android:id="@+id/btnReloadAll"
                             android:layout_width="0dp"
- android:layout_height="36dp"
+                            android:layout_height="36dp"
                             android:layout_weight="1"
                             android:layout_marginStart="4dp"
                             android:background="#1e3c72"
