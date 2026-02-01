@@ -9,8 +9,6 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -54,7 +52,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
     private Button[] btnRefresh = new Button[4];
-    private CheckBox[] cbAutoReload = new CheckBox[4]; // Checkboxes para auto-reload
+    private CheckBox[] cbAutoReload = new CheckBox[4];
     private Button[] btnZoomIn = new Button[4];
     private Button[] btnZoomOut = new Button[4];
     private Button[] btnPrevious = new Button[4];
@@ -66,7 +64,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvFocusedBox;
     
     private boolean[] boxEnabled = {true, true, true, true};
-    private boolean[] autoReloadEnabled = {false, false, false, false}; // Auto-reload por box
+    private boolean[] autoReloadEnabled = {false, false, false, false};
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
     private boolean isVideoMuted = true;
@@ -77,7 +75,7 @@ public class MainActivity extends AppCompatActivity {
     
     private Handler autoReloadHandler = new Handler();
     private Runnable autoReloadRunnable;
-    private final long AUTO_RELOAD_INTERVAL = 5000; // 5 segundos
+    private final long AUTO_RELOAD_INTERVAL = 5000;
     
     private final List<String> adDomains = Arrays.asList(
         "doubleclick.net", "googleadservices.com", "googlesyndication.com"
@@ -136,21 +134,30 @@ public class MainActivity extends AppCompatActivity {
         btnSaveFavorites = findViewById(R.id.btnSaveFavorites);
         btnLoadFavorites = findViewById(R.id.btnLoadFavorites);
         
+        // Inicializar CheckBoxes das boxes
         checkBoxes[0] = findViewById(R.id.checkBox1);
         checkBoxes[1] = findViewById(R.id.checkBox2);
         checkBoxes[2] = findViewById(R.id.checkBox3);
         checkBoxes[3] = findViewById(R.id.checkBox4);
         
+        // Inicializar botões Refresh
         btnRefresh[0] = findViewById(R.id.btnRefresh1);
         btnRefresh[1] = findViewById(R.id.btnRefresh2);
         btnRefresh[2] = findViewById(R.id.btnRefresh3);
         btnRefresh[3] = findViewById(R.id.btnRefresh4);
         
-        // Inicializar checkboxes auto-reload
+        // Inicializar checkboxes auto-reload - COM VERIFICAÇÃO DE NULL
         cbAutoReload[0] = findViewById(R.id.cbAutoReload1);
         cbAutoReload[1] = findViewById(R.id.cbAutoReload2);
         cbAutoReload[2] = findViewById(R.id.cbAutoReload3);
         cbAutoReload[3] = findViewById(R.id.cbAutoReload4);
+        
+        // Verificar se as checkboxes auto-reload foram encontradas
+        for (int i = 0; i < 4; i++) {
+            if (cbAutoReload[i] == null) {
+                Toast.makeText(this, "Aviso: Checkbox AutoReload " + (i+1) + " não encontrada", Toast.LENGTH_SHORT).show();
+            }
+        }
         
         btnZoomIn[0] = findViewById(R.id.btnZoomIn1);
         btnZoomIn[1] = findViewById(R.id.btnZoomIn2);
@@ -178,11 +185,19 @@ public class MainActivity extends AppCompatActivity {
         btnLoadUrl[2] = findViewById(R.id.btnLoadUrl3);
         btnLoadUrl[3] = findViewById(R.id.btnLoadUrl4);
         
+        // Inicializar checkboxes de configuração web
         cbAllowScripts = findViewById(R.id.cbAllowScripts);
         cbAllowForms = findViewById(R.id.cbAllowForms);
         cbAllowPopups = findViewById(R.id.cbAllowPopups);
         cbBlockRedirects = findViewById(R.id.cbBlockRedirects);
         cbBlockAds = findViewById(R.id.cbBlockAds);
+        
+        // Verificar checkboxes de configuração
+        if (cbAllowScripts == null) Toast.makeText(this, "cbAllowScripts não encontrada", Toast.LENGTH_SHORT).show();
+        if (cbAllowForms == null) Toast.makeText(this, "cbAllowForms não encontrada", Toast.LENGTH_SHORT).show();
+        if (cbAllowPopups == null) Toast.makeText(this, "cbAllowPopups não encontrada", Toast.LENGTH_SHORT).show();
+        if (cbBlockRedirects == null) Toast.makeText(this, "cbBlockRedirects não encontrada", Toast.LENGTH_SHORT).show();
+        if (cbBlockAds == null) Toast.makeText(this, "cbBlockAds não encontrada", Toast.LENGTH_SHORT).show();
         
         urlInputs[0] = findViewById(R.id.urlInput1);
         urlInputs[1] = findViewById(R.id.urlInput2);
@@ -191,43 +206,43 @@ public class MainActivity extends AppCompatActivity {
         
         String defaultUrl = "https://dzritv.com/sport/football/";
         for (EditText urlInput : urlInputs) {
-            urlInput.setText(defaultUrl);
-            
-            // Configurar para permitir edição fácil no FireTV
-            urlInput.setCursorVisible(true);
-            urlInput.setSelectAllOnFocus(true);
-            
-            urlInput.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-                @Override
-                public void onFocusChange(View v, boolean hasFocus) {
-                    if (hasFocus) {
-                        EditText et = (EditText) v;
-                        et.selectAll();
-                        // Mostrar teclado virtual para FireTV
-                        showKeyboard(et);
+            if (urlInput != null) {
+                urlInput.setText(defaultUrl);
+                urlInput.setCursorVisible(true);
+                urlInput.setSelectAllOnFocus(true);
+                
+                urlInput.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+                    @Override
+                    public void onFocusChange(View v, boolean hasFocus) {
+                        if (hasFocus) {
+                            EditText et = (EditText) v;
+                            et.selectAll();
+                            showKeyboard(et);
+                        }
                     }
-                }
-            });
+                });
+            }
         }
         
-        // Configurar ação para FireTV (apenas actionDone)
+        // Configurar ação para FireTV
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
-            urlInputs[i].setOnEditorActionListener(new TextView.OnEditorActionListener() {
-                @Override
-                public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-                    // Apenas actionDone do teclado virtual (FireTV)
-                    if (actionId == EditorInfo.IME_ACTION_DONE) {
-                        String url = urlInputs[boxIndex].getText().toString().trim();
-                        if (!url.isEmpty()) {
-                            loadURL(boxIndex, url);
-                            hideKeyboard();
+            if (urlInputs[i] != null) {
+                urlInputs[i].setOnEditorActionListener(new TextView.OnEditorActionListener() {
+                    @Override
+                    public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                        if (actionId == EditorInfo.IME_ACTION_DONE) {
+                            String url = urlInputs[boxIndex].getText().toString().trim();
+                            if (!url.isEmpty()) {
+                                loadURL(boxIndex, url);
+                                hideKeyboard();
+                            }
+                            return true;
                         }
-                        return true;
+                        return false;
                     }
-                    return false;
-                }
-            });
+                });
+            }
         }
     }
     
@@ -250,22 +265,24 @@ public class MainActivity extends AppCompatActivity {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
             String checkVideoJS = 
-                "var videos = document.getElementsByTagName('video');" +
-                "var videoStatus = {hasVideo: false, hasError: false, isPaused: false, isEnded: false, isPlaying: false};" +
-                "for(var i = 0; i < videos.length; i++) {" +
-                "   var video = videos[i];" +
-                "   videoStatus.hasVideo = true;" +
-                "   if(video.error) {" +
-                "       videoStatus.hasError = true;" +
-                "   } else if(video.paused && !video.ended) {" +
-                "       videoStatus.isPaused = true;" +
-                "   } else if(video.ended) {" +
-                "       videoStatus.isEnded = true;" +
-                "   } else {" +
-                "       videoStatus.isPlaying = true;" +
+                "try {" +
+                "   var videos = document.getElementsByTagName('video');" +
+                "   var videoStatus = {hasVideo: false, hasError: false, isPaused: false, isEnded: false, isPlaying: false};" +
+                "   for(var i = 0; i < videos.length; i++) {" +
+                "       var video = videos[i];" +
+                "       videoStatus.hasVideo = true;" +
+                "       if(video.error) {" +
+                "           videoStatus.hasError = true;" +
+                "       } else if(video.paused && !video.ended) {" +
+                "           videoStatus.isPaused = true;" +
+                "       } else if(video.ended) {" +
+                "           videoStatus.isEnded = true;" +
+                "       } else {" +
+                "           videoStatus.isPlaying = true;" +
+                "       }" +
                 "   }" +
-                "}" +
-                "JSON.stringify(videoStatus);";
+                "   JSON.stringify(videoStatus);" +
+                "} catch(e) { '{\"hasVideo\":false}' }";
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 webView.evaluateJavascript(checkVideoJS, value -> {
@@ -276,16 +293,14 @@ public class MainActivity extends AppCompatActivity {
                         boolean hasVideo = videoStatus.getBoolean("hasVideo");
                         boolean hasError = videoStatus.getBoolean("hasError");
                         boolean isPaused = videoStatus.getBoolean("isPaused");
-                        boolean isEnded = videoStatus.getBoolean("isEnded");
                         
-                        if (hasVideo && (hasError || (isPaused && !isEnded))) {
-                            // Vídeo com erro ou pausado - recarregar página
+                        if (hasVideo && (hasError || isPaused)) {
                             runOnUiThread(() -> {
                                 reloadPageAndForceFullscreen(boxIndex);
                             });
                         }
                     } catch (Exception e) {
-                        // Ignorar erros de parsing
+                        // Ignorar erros
                     }
                 });
             }
@@ -297,33 +312,33 @@ public class MainActivity extends AppCompatActivity {
         if (webView != null) {
             String currentUrl = webView.getUrl();
             if (currentUrl != null && !currentUrl.equals("about:blank")) {
-                // Recarregar a página
                 webView.reload();
                 
-                // Forçar fullscreen após carregar
                 new Handler().postDelayed(() -> {
                     String forceFullscreenJS = 
-                        "var videos = document.getElementsByTagName('video');" +
-                        "for(var i = 0; i < videos.length; i++) {" +
-                        "   var video = videos[i];" +
-                        "   video.style.width = '100%';" +
-                        "   video.style.height = '100%';" +
-                        "   video.style.position = 'absolute';" +
-                        "   video.style.top = '0';" +
-                        "   video.style.left = '0';" +
-                        "   video.style.zIndex = '9999';" +
-                        "   video.setAttribute('playsinline', 'false');" +
-                        "   video.setAttribute('webkit-playsinline', 'false');" +
-                        "   if(video.paused && !video.ended) {" +
-                        "       video.play();" +
+                        "try {" +
+                        "   var videos = document.getElementsByTagName('video');" +
+                        "   for(var i = 0; i < videos.length; i++) {" +
+                        "       var video = videos[i];" +
+                        "       video.style.width = '100%';" +
+                        "       video.style.height = '100%';" +
+                        "       video.style.position = 'absolute';" +
+                        "       video.style.top = '0';" +
+                        "       video.style.left = '0';" +
+                        "       video.style.zIndex = '9999';" +
+                        "       video.setAttribute('playsinline', 'false');" +
+                        "       video.setAttribute('webkit-playsinline', 'false');" +
+                        "       if(video.paused && !video.ended) {" +
+                        "           video.play();" +
+                        "       }" +
                         "   }" +
-                        "}" +
-                        "document.body.style.overflow = 'hidden';";
+                        "   document.body.style.overflow = 'hidden';" +
+                        "} catch(e) {}";
                     
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                         webView.evaluateJavascript(forceFullscreenJS, null);
                     }
-                }, 2000); // Esperar 2 segundos para a página carregar
+                }, 2000);
                 
                 runOnUiThread(() -> {
                     Toast.makeText(this, "Box " + (boxIndex + 1) + ": Auto-reload ativado", Toast.LENGTH_SHORT).show();
@@ -356,7 +371,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     
-    // Método público para ser chamado pelo onClick do XML
     public void closeSidebarFromOverlay(View view) {
         closeSidebar();
     }
@@ -365,15 +379,12 @@ public class MainActivity extends AppCompatActivity {
         sidebarContainer.setVisibility(View.GONE);
         isSidebarVisible = false;
         
-        // Restaurar largura total das boxes
         RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
         params.width = RelativeLayout.LayoutParams.MATCH_PARENT;
         params.removeRule(RelativeLayout.LEFT_OF);
         gridLayout.setLayoutParams(params);
         
-        // Esconder teclado virtual se estiver aberto
         hideKeyboard();
-        
         btnMenu.requestFocus();
     }
     
@@ -381,7 +392,6 @@ public class MainActivity extends AppCompatActivity {
         sidebarContainer.setVisibility(View.VISIBLE);
         isSidebarVisible = true;
         
-        // Reduzir largura das boxes para dar espaço ao sidebar
         RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
         params.width = RelativeLayout.LayoutParams.MATCH_PARENT;
         params.addRule(RelativeLayout.LEFT_OF, R.id.sidebarContainer);
@@ -423,7 +433,6 @@ public class MainActivity extends AppCompatActivity {
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));
             
-            // Clique simples para focar na box
             boxContainers[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -458,15 +467,15 @@ public class MainActivity extends AppCompatActivity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         
-        settings.setBlockNetworkLoads(cbBlockAds.isChecked());
-        settings.setBlockNetworkImage(cbBlockAds.isChecked());
+        if (cbBlockAds != null) {
+            settings.setBlockNetworkLoads(cbBlockAds.isChecked());
+            settings.setBlockNetworkImage(cbBlockAds.isChecked());
+        }
         
-        // Configurar zoom inicial
         settings.setTextZoom((int)(zoomLevels[boxIndex] * 100));
         webView.setInitialScale((int)(zoomLevels[boxIndex] * 100));
         
         settings.setUserAgentString("Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) AppleWebKit/537.36");
-        
         webView.setBackgroundColor(Color.BLACK);
         
         webView.setWebViewClient(new WebViewClient() {
@@ -481,14 +490,14 @@ public class MainActivity extends AppCompatActivity {
             }
             
             private boolean handleUrlLoading(WebView view, String url) {
-                if (cbBlockRedirects.isChecked()) {
+                if (cbBlockRedirects != null && cbBlockRedirects.isChecked()) {
                     String currentUrl = view.getUrl();
                     if (currentUrl != null && !isSameDomain(currentUrl, url)) {
                         return true;
                     }
                 }
                 
-                if (cbBlockAds.isChecked() && isAdUrl(url)) {
+                if (cbBlockAds != null && cbBlockAds.isChecked() && isAdUrl(url)) {
                     return true;
                 }
                 
@@ -497,45 +506,43 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-                if (cbBlockAds.isChecked()) {
+                if (cbBlockAds != null && cbBlockAds.isChecked()) {
                     injectAdBlocker(view);
                 }
             }
             
             @Override
             public void onPageFinished(WebView view, String url) {
-                // Forçar vídeos para fullscreen automaticamente
                 String fullscreenJS = 
-                    "var videos = document.getElementsByTagName('video');" +
-                    "for(var i = 0; i < videos.length; i++) {" +
-                    "   videos[i].muted = " + isVideoMuted + ";" +
-                    "   videos[i].setAttribute('playsinline', 'false');" +
-                    "   videos[i].setAttribute('webkit-playsinline', 'false');" +
-                    "   videos[i].controls = true;" +
-                    "   videos[i].style.width = '100%';" +
-                    "   videos[i].style.height = '100%';" +
-                    "   videos[i].style.position = 'absolute';" +
-                    "   videos[i].style.top = '0';" +
-                    "   videos[i].style.left = '0';" +
-                    "   videos[i].style.zIndex = '9999';" +
-                    "   if(videos[i].paused && !videos[i].ended) {" +
-                    "       videos[i].play();" +
+                    "try {" +
+                    "   var videos = document.getElementsByTagName('video');" +
+                    "   for(var i = 0; i < videos.length; i++) {" +
+                    "       videos[i].muted = " + isVideoMuted + ";" +
+                    "       videos[i].setAttribute('playsinline', 'false');" +
+                    "       videos[i].setAttribute('webkit-playsinline', 'false');" +
+                    "       videos[i].controls = true;" +
+                    "       videos[i].style.width = '100%';" +
+                    "       videos[i].style.height = '100%';" +
+                    "       videos[i].style.position = 'absolute';" +
+                    "       videos[i].style.top = '0';" +
+                    "       videos[i].style.left = '0';" +
+                    "       videos[i].style.zIndex = '9999';" +
+                    "       if(videos[i].paused && !videos[i].ended) {" +
+                    "           videos[i].play();" +
+                    "       }" +
                     "   }" +
-                    "}" +
-                    "document.body.style.overflow = 'hidden';" +
-                    "document.body.style.margin = '0';" +
-                    "document.body.style.padding = '0';";
+                    "   document.body.style.overflow = 'hidden';" +
+                    "   document.body.style.margin = '0';" +
+                    "   document.body.style.padding = '0';" +
+                    "} catch(e) {}";
                 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                     view.evaluateJavascript(fullscreenJS, null);
-                } else {
-                    view.loadUrl("javascript:" + fullscreenJS);
                 }
                 
-                // Aplicar zoom atual
                 applyZoom(boxIndex);
                 
-                if (cbBlockAds.isChecked()) {
+                if (cbBlockAds != null && cbBlockAds.isChecked()) {
                     injectAdBlocker(view);
                 }
             }
@@ -547,20 +554,15 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onShowCustomView(View view, CustomViewCallback callback) {
-                // Guardar referências
                 mCustomView = view;
                 mCustomViewCallback = callback;
                 
-                // Adicionar a view de fullscreen diretamente na box
                 boxContainers[boxIndex].addView(view, 
                     new FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT));
                 
-                // Esconder o WebView original
                 webView.setVisibility(View.GONE);
-                
-                // Aplicar fullscreen na janela
                 getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             }
             
@@ -568,10 +570,7 @@ public class MainActivity extends AppCompatActivity {
             public void onHideCustomView() {
                 if (mCustomView == null) return;
                 
-                // Remover a view de fullscreen
                 boxContainers[boxIndex].removeView(mCustomView);
-                
-                // Mostrar o WebView original
                 webView.setVisibility(View.VISIBLE);
                 
                 if (mCustomViewCallback != null) {
@@ -580,8 +579,6 @@ public class MainActivity extends AppCompatActivity {
                 
                 mCustomView = null;
                 mCustomViewCallback = null;
-                
-                // Remover fullscreen da janela
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             }
         });
@@ -593,10 +590,7 @@ public class MainActivity extends AppCompatActivity {
             String zoomJS = "document.body.style.zoom = '" + (zoomLevels[boxIndex] * 100) + "%';";
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 webView.evaluateJavascript(zoomJS, null);
-            } else {
-                webView.loadUrl("javascript:" + zoomJS);
             }
-            
             webView.getSettings().setTextZoom((int)(zoomLevels[boxIndex] * 100));
         }
     }
@@ -621,22 +615,22 @@ public class MainActivity extends AppCompatActivity {
     
     private void injectAdBlocker(WebView view) {
         String adBlockJS = 
-            "var selectors = [" +
-            "   'div[class*=\"ad\"]', 'div[id*=\"ad\"]', 'iframe[src*=\"ad\"]'," +
-            "   'ins.adsbygoogle', 'div.ad-container', 'div.advertisement'" +
-            "];" +
-            "selectors.forEach(function(selector) {" +
-            "   var elements = document.querySelectorAll(selector);" +
-            "   elements.forEach(function(el) {" +
-            "       el.style.display = 'none';" +
-            "       el.parentNode.removeChild(el);" +
+            "try {" +
+            "   var selectors = [" +
+            "       'div[class*=\"ad\"]', 'div[id*=\"ad\"]', 'iframe[src*=\"ad\"]'," +
+            "       'ins.adsbygoogle', 'div.ad-container', 'div.advertisement'" +
+            "   ];" +
+            "   selectors.forEach(function(selector) {" +
+            "       var elements = document.querySelectorAll(selector);" +
+            "       elements.forEach(function(el) {" +
+            "           el.style.display = 'none';" +
+            "           el.parentNode.removeChild(el);" +
+            "       });" +
             "   });" +
-            "});";
+            "} catch(e) {}";
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             view.evaluateJavascript(adBlockJS, null);
-        } else {
-            view.loadUrl("javascript:" + adBlockJS);
         }
     }
     
@@ -670,78 +664,97 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void initEventListeners() {
-        btnMenu.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (isSidebarVisible) {
-                    closeSidebar();
-                } else {
-                    openSidebar();
+        // Verificar se btnMenu existe antes de adicionar listener
+        if (btnMenu != null) {
+            btnMenu.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (isSidebarVisible) {
+                        closeSidebar();
+                    } else {
+                        openSidebar();
+                    }
                 }
-            }
-        });
+            });
+        }
         
-        btnCloseMenu.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                closeSidebar();
-            }
-        });
+        if (btnCloseMenu != null) {
+            btnCloseMenu.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    closeSidebar();
+                }
+            });
+        }
         
-        btnLoadAll.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                loadAllURLs();
-            }
-        });
+        if (btnLoadAll != null) {
+            btnLoadAll.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    loadAllURLs();
+                }
+            });
+        }
         
-        btnReloadAll.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                reloadAllWebViews();
-            }
-        });
+        if (btnReloadAll != null) {
+            btnReloadAll.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    reloadAllWebViews();
+                }
+            });
+        }
         
-        btnClearAll.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                clearAllWebViews();
-            }
-        });
+        if (btnClearAll != null) {
+            btnClearAll.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    clearAllWebViews();
+                }
+            });
+        }
         
-        btnSaveState.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                saveCurrentState();
-            }
-        });
+        if (btnSaveState != null) {
+            btnSaveState.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    saveCurrentState();
+                }
+            });
+        }
         
-        btnLoadState.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                loadSavedState(false);
-            }
-        });
+        if (btnLoadState != null) {
+            btnLoadState.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    loadSavedState(false);
+                }
+            });
+        }
         
-        btnSaveFavorites.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showSaveFavoriteDialog();
-            }
-        });
+        if (btnSaveFavorites != null) {
+            btnSaveFavorites.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showSaveFavoriteDialog();
+                }
+            });
+        }
         
-        btnLoadFavorites.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showLoadFavoritesDialog();
-            }
-        });
+        if (btnLoadFavorites != null) {
+            btnLoadFavorites.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showLoadFavoritesDialog();
+                }
+            });
+        }
         
         // Configurar listeners para controles individuais de cada box
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
             
-            // Botão GO para carregar URL específica
+            // Botão GO
             if (btnLoadUrl[i] != null) {
                 btnLoadUrl[i].setOnClickListener(new View.OnClickListener() {
                     @Override
@@ -756,98 +769,117 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
             
-            // Checkbox para ativar/desativar box
-            checkBoxes[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-                @Override
-                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                    boxEnabled[boxIndex] = isChecked;
-                    updateLayout();
-                }
-            });
+            // Checkbox para ativar/desativar box - COM VERIFICAÇÃO DE NULL
+            if (checkBoxes[i] != null) {
+                checkBoxes[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                    @Override
+                    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                        boxEnabled[boxIndex] = isChecked;
+                        updateLayout();
+                    }
+                });
+            }
             
-            // Checkbox Auto Reload
-            cbAutoReload[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-                @Override
-                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                    autoReloadEnabled[boxIndex] = isChecked;
-                    Toast.makeText(MainActivity.this, 
-                        "Box " + (boxIndex + 1) + " auto-reload: " + (isChecked ? "ON" : "OFF"), 
-                        Toast.LENGTH_SHORT).show();
-                }
-            });
+            // Checkbox Auto Reload - COM VERIFICAÇÃO DE NULL
+            if (cbAutoReload[i] != null) {
+                cbAutoReload[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                    @Override
+                    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                        autoReloadEnabled[boxIndex] = isChecked;
+                        Toast.makeText(MainActivity.this, 
+                            "Box " + (boxIndex + 1) + " auto-reload: " + (isChecked ? "ON" : "OFF"), 
+                            Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
             
             // Botão Refresh
-            btnRefresh[i].setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (webViews[boxIndex] != null) {
-                        webViews[boxIndex].reload();
-                        Toast.makeText(MainActivity.this, 
-                            "Box " + (boxIndex + 1) + " recarregada", Toast.LENGTH_SHORT).show();
+            if (btnRefresh[i] != null) {
+                btnRefresh[i].setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        if (webViews[boxIndex] != null) {
+                            webViews[boxIndex].reload();
+                            Toast.makeText(MainActivity.this, 
+                                "Box " + (boxIndex + 1) + " recarregada", Toast.LENGTH_SHORT).show();
+                        }
                     }
-                }
-            });
+                });
+            }
             
             // Botão Zoom In
-            btnZoomIn[i].setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    zoomIn(boxIndex);
-                }
-            });
+            if (btnZoomIn[i] != null) {
+                btnZoomIn[i].setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        zoomIn(boxIndex);
+                    }
+                });
+            }
             
             // Botão Zoom Out
-            btnZoomOut[i].setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    zoomOut(boxIndex);
-                }
-            });
+            if (btnZoomOut[i] != null) {
+                btnZoomOut[i].setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        zoomOut(boxIndex);
+                    }
+                });
+            }
             
             // Botão Previous
-            btnPrevious[i].setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (webViews[boxIndex] != null && webViews[boxIndex].canGoBack()) {
-                        webViews[boxIndex].goBack();
+            if (btnPrevious[i] != null) {
+                btnPrevious[i].setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        if (webViews[boxIndex] != null && webViews[boxIndex].canGoBack()) {
+                            webViews[boxIndex].goBack();
+                        }
                     }
-                }
-            });
+                });
+            }
             
             // Botão Next
-            btnNext[i].setOnClickListener(new View.OnClickListener() {
+            if (btnNext[i] != null) {
+                btnNext[i].setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        if (webViews[boxIndex] != null && webViews[boxIndex].canGoForward()) {
+                            webViews[boxIndex].goForward();
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Configurações Web - COM VERIFICAÇÃO DE NULL
+        if (cbAllowScripts != null) {
+            cbAllowScripts.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
-                public void onClick(View v) {
-                    if (webViews[boxIndex] != null && webViews[boxIndex].canGoForward()) {
-                        webViews[boxIndex].goForward();
+                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                    for (WebView webView : webViews) {
+                        if (webView != null) {
+                            webView.getSettings().setJavaScriptEnabled(isChecked);
+                        }
                     }
                 }
             });
         }
         
-        cbAllowScripts.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                for (WebView webView : webViews) {
-                    if (webView != null) {
-                        webView.getSettings().setJavaScriptEnabled(isChecked);
+        if (cbBlockAds != null) {
+            cbBlockAds.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                    for (WebView webView : webViews) {
+                        if (webView != null) {
+                            WebSettings settings = webView.getSettings();
+                            settings.setBlockNetworkLoads(isChecked);
+                            settings.setBlockNetworkImage(isChecked);
+                        }
                     }
                 }
-            }
-        });
-        
-        cbBlockAds.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                for (WebView webView : webViews) {
-                    if (webView != null) {
-                        WebSettings settings = webView.getSettings();
-                        settings.setBlockNetworkLoads(isChecked);
-                        settings.setBlockNetworkImage(isChecked);
-                    }
-                }
-            }
-        });
+            });
+        }
     }
     
     private void updateLayout() {
@@ -859,7 +891,9 @@ public class MainActivity extends AppCompatActivity {
         if (activeBoxes == 0) {
             for (int i = 0; i < 4; i++) {
                 boxEnabled[i] = true;
-                checkBoxes[i].setChecked(true);
+                if (checkBoxes[i] != null) {
+                    checkBoxes[i].setChecked(true);
+                }
             }
             activeBoxes = 4;
         }
@@ -906,11 +940,15 @@ public class MainActivity extends AppCompatActivity {
                     params.setMargins(1, 1, 1, 1);
                 }
                 
-                boxContainers[i].setVisibility(View.VISIBLE);
-                gridLayout.addView(boxContainers[i], params);
+                if (boxContainers[i] != null) {
+                    boxContainers[i].setVisibility(View.VISIBLE);
+                    gridLayout.addView(boxContainers[i], params);
+                }
                 position++;
             } else {
-                boxContainers[i].setVisibility(View.GONE);
+                if (boxContainers[i] != null) {
+                    boxContainers[i].setVisibility(View.GONE);
+                }
             }
         }
         
@@ -920,10 +958,12 @@ public class MainActivity extends AppCompatActivity {
     private void loadAllURLs() {
         for (int i = 0; i < 4; i++) {
             if (boxEnabled[i]) {
-                String url = urlInputs[i].getText().toString().trim();
+                String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
                 if (url.isEmpty()) {
                     url = getDefaultUrl(i);
-                    urlInputs[i].setText(url);
+                    if (urlInputs[i] != null) {
+                        urlInputs[i].setText(url);
+                    }
                 }
                 loadURL(i, url);
             }
@@ -933,10 +973,12 @@ public class MainActivity extends AppCompatActivity {
     
     private void loadInitialURLs() {
         for (int i = 0; i < 4; i++) {
-            String url = urlInputs[i].getText().toString().trim();
+            String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
             if (url.isEmpty()) {
                 url = getDefaultUrl(i);
-                urlInputs[i].setText(url);
+                if (urlInputs[i] != null) {
+                    urlInputs[i].setText(url);
+                }
             }
             loadURL(i, url);
         }
@@ -947,7 +989,9 @@ public class MainActivity extends AppCompatActivity {
             if (!url.startsWith("http://") && !url.startsWith("https://")) {
                 url = "https://" + url;
             }
-            webViews[boxIndex].loadUrl(url);
+            if (webViews[boxIndex] != null) {
+                webViews[boxIndex].loadUrl(url);
+            }
         } catch (Exception e) {
             Toast.makeText(this, "Erro ao carregar Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
         }
@@ -980,7 +1024,7 @@ public class MainActivity extends AppCompatActivity {
             SharedPreferences.Editor editor = preferences.edit();
             
             for (int i = 0; i < 4; i++) {
-                String currentUrl = urlInputs[i].getText().toString().trim();
+                String currentUrl = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
                 if (currentUrl.isEmpty()) {
                     currentUrl = getDefaultUrl(i);
                 }
@@ -992,19 +1036,17 @@ public class MainActivity extends AppCompatActivity {
                 editor.putBoolean("auto_reload_" + i, autoReloadEnabled[i]);
             }
             
-            // Salvar níveis de zoom
             for (int i = 0; i < 4; i++) {
                 editor.putFloat("zoom_level_" + i, zoomLevels[i]);
             }
             
-            editor.putBoolean("allow_scripts", cbAllowScripts.isChecked());
-            editor.putBoolean("allow_forms", cbAllowForms.isChecked());
-            editor.putBoolean("allow_popups", cbAllowPopups.isChecked());
-            editor.putBoolean("block_redirects", cbBlockRedirects.isChecked());
-            editor.putBoolean("block_ads", cbBlockAds.isChecked());
+            if (cbAllowScripts != null) editor.putBoolean("allow_scripts", cbAllowScripts.isChecked());
+            if (cbAllowForms != null) editor.putBoolean("allow_forms", cbAllowForms.isChecked());
+            if (cbAllowPopups != null) editor.putBoolean("allow_popups", cbAllowPopups.isChecked());
+            if (cbBlockRedirects != null) editor.putBoolean("block_redirects", cbBlockRedirects.isChecked());
+            if (cbBlockAds != null) editor.putBoolean("block_ads", cbBlockAds.isChecked());
             
             editor.apply();
-            
             Toast.makeText(this, "✅ Estado guardado!", Toast.LENGTH_SHORT).show();
             
         } catch (Exception e) {
@@ -1019,8 +1061,10 @@ public class MainActivity extends AppCompatActivity {
                 String savedUrl = preferences.getString("url_" + i, "");
                 if (!savedUrl.isEmpty()) {
                     hasSavedUrls = true;
-                    urlInputs[i].setText(savedUrl);
-                    if (boxEnabled[i]) {
+                    if (urlInputs[i] != null) {
+                        urlInputs[i].setText(savedUrl);
+                    }
+                    if (boxEnabled[i] && webViews[i] != null) {
                         loadURL(i, savedUrl);
                     }
                 }
@@ -1028,14 +1072,18 @@ public class MainActivity extends AppCompatActivity {
             
             if (!hasSavedUrls) {
                 for (int i = 0; i < 4; i++) {
-                    urlInputs[i].setText(getDefaultUrl(i));
+                    if (urlInputs[i] != null) {
+                        urlInputs[i].setText(getDefaultUrl(i));
+                    }
                 }
             }
             
             for (int i = 0; i < 4; i++) {
                 boolean savedState = preferences.getBoolean("box_enabled_" + i, true);
                 boxEnabled[i] = savedState;
-                checkBoxes[i].setChecked(savedState);
+                if (checkBoxes[i] != null) {
+                    checkBoxes[i].setChecked(savedState);
+                }
                 
                 boolean savedAutoReload = preferences.getBoolean("auto_reload_" + i, false);
                 autoReloadEnabled[i] = savedAutoReload;
@@ -1044,17 +1092,16 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
             
-            // Carregar níveis de zoom
             for (int i = 0; i < 4; i++) {
                 zoomLevels[i] = preferences.getFloat("zoom_level_" + i, 1.0f);
                 applyZoom(i);
             }
             
-            cbAllowScripts.setChecked(preferences.getBoolean("allow_scripts", true));
-            cbAllowForms.setChecked(preferences.getBoolean("allow_forms", true));
-            cbAllowPopups.setChecked(preferences.getBoolean("allow_popups", true));
-            cbBlockRedirects.setChecked(preferences.getBoolean("block_redirects", false));
-            cbBlockAds.setChecked(preferences.getBoolean("block_ads", false));
+            if (cbAllowScripts != null) cbAllowScripts.setChecked(preferences.getBoolean("allow_scripts", true));
+            if (cbAllowForms != null) cbAllowForms.setChecked(preferences.getBoolean("allow_forms", true));
+            if (cbAllowPopups != null) cbAllowPopups.setChecked(preferences.getBoolean("allow_popups", true));
+            if (cbBlockRedirects != null) cbBlockRedirects.setChecked(preferences.getBoolean("block_redirects", false));
+            if (cbBlockAds != null) cbBlockAds.setChecked(preferences.getBoolean("block_ads", false));
             
             if (!silent) {
                 Toast.makeText(this, "✅ Estado carregado!", Toast.LENGTH_SHORT).show();
@@ -1096,7 +1143,6 @@ public class MainActivity extends AppCompatActivity {
             SharedPreferences.Editor editor = preferences.edit();
             editor.putString("favorites_list", jsonArray.toString());
             editor.apply();
-            
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -1114,7 +1160,7 @@ public class MainActivity extends AppCompatActivity {
             
             JSONArray urlsArray = new JSONArray();
             for (int i = 0; i < 4; i++) {
-                String url = urlInputs[i].getText().toString().trim();
+                String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
                 if (url.isEmpty()) {
                     url = getDefaultUrl(i);
                 }
@@ -1150,8 +1196,10 @@ public class MainActivity extends AppCompatActivity {
             if (targetBox == -1) {
                 for (int i = 0; i < 4 && i < urlsArray.length(); i++) {
                     String url = urlsArray.getString(i);
-                    urlInputs[i].setText(url);
-                    if (boxEnabled[i]) {
+                    if (urlInputs[i] != null) {
+                        urlInputs[i].setText(url);
+                    }
+                    if (boxEnabled[i] && webViews[i] != null) {
                         loadURL(i, url);
                     }
                 }
@@ -1159,8 +1207,10 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 if (targetBox < urlsArray.length()) {
                     String url = urlsArray.getString(targetBox);
-                    urlInputs[targetBox].setText(url);
-                    if (boxEnabled[targetBox]) {
+                    if (urlInputs[targetBox] != null) {
+                        urlInputs[targetBox].setText(url);
+                    }
+                    if (boxEnabled[targetBox] && webViews[targetBox] != null) {
                         loadURL(targetBox, url);
                     }
                     Toast.makeText(this, 
@@ -1190,7 +1240,7 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void showSaveFavoriteDialog() {
-        final EditText input = new EditText(this);
+        final android.widget.EditText input = new android.widget.EditText(this);
         input.setHint("Nome do favorito");
         input.setTextColor(Color.BLACK);
         input.setHintTextColor(Color.GRAY);
@@ -1297,7 +1347,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         saveCurrentState();
-        // Parar o auto-reload monitoring
         if (autoReloadHandler != null && autoReloadRunnable != null) {
             autoReloadHandler.removeCallbacks(autoReloadRunnable);
         }
@@ -1307,8 +1356,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         loadFavoritesList();
-        btnMenu.requestFocus();
-        // Reiniciar o auto-reload monitoring
+        if (btnMenu != null) {
+            btnMenu.requestFocus();
+        }
         if (autoReloadHandler != null && autoReloadRunnable != null) {
             autoReloadHandler.postDelayed(autoReloadRunnable, AUTO_RELOAD_INTERVAL);
         }
@@ -1317,7 +1367,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Limpar handler
         if (autoReloadHandler != null && autoReloadRunnable != null) {
             autoReloadHandler.removeCallbacks(autoReloadRunnable);
         }
@@ -1333,7 +1382,7 @@ public class MainActivity extends AppCompatActivity {
                         return true;
                     }
                     
-                    if (webViews[focusedBoxIndex].canGoBack()) {
+                    if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
                         webViews[focusedBoxIndex].goBack();
                         return true;
                     }
@@ -1358,7 +1407,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         
-        if (webViews[focusedBoxIndex].canGoBack()) {
+        if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
             webViews[focusedBoxIndex].goBack();
             return;
         }
