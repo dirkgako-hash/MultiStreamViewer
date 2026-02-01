@@ -60,13 +60,13 @@ public class MainActivity extends AppCompatActivity {
     private Button[] btnNext = new Button[4];
     private Button[] btnLoadUrl = new Button[4];
     private CheckBox[] checkBoxes = new CheckBox[4];
-    private CheckBox[] cbAutoReload = new CheckBox[4]; // Novo: Auto-reload checkboxes
+    private CheckBox[] cbAutoReload = new CheckBox[4];
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
     private EditText[] urlInputs = new EditText[4];
     private TextView tvFocusedBox;
     
     private boolean[] boxEnabled = {true, true, true, true};
-    private boolean[] autoReloadEnabled = {false, false, false, false}; // Novo: Estado auto-reload
+    private boolean[] autoReloadEnabled = {false, false, false, false};
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
     private boolean isVideoMuted = true;
@@ -138,7 +138,6 @@ public class MainActivity extends AppCompatActivity {
         checkBoxes[2] = findViewById(R.id.checkBox3);
         checkBoxes[3] = findViewById(R.id.checkBox4);
         
-        // Inicializar checkboxes de auto-reload
         cbAutoReload[0] = findViewById(R.id.cbAutoReload1);
         cbAutoReload[1] = findViewById(R.id.cbAutoReload2);
         cbAutoReload[2] = findViewById(R.id.cbAutoReload3);
@@ -169,7 +168,6 @@ public class MainActivity extends AppCompatActivity {
         btnNext[2] = findViewById(R.id.btnNext3);
         btnNext[3] = findViewById(R.id.btnNext4);
         
-        // Inicializar botões GO
         btnLoadUrl[0] = findViewById(R.id.btnLoadUrl1);
         btnLoadUrl[1] = findViewById(R.id.btnLoadUrl2);
         btnLoadUrl[2] = findViewById(R.id.btnLoadUrl3);
@@ -190,7 +188,6 @@ public class MainActivity extends AppCompatActivity {
         for (EditText urlInput : urlInputs) {
             urlInput.setText(defaultUrl);
             
-            // Configurar para permitir edição fácil no FireTV
             urlInput.setCursorVisible(true);
             urlInput.setSelectAllOnFocus(true);
             
@@ -200,13 +197,11 @@ public class MainActivity extends AppCompatActivity {
                     if (hasFocus) {
                         EditText et = (EditText) v;
                         et.selectAll();
-                        // Mostrar teclado virtual para FireTV
                         showKeyboard(et);
                     }
                 }
             });
             
-            // Adicionar TextWatcher para atualizar em tempo real
             urlInput.addTextChangedListener(new TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -215,13 +210,10 @@ public class MainActivity extends AppCompatActivity {
                 public void onTextChanged(CharSequence s, int start, int before, int count) {}
                 
                 @Override
-                public void afterTextChanged(Editable s) {
-                    // Texto alterado - nada a fazer por enquanto
-                }
+                public void afterTextChanged(Editable s) {}
             });
         }
         
-        // Configurar ação para FireTV
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
             urlInputs[i].setOnEditorActionListener(new TextView.OnEditorActionListener() {
@@ -265,7 +257,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     
-    // Método público para ser chamado pelo onClick do XML
     public void closeSidebarFromOverlay(View view) {
         closeSidebar();
     }
@@ -274,15 +265,12 @@ public class MainActivity extends AppCompatActivity {
         sidebarContainer.setVisibility(View.GONE);
         isSidebarVisible = false;
         
-        // Restaurar largura total das boxes
         RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
         params.width = RelativeLayout.LayoutParams.MATCH_PARENT;
         params.removeRule(RelativeLayout.LEFT_OF);
         gridLayout.setLayoutParams(params);
         
-        // Esconder teclado virtual se estiver aberto
         hideKeyboard();
-        
         btnMenu.requestFocus();
     }
     
@@ -290,7 +278,6 @@ public class MainActivity extends AppCompatActivity {
         sidebarContainer.setVisibility(View.VISIBLE);
         isSidebarVisible = true;
         
-        // Reduzir largura das boxes para dar espaço ao sidebar
         RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
         params.width = RelativeLayout.LayoutParams.MATCH_PARENT;
         params.addRule(RelativeLayout.LEFT_OF, R.id.sidebarContainer);
@@ -332,7 +319,6 @@ public class MainActivity extends AppCompatActivity {
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));
             
-            // SIMPLIFICADO: Clique simples para focar
             boxContainers[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -362,15 +348,14 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         
-        // CONFIGURAR CACHE AVANÇADO
+        // Configurações de cache otimizadas
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setAppCacheEnabled(true);
-        settings.setAppCachePath(getApplicationContext().getCacheDir().getAbsolutePath());
         settings.setDatabaseEnabled(true);
-        settings.setDatabasePath(getApplicationContext().getDir("database", MODE_PRIVATE).getPath());
         
-        // Aumentar cache para 100MB
-        settings.setAppCacheMaxSize(100 * 1024 * 1024); // 100MB
+        // Configurar mais cache para vídeos
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        }
         
         settings.setSupportZoom(true);
         settings.setBuiltInZoomControls(true);
@@ -381,16 +366,13 @@ public class MainActivity extends AppCompatActivity {
         settings.setBlockNetworkLoads(cbBlockAds.isChecked());
         settings.setBlockNetworkImage(cbBlockAds.isChecked());
         
-        // Configurar zoom inicial
         settings.setTextZoom((int)(zoomLevels[boxIndex] * 100));
         webView.setInitialScale((int)(zoomLevels[boxIndex] * 100));
         
-        // User agent para compatibilidade com vídeos
         settings.setUserAgentString("Mozilla/5.0 (Linux; Android 10; AFTMM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Safari/537.36");
         
         webView.setBackgroundColor(Color.BLACK);
         
-        // Configurar WebViewClient com melhor suporte para vídeos
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -426,17 +408,15 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onPageFinished(WebView view, String url) {
-                // JavaScript para otimizar vídeos e forçar fullscreen
+                // JavaScript para otimizar vídeos
                 String videoOptimizationJS = 
                     "try {" +
-                    "   // Encontrar todos os vídeos" +
                     "   var videos = document.getElementsByTagName('video');" +
                     "   var videoCount = videos.length;" +
                     "   " +
                     "   for(var i = 0; i < videoCount; i++) {" +
                     "       var video = videos[i];" +
                     "       " +
-                    "       // Configurar vídeo para fullscreen automático" +
                     "       video.muted = " + isVideoMuted + ";" +
                     "       video.setAttribute('playsinline', 'false');" +
                     "       video.setAttribute('webkit-playsinline', 'false');" +
@@ -445,14 +425,12 @@ public class MainActivity extends AppCompatActivity {
                     "       video.setAttribute('x5-video-player-fullscreen', 'true');" +
                     "       video.setAttribute('x5-video-orientation', 'landscape');" +
                     "       " +
-                    "       // Tentar iniciar reprodução" +
                     "       if(video.paused) {" +
                     "           video.play().catch(function(e) {" +
                     "               console.log('Auto-play failed: ' + e);" +
                     "           });" +
                     "       }" +
                     "       " +
-                    "       // Configurar para fullscreen" +
                     "       video.style.position = 'fixed';" +
                     "       video.style.top = '0';" +
                     "       video.style.left = '0';" +
@@ -460,36 +438,28 @@ public class MainActivity extends AppCompatActivity {
                     "       video.style.height = '100%';" +
                     "       video.style.zIndex = '9999';" +
                     "       " +
-                    "       // Configurar controles" +
                     "       video.controls = true;" +
                     "       " +
-                    "       // Adicionar listener para erros" +
                     "       video.onerror = function() {" +
-                    "           console.log('Video error detected, will auto-reload if enabled');" +
+                    "           console.log('Video error detected');" +
                     "           window.videoErrorDetected = true;" +
                     "       };" +
                     "       " +
-                    "       // Adicionar listener para quando o vídeo termina" +
                     "       video.onended = function() {" +
-                    "           console.log('Video ended, will auto-reload if enabled');" +
+                    "           console.log('Video ended');" +
                     "           window.videoEnded = true;" +
                     "       };" +
                     "       " +
-                    "       // Monitorar se o vídeo está preso" +
                     "       video.onstalled = function() {" +
-                    "           console.log('Video stalled, will auto-reload if enabled');" +
+                    "           console.log('Video stalled');" +
                     "           window.videoStalled = true;" +
                     "       };" +
                     "   }" +
                     "   " +
-                    "   // Remover margens e padding" +
                     "   document.body.style.margin = '0';" +
                     "   document.body.style.padding = '0';" +
-                    "   " +
-                    "   // Remover scrollbars" +
                     "   document.body.style.overflow = 'hidden';" +
                     "   " +
-                    "   // Inicializar variáveis de monitoramento" +
                     "   window.videoErrorDetected = false;" +
                     "   window.videoEnded = false;" +
                     "   window.videoStalled = false;" +
@@ -507,7 +477,6 @@ public class MainActivity extends AppCompatActivity {
                             try {
                                 int videoCount = Integer.parseInt(value.replace("\"", ""));
                                 if (videoCount > 0) {
-                                    // Vídeos detectados, marcar para monitoramento
                                     runOnUiThread(new Runnable() {
                                         @Override
                                         public void run() {
@@ -517,16 +486,13 @@ public class MainActivity extends AppCompatActivity {
                                         }
                                     });
                                 }
-                            } catch (Exception e) {
-                                // Ignorar erro de parsing
-                            }
+                            } catch (Exception e) {}
                         }
                     });
                 } else {
                     view.loadUrl("javascript:" + videoOptimizationJS);
                 }
                 
-                // Aplicar zoom atual
                 applyZoom(boxIndex);
                 
                 if (cbBlockAds.isChecked()) {
@@ -538,14 +504,12 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onShowCustomView(View view, WebChromeClient.CustomViewCallback callback) {
-                // Entrar em fullscreen quando o vídeo solicitar
                 boxContainers[boxIndex].addView(view, 
                     new FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT));
                 
                 webView.setVisibility(View.GONE);
-                
                 getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             }
             
@@ -562,51 +526,40 @@ public class MainActivity extends AppCompatActivity {
         });
     }
     
-    // NOVO: Monitor de auto-reload
     private void startAutoReloadMonitor() {
         autoReloadHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
                 checkAndAutoReloadVideos();
-                // Verificar novamente a cada 3 segundos
                 autoReloadHandler.postDelayed(this, 3000);
             }
         }, 3000);
     }
     
-    // NOVO: Verificar e recarregar vídeos automaticamente
     private void checkAndAutoReloadVideos() {
         for (int i = 0; i < 4; i++) {
             if (cbAutoReload[i].isChecked() && boxEnabled[i] && webViews[i] != null) {
                 final int boxIndex = i;
                 
-                // JavaScript para verificar estado do vídeo
                 String checkVideoJS = 
                     "try {" +
-                    "   // Verificar se há algum sinal de problema com vídeo" +
                     "   if(window.videoErrorDetected || window.videoEnded || window.videoStalled) {" +
-                    "       // Resetar flags" +
                     "       window.videoErrorDetected = false;" +
                     "       window.videoEnded = false;" +
                     "       window.videoStalled = false;" +
-                    "       " +
-                    "       // Retornar true para indicar que precisa recarregar" +
                     "       return true;" +
                     "   }" +
                     "   " +
-                    "   // Verificar vídeos diretamente" +
                     "   var videos = document.getElementsByTagName('video');" +
                     "   for(var i = 0; i < videos.length; i++) {" +
                     "       var video = videos[i];" +
                     "       " +
-                    "       // Verificar se o vídeo está com erro, parado ou terminado" +
                     "       if(video.error || " +
                     "          (video.readyState >= 4 && video.paused && !video.ended && video.currentTime > 0) || " +
                     "          (video.ended && !video.loop)) {" +
                     "           return true;" +
                     "       }" +
                     "       " +
-                    "       // Verificar se o vídeo está travado (stalled)" +
                     "       if(video.readyState < 3 && video.networkState === 3) {" +
                     "           return true;" +
                     "       }" +
@@ -622,13 +575,10 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void onReceiveValue(String value) {
                             if ("true".equals(value)) {
-                                // Vídeo precisa ser recarregado
                                 runOnUiThread(new Runnable() {
                                     @Override
                                     public void run() {
-                                        // Recarregar a página
                                         webViews[boxIndex].reload();
-                                        
                                         Toast.makeText(MainActivity.this, 
                                             "Box " + (boxIndex + 1) + ": Auto-reloading video...", 
                                             Toast.LENGTH_SHORT).show();
@@ -792,11 +742,9 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         
-        // Configurar listeners para controles individuais de cada box
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
             
-            // Botão GO para carregar URL específica
             if (btnLoadUrl[i] != null) {
                 btnLoadUrl[i].setOnClickListener(new View.OnClickListener() {
                     @Override
@@ -811,7 +759,6 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
             
-            // Checkbox para ativar/desativar box
             checkBoxes[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
                 public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -820,7 +767,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             
-            // NOVO: Checkbox Auto Reload
             cbAutoReload[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
                 public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -831,7 +777,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             
-            // Botão Refresh
             btnRefresh[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -843,7 +788,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             
-            // Botão Zoom In
             btnZoomIn[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -851,7 +795,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             
-            // Botão Zoom Out
             btnZoomOut[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -859,7 +802,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             
-            // Botão Previous
             btnPrevious[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -869,7 +811,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             
-            // Botão Next
             btnNext[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -1046,12 +987,10 @@ public class MainActivity extends AppCompatActivity {
                 editor.putBoolean("box_enabled_" + i, boxEnabled[i]);
             }
             
-            // Salvar estado do auto-reload
             for (int i = 0; i < 4; i++) {
                 editor.putBoolean("auto_reload_" + i, cbAutoReload[i].isChecked());
             }
             
-            // Salvar níveis de zoom
             for (int i = 0; i < 4; i++) {
                 editor.putFloat("zoom_level_" + i, zoomLevels[i]);
             }
@@ -1097,14 +1036,12 @@ public class MainActivity extends AppCompatActivity {
                 checkBoxes[i].setChecked(savedState);
             }
             
-            // Carregar estado do auto-reload
             for (int i = 0; i < 4; i++) {
                 boolean autoReloadState = preferences.getBoolean("auto_reload_" + i, false);
                 cbAutoReload[i].setChecked(autoReloadState);
                 autoReloadEnabled[i] = autoReloadState;
             }
             
-            // Carregar níveis de zoom
             for (int i = 0; i < 4; i++) {
                 zoomLevels[i] = preferences.getFloat("zoom_level_" + i, 1.0f);
                 applyZoom(i);
@@ -1347,7 +1284,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Parar o monitor de auto-reload
         autoReloadHandler.removeCallbacksAndMessages(null);
     }
     
