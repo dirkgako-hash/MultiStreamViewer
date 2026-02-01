@@ -55,7 +55,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
     private Button[] btnRefresh = new Button[4];
-    private Button[] btnReloadVideo = new Button[4]; // NOVO: Botões RV
+    private Button[] btnReloadVideo = new Button[4];
     private Button[] btnZoomIn = new Button[4];
     private Button[] btnZoomOut = new Button[4];
     private Button[] btnPrevious = new Button[4];
@@ -139,7 +139,7 @@ public class MainActivity extends AppCompatActivity {
         btnRefresh[2] = findViewById(R.id.btnRefresh3);
         btnRefresh[3] = findViewById(R.id.btnRefresh4);
         
-        // NOVO: Inicializar botões RV
+        // Inicializar botões RV
         btnReloadVideo[0] = findViewById(R.id.btnReloadVideo1);
         btnReloadVideo[1] = findViewById(R.id.btnReloadVideo2);
         btnReloadVideo[2] = findViewById(R.id.btnReloadVideo3);
@@ -186,21 +186,21 @@ public class MainActivity extends AppCompatActivity {
         for (EditText urlInput : urlInputs) {
             urlInput.setText(defaultUrl);
             
-            // Configurar para permitir edição fácil
+            // Configurar para permitir edição fácil no FireTV
             urlInput.setCursorVisible(true);
             urlInput.setSelectAllOnFocus(true);
             
-            // Adicionar listener para toque direto
-            urlInput.setOnTouchListener(new View.OnTouchListener() {
+            // Remover listener de toque que causa problemas
+            // Em vez disso, usar foco automático
+            urlInput.setOnFocusChangeListener(new View.OnFocusChangeListener() {
                 @Override
-                public boolean onTouch(View v, MotionEvent event) {
-                    if (event.getAction() == MotionEvent.ACTION_UP) {
+                public void onFocusChange(View v, boolean hasFocus) {
+                    if (hasFocus) {
                         EditText et = (EditText) v;
-                        et.requestFocus();
                         et.selectAll();
-                        return true;
+                        // Mostrar teclado virtual para FireTV
+                        showKeyboard(et);
                     }
-                    return false;
                 }
             });
             
@@ -219,18 +219,17 @@ public class MainActivity extends AppCompatActivity {
             });
         }
         
-        // Configurar ação ENTER para cada input
+        // Configurar ação para FireTV (apenas actionDone, sem KEYCODE_ENTER)
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
             urlInputs[i].setOnEditorActionListener(new TextView.OnEditorActionListener() {
                 @Override
                 public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-                    if (actionId == EditorInfo.IME_ACTION_DONE || 
-                        (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER)) {
+                    // Apenas actionDone do teclado virtual (FireTV)
+                    if (actionId == EditorInfo.IME_ACTION_DONE) {
                         String url = urlInputs[boxIndex].getText().toString().trim();
                         if (!url.isEmpty()) {
                             loadURL(boxIndex, url);
-                            // Esconder teclado virtual
                             hideKeyboard();
                         }
                         return true;
@@ -238,18 +237,20 @@ public class MainActivity extends AppCompatActivity {
                     return false;
                 }
             });
-            
-            // Permitir foco via clique
-            urlInputs[i].setOnFocusChangeListener(new View.OnFocusChangeListener() {
-                @Override
-                public void onFocusChange(View v, boolean hasFocus) {
-                    if (hasFocus) {
-                        EditText et = (EditText) v;
-                        et.selectAll();
-                    }
-                }
-            });
         }
+    }
+    
+    private void showKeyboard(View view) {
+        view.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                android.view.inputmethod.InputMethodManager imm = 
+                    (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    imm.showSoftInput(view, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                }
+            }
+        }, 100);
     }
     
     private void hideKeyboard() {
@@ -330,12 +331,31 @@ public class MainActivity extends AppCompatActivity {
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));
             
-            // Clique para focar na box
-            boxContainers[i].setOnClickListener(new View.OnClickListener() {
+            // CORREÇÃO: Melhorar o clique para focar na box
+            boxContainers[i].setOnTouchListener(new View.OnTouchListener() {
+                private long lastClickTime = 0;
+                
                 @Override
-                public void onClick(View v) {
-                    if (isSidebarVisible) return;
-                    boxContainers[boxIndex].requestFocus();
+                public boolean onTouch(View v, MotionEvent event) {
+                    if (isSidebarVisible) return false;
+                    
+                    if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                        long clickTime = System.currentTimeMillis();
+                        // Prevenir clique duplo rápido
+                        if (clickTime - lastClickTime < 300) {
+                            lastClickTime = clickTime;
+                            return true;
+                        }
+                        lastClickTime = clickTime;
+                        return true;
+                    } else if (event.getAction() == MotionEvent.ACTION_UP) {
+                        // Focar na box após soltar
+                        boxContainers[boxIndex].requestFocus();
+                        // Forçar foco no WebView também
+                        webViews[boxIndex].requestFocus();
+                        return true;
+                    }
+                    return false;
                 }
             });
             
@@ -375,6 +395,24 @@ public class MainActivity extends AppCompatActivity {
         settings.setUserAgentString("Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) AppleWebKit/537.36");
         
         webView.setBackgroundColor(Color.BLACK);
+        
+        // CORREÇÃO: Melhorar o toque no WebView
+        webView.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        // Permitir que o WebView processe o toque
+                        v.requestFocus();
+                        return false;
+                    case MotionEvent.ACTION_UP:
+                        // Focar na box correspondente
+                        boxContainers[boxIndex].requestFocus();
+                        return false;
+                }
+                return false;
+            }
+        });
         
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -489,9 +527,8 @@ public class MainActivity extends AppCompatActivity {
         });
     }
     
-    // NOVO MÉTODO: Detectar e recarregar vídeos parados
+    // Detectar e recarregar vídeos parados
     private void detectAndReloadStuckVideos(WebView webView, int boxIndex) {
-        // Verificar se vídeos estão parados e reiniciá-los
         String detectStuckVideosJS = 
             "var videos = document.getElementsByTagName('video');" +
             "var stuckVideos = 0;" +
@@ -514,7 +551,6 @@ public class MainActivity extends AppCompatActivity {
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             webView.evaluateJavascript(detectStuckVideosJS, value -> {
-                // value é uma string JSON com o número de vídeos presos
                 try {
                     int stuckVideos = Integer.parseInt(value.replace("\"", ""));
                     if (stuckVideos > 0) {
@@ -533,11 +569,10 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     
-    // NOVO MÉTODO: Recarregar vídeo específico
+    // Recarregar vídeo específico
     private void reloadVideo(int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
-            // JavaScript para recarregar todos os vídeos na página
             String reloadVideoJS = 
                 "var videos = document.getElementsByTagName('video');" +
                 "var reloadedCount = 0;" +
@@ -575,7 +610,6 @@ public class MainActivity extends AppCompatActivity {
                     Toast.LENGTH_SHORT).show();
             }
             
-            // Também recarrega iframes que possam conter vídeos
             String reloadIframesJS = 
                 "var iframes = document.getElementsByTagName('iframe');" +
                 "for(var i = 0; i < iframes.length; i++) {" +
@@ -598,7 +632,6 @@ public class MainActivity extends AppCompatActivity {
     private void applyZoom(int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
-            // Usar JavaScript para aplicar zoom no conteúdo da página
             String zoomJS = "document.body.style.zoom = '" + (zoomLevels[boxIndex] * 100) + "%';";
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 webView.evaluateJavascript(zoomJS, null);
@@ -606,7 +639,6 @@ public class MainActivity extends AppCompatActivity {
                 webView.loadUrl("javascript:" + zoomJS);
             }
             
-            // Atualizar zoom das configurações
             webView.getSettings().setTextZoom((int)(zoomLevels[boxIndex] * 100));
         }
     }
@@ -787,7 +819,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             
-            // NOVO: Botão Reload Video (RV)
+            // Botão Reload Video (RV)
             btnReloadVideo[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -1190,7 +1222,6 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void showSaveFavoriteDialog() {
-        // Criar um EditText programaticamente para garantir que funciona como o favorito
         final EditText input = new EditText(this);
         input.setHint("Nome do favorito");
         input.setTextColor(Color.BLACK);
@@ -1218,7 +1249,6 @@ public class MainActivity extends AppCompatActivity {
         AlertDialog dialog = builder.create();
         dialog.show();
         
-        // Focar no input quando o dialog aparecer
         input.requestFocus();
         input.selectAll();
     }
