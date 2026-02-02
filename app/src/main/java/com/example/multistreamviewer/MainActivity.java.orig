@@ -475,11 +475,6 @@ public class MainActivity extends AppCompatActivity {
         settings.setTextZoom((int)(zoomLevels[boxIndex] * 100));
         webView.setInitialScale((int)(zoomLevels[boxIndex] * 100));
         
-        // HABILITAR SCROLL VERTICAL
-        webView.setVerticalScrollBarEnabled(true);
-        webView.setHorizontalScrollBarEnabled(false);
-        webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
-        
         settings.setUserAgentString("Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) AppleWebKit/537.36");
         webView.setBackgroundColor(Color.BLACK);
         
@@ -536,11 +531,7 @@ public class MainActivity extends AppCompatActivity {
                     "           videos[i].play();" +
                     "       }" +
                     "   }" +
-                    // HABILITAR SCROLL VERTICAL NA PÁGINA
-                    "   document.body.style.overflowY = 'auto';" +
-                    "   document.body.style.overflowX = 'hidden';" +
-                    "   document.body.style.height = 'auto';" +
-                    "   document.body.style.minHeight = '100vh';" +
+                    "   document.body.style.overflow = 'hidden';" +
                     "   document.body.style.margin = '0';" +
                     "   document.body.style.padding = '0';" +
                     "} catch(e) {}";
