@@ -4,17 +4,22 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     
-    <!-- Cores para scrollbar -->
-    <color name="scrollbar_thumb">#666666</color>
-    <color name="scrollbar_track">#333333</color>
-    
     <!-- Cores de fundo -->
     <color name="background_dark">#1a1a1a</color>
     <color name="background_darker">#333333</color>
     <color name="background_black">#000000</color>
     
-    <!-- Cores de botões -->
+    <!-- Cores de botões - BOXES 1 e 3 -->
     <color name="button_blue">#1e3c72</color>
+    <color name="button_blue_light">#2a4a8a</color>
+    <color name="button_blue_dark">#162e5a</color>
+    
+    <!-- Cores de botões - BOXES 2 e 4 -->
+    <color name="button_purple">#4a1e72</color>
+    <color name="button_purple_light">#5a2a8a</color>
+    <color name="button_purple_dark">#3a125a</color>
+    
+    <!-- Cores de botões gerais -->
     <color name="button_green">#4CAF50</color>
     <color name="button_orange">#FF9800</color>
     <color name="button_red">#ff4444</color>
@@ -22,4 +27,6 @@
     <!-- Cores de texto -->
     <color name="text_white">#FFFFFF</color>
     <color name="text_orange">#FF9800</color>
+    <color name="text_blue">#2196F3</color>
+    <color name="text_purple">#9C27B0</color>
 </resources>

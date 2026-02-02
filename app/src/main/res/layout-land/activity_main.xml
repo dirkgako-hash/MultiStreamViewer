@@ -16,7 +16,7 @@
         android:background="@color/background_black"
         android:focusable="false" />
 
-    <!-- MENU INFERIOR COMPACTO COM CHECKBOX AUTO RELOAD -->
+    <!-- MENU INFERIOR COM CORES DIFERENCIADAS -->
     <LinearLayout
         android:id="@+id/bottomControls"
         android:layout_width="match_parent"
@@ -44,7 +44,7 @@
             android:textColor="@color/text_white"
             android:textSize="10sp" />
 
-        <!-- CONTROLES BOX 1 -->
+        <!-- CONTROLES BOX 1 - AZUL -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -56,7 +56,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="1"
-                android:textColor="@color/text_white"
+                android:textColor="@color/text_blue"
                 android:textSize="10sp"
                 android:checked="true"
                 android:focusable="true"
@@ -67,22 +67,22 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="2dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_blue_dark"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="R"
                 android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
-            <!-- CHECKBOX AUTO RELOAD -->
+            <!-- CHECKBOX AUTO RELOAD "A" - MARCADO POR PADRÃO -->
             <CheckBox
                 android:id="@+id/cbAutoReload1"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="A"
-                android:textColor="@color/text_white"
+                android:textColor="@color/text_blue"
                 android:textSize="9sp"
-                android:checked="false"
+                android:checked="true"
                 android:focusable="true"
                 android:focusableInTouchMode="true" />
             
@@ -91,7 +91,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_blue"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z+"
@@ -103,7 +103,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_blue"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z-"
@@ -115,7 +115,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_blue_dark"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="◀"
@@ -127,7 +127,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_blue_dark"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="▶"
@@ -135,7 +135,7 @@
                 android:textSize="10sp" />
         </LinearLayout>
 
-        <!-- CONTROLES BOX 2 -->
+        <!-- CONTROLES BOX 2 - ROXO -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -147,7 +147,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="2"
-                android:textColor="@color/text_white"
+                android:textColor="@color/text_purple"
                 android:textSize="10sp"
                 android:checked="true"
                 android:focusable="true"
@@ -158,22 +158,22 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="2dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_purple_dark"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="R"
                 android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
-            <!-- CHECKBOX AUTO RELOAD -->
+            <!-- CHECKBOX AUTO RELOAD "A" - MARCADO POR PADRÃO -->
             <CheckBox
                 android:id="@+id/cbAutoReload2"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="A"
-                android:textColor="@color/text_white"
+                android:textColor="@color/text_purple"
                 android:textSize="9sp"
-                android:checked="false"
+                android:checked="true"
                 android:focusable="true"
                 android:focusableInTouchMode="true" />
             
@@ -182,7 +182,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_purple"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z+"
@@ -194,7 +194,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_purple"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z-"
@@ -206,7 +206,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_purple_dark"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="◀"
@@ -218,7 +218,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_purple_dark"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="▶"
@@ -226,7 +226,7 @@
                 android:textSize="10sp" />
         </LinearLayout>
 
-        <!-- CONTROLES BOX 3 -->
+        <!-- CONTROLES BOX 3 - AZUL -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -238,7 +238,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="3"
-                android:textColor="@color/text_white"
+                android:textColor="@color/text_blue"
                 android:textSize="10sp"
                 android:checked="true"
                 android:focusable="true"
@@ -249,22 +249,22 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="2dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_blue_dark"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="R"
                 android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
-            <!-- CHECKBOX AUTO RELOAD -->
+            <!-- CHECKBOX AUTO RELOAD "A" - MARCADO POR PADRÃO -->
             <CheckBox
                 android:id="@+id/cbAutoReload3"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="A"
-                android:textColor="@color/text_white"
+                android:textColor="@color/text_blue"
                 android:textSize="9sp"
-                android:checked="false"
+                android:checked="true"
                 android:focusable="true"
                 android:focusableInTouchMode="true" />
             
@@ -273,7 +273,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_blue"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z+"
@@ -285,7 +285,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_blue"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z-"
@@ -297,7 +297,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_blue_dark"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="◀"
@@ -309,7 +309,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_blue_dark"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="▶"
@@ -317,7 +317,7 @@
                 android:textSize="10sp" />
         </LinearLayout>
 
-        <!-- CONTROLES BOX 4 -->
+        <!-- CONTROLES BOX 4 - ROXO -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -328,7 +328,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="4"
-                android:textColor="@color/text_white"
+                android:textColor="@color/text_purple"
                 android:textSize="10sp"
                 android:checked="true"
                 android:focusable="true"
@@ -339,22 +339,22 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="2dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_purple_dark"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="R"
                 android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
-            <!-- CHECKBOX AUTO RELOAD -->
+            <!-- CHECKBOX AUTO RELOAD "A" - MARCADO POR PADRÃO -->
             <CheckBox
                 android:id="@+id/cbAutoReload4"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+ android:layout_height="wrap_content"
                 android:text="A"
-                android:textColor="@color/text_white"
+                android:textColor="@color/text_purple"
                 android:textSize="9sp"
-                android:checked="false"
+                android:checked="true"
                 android:focusable="true"
                 android:focusableInTouchMode="true" />
             
@@ -363,7 +363,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_purple"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z+"
@@ -375,7 +375,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_purple"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="Z-"
@@ -387,7 +387,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_purple_dark"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="◀"
@@ -399,7 +399,7 @@
                 android:layout_width="26dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
-                android:background="@color/background_darker"
+                android:background="@color/button_purple_dark"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:text="▶"
@@ -727,7 +727,7 @@
                     android:layout_width="40dp"
                     android:layout_height="30dp"
                     android:layout_marginStart="3dp"
-                    android:background="@color/button_blue"
+                    android:background="@color/button_purple"
                     android:focusable="true"
                     android:focusableInTouchMode="true"
                     android:text="GO"
@@ -803,7 +803,7 @@
                     android:layout_width="40dp"
                     android:layout_height="30dp"
                     android:layout_marginStart="3dp"
-                    android:background="@color/button_blue"
+                    android:background="@color/button_purple"
                     android:focusable="true"
                     android:focusableInTouchMode="true"
                     android:text="GO"
@@ -836,7 +836,7 @@
                     android:layout_height="26dp"
                     android:layout_weight="1"
                     android:layout_marginStart="3dp"
-                    android:background="@color/button_blue"
+                    android:background="@color/button_purple"
                     android:focusable="true"
                     android:focusableInTouchMode="true"
                     android:text="RELOAD"
@@ -854,7 +854,7 @@
                     android:focusableInTouchMode="true"
                     android:text="CLEAR"
                     android:textColor="@color/text_white"
-                    android:textSize="9sp" />
+ android:textSize="9sp" />
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>
