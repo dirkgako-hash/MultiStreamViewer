@@ -1,6 +1,7 @@
 package com.example.multistreamviewer;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
@@ -91,7 +92,6 @@ public class MainActivity extends AppCompatActivity {
     private int SCROLL_STEP = 100;
     
     // CONFIGURAÇÕES DE BUFFER
-    private static final int BUFFER_CACHE_SIZE = 100 * 1024 * 1024; // 100MB
     private static final long BUFFER_CHECK_INTERVAL = 2000; // 2 segundos
     private static final double BUFFER_CRITICAL_THRESHOLD = 1.5; // segundos
     private static final double BUFFER_LOW_THRESHOLD = 3.0; // segundos
@@ -131,30 +131,6 @@ public class MainActivity extends AppCompatActivity {
         
         if (!hasSavedState()) {
             new Handler().postDelayed(this::loadInitialURLs, 1000);
-        }
-        
-        // Configurar otimizações de rede
-        configureNetworkOptimizations();
-    }
-    
-    // CONFIGURAR OTIMIZAÇÕES DE REDE
-    private void configureNetworkOptimizations() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                for (WebView webView : webViews) {
-                    if (webView != null) {
-                        WebSettings settings = webView.getSettings();
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            settings.setMediaPlaybackRequiresUserGesture(false);
-                        }
-                        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-                        settings.setAllowUniversalAccessFromFileURLs(true);
-                        settings.setAllowFileAccessFromFileURLs(true);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.e("NetworkOpt", "Error configuring network: " + e.getMessage());
         }
     }
     
@@ -500,6 +476,10 @@ public class MainActivity extends AppCompatActivity {
         btnMenu.requestFocus();
     }
     
+    private void updateFocusedBoxIndicator() {
+        tvFocusedBox.setText("Foco: " + (focusedBoxIndex + 1));
+    }
+    
     @SuppressLint("SetJavaScriptEnabled")
     private void setupWebView(WebView webView, int boxIndex) {
         WebSettings settings = webView.getSettings();
@@ -510,14 +490,12 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         
-        // CONFIGURAÇÕES AVANÇADAS DE CACHE E BUFFER
+        // CONFIGURAÇÕES AVANÇADAS PARA STREAMING
+        // Usar LOAD_DEFAULT que usa cache normalmente
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setAppCacheEnabled(true);
-        settings.setAppCachePath(getApplicationContext().getCacheDir().getAbsolutePath());
-        settings.setAppCacheMaxSize(BUFFER_CACHE_SIZE);
         
+        // Habilitar banco de dados (se disponível)
         settings.setDatabaseEnabled(true);
-        settings.setDatabasePath(getApplicationContext().getDir("database", Context.MODE_PRIVATE).getPath());
         
         // OTIMIZAÇÕES PARA STREAMING
         settings.setRenderPriority(WebSettings.RenderPriority.HIGH);
@@ -529,7 +507,6 @@ public class MainActivity extends AppCompatActivity {
         }
         
         // BUFFER PARA VÍDEO
-        settings.setPluginState(WebSettings.PluginState.ON);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
         
@@ -803,10 +780,6 @@ public class MainActivity extends AppCompatActivity {
                 super.onProgressChanged(view, newProgress);
             }
         });
-    }
-    
-    private void updateFocusedBoxIndicator() {
-        tvFocusedBox.setText("Foco: " + (focusedBoxIndex + 1));
     }
     
     private void applyZoom(int boxIndex) {
