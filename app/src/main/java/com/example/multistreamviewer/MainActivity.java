@@ -1,7 +1,6 @@
 package com.example.multistreamviewer;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
@@ -15,10 +14,8 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
-import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
-import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -68,10 +65,10 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvFocusedBox;
     
     private boolean[] boxEnabled = {true, true, true, true};
-    private boolean[] autoReloadEnabled = {false, false, false, false};
+    private boolean[] autoReloadEnabled = {true, true, true, true}; // POR PADRÃO ATIVADO
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
-    private boolean isVideoMuted = true;
+    private boolean isVideoMuted = true; // VÍDEOS MUTE POR PADRÃO
     private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
     
     private ArrayList<String> favoritesList = new ArrayList<>();
@@ -79,22 +76,14 @@ public class MainActivity extends AppCompatActivity {
     
     private Handler autoReloadHandler = new Handler();
     private Runnable autoReloadRunnable;
-    private final long AUTO_RELOAD_INTERVAL = 5000;
+    private final long AUTO_RELOAD_INTERVAL = 3000; // 3 segundos (mais rápido)
     
-    // VARIÁVEIS PARA MONITORAMENTO DE BUFFER
-    private Handler[] bufferHandlers = new Handler[4];
-    private Runnable[] bufferCheckRunnables = new Runnable[4];
-    private boolean[] isBuffering = new boolean[4];
-    private float[] playbackRates = {1.0f, 1.0f, 1.0f, 1.0f};
+    // CONTADORES DE TENTATIVAS PARA EVITAR LOOP
+    private int[] recoveryAttempts = {0, 0, 0, 0};
+    private static final int MAX_RECOVERY_ATTEMPTS = 3;
     
-    // VARIÁVEIS PARA CONTROLE DE SCROLL
-    private int[] currentScrollY = {0, 0, 0, 0};
-    private int SCROLL_STEP = 100;
-    
-    // CONFIGURAÇÕES DE BUFFER
-    private static final long BUFFER_CHECK_INTERVAL = 2000; // 2 segundos
-    private static final double BUFFER_CRITICAL_THRESHOLD = 1.5; // segundos
-    private static final double BUFFER_LOW_THRESHOLD = 3.0; // segundos
+    // TEMPO DE ESPERA ANTES DE TENTAR NOVAMENTE
+    private static final long RECOVERY_COOLDOWN = 10000; // 10 segundos
     
     private final List<String> adDomains = Arrays.asList(
         "doubleclick.net", "googleadservices.com", "googlesyndication.com"
@@ -165,18 +154,11 @@ public class MainActivity extends AppCompatActivity {
         btnRefresh[2] = findViewById(R.id.btnRefresh3);
         btnRefresh[3] = findViewById(R.id.btnRefresh4);
         
-        // Inicializar checkboxes auto-reload - COM VERIFICAÇÃO DE NULL
+        // Inicializar checkboxes auto-reload
         cbAutoReload[0] = findViewById(R.id.cbAutoReload1);
         cbAutoReload[1] = findViewById(R.id.cbAutoReload2);
         cbAutoReload[2] = findViewById(R.id.cbAutoReload3);
         cbAutoReload[3] = findViewById(R.id.cbAutoReload4);
-        
-        // Verificar se as checkboxes auto-reload foram encontradas
-        for (int i = 0; i < 4; i++) {
-            if (cbAutoReload[i] == null) {
-                Toast.makeText(this, "Aviso: Checkbox AutoReload " + (i+1) + " não encontrada", Toast.LENGTH_SHORT).show();
-            }
-        }
         
         btnZoomIn[0] = findViewById(R.id.btnZoomIn1);
         btnZoomIn[1] = findViewById(R.id.btnZoomIn2);
@@ -210,13 +192,6 @@ public class MainActivity extends AppCompatActivity {
         cbAllowPopups = findViewById(R.id.cbAllowPopups);
         cbBlockRedirects = findViewById(R.id.cbBlockRedirects);
         cbBlockAds = findViewById(R.id.cbBlockAds);
-        
-        // Verificar checkboxes de configuração
-        if (cbAllowScripts == null) Toast.makeText(this, "cbAllowScripts não encontrada", Toast.LENGTH_SHORT).show();
-        if (cbAllowForms == null) Toast.makeText(this, "cbAllowForms não encontrada", Toast.LENGTH_SHORT).show();
-        if (cbAllowPopups == null) Toast.makeText(this, "cbAllowPopups não encontrada", Toast.LENGTH_SHORT).show();
-        if (cbBlockRedirects == null) Toast.makeText(this, "cbBlockRedirects não encontrada", Toast.LENGTH_SHORT).show();
-        if (cbBlockAds == null) Toast.makeText(this, "cbBlockAds não encontrada", Toast.LENGTH_SHORT).show();
         
         urlInputs[0] = findViewById(R.id.urlInput1);
         urlInputs[1] = findViewById(R.id.urlInput2);
@@ -281,29 +256,47 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void checkAndFixStuckVideo(final int boxIndex) {
+        if (recoveryAttempts[boxIndex] >= MAX_RECOVERY_ATTEMPTS) {
+            // Já tentou muitas vezes, espera um tempo antes de tentar de novo
+            new Handler().postDelayed(() -> {
+                recoveryAttempts[boxIndex] = 0;
+            }, RECOVERY_COOLDOWN);
+            return;
+        }
+        
         WebView webView = webViews[boxIndex];
         if (webView != null) {
             String checkVideoJS = 
                 "try {" +
                 "   var videos = document.getElementsByTagName('video');" +
-                "   var videoStatus = {hasVideo: false, hasError: false, isPaused: false, isEnded: false, isPlaying: false, bufferAhead: 0};" +
-                "   for(var i = 0; i < videos.length; i++) {" +
-                "       var video = videos[i];" +
+                "   var videoStatus = {" +
+                "       hasVideo: false," +
+                "       hasError: false," +
+                "       isPaused: false," +
+                "       isEnded: false," +
+                "       isPlaying: false," +
+                "       videoCount: 0," +
+                "       anyPlaying: false," +
+                "       currentTime: 0" +
+                "   };" +
+                "   " +
+                "   if (videos.length > 0) {" +
                 "       videoStatus.hasVideo = true;" +
-                "       if(video.error) {" +
-                "           videoStatus.hasError = true;" +
-                "       } else if(video.paused && !video.ended) {" +
-                "           videoStatus.isPaused = true;" +
-                "       } else if(video.ended) {" +
-                "           videoStatus.isEnded = true;" +
-                "       } else {" +
-                "           videoStatus.isPlaying = true;" +
-                "       }" +
+                "       videoStatus.videoCount = videos.length;" +
                 "       " +
-                "       // Verificar buffer" +
-                "       if(video.buffered.length > 0) {" +
-                "           var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
-                "           videoStatus.bufferAhead = bufferedEnd - video.currentTime;" +
+                "       for(var i = 0; i < videos.length; i++) {" +
+                "           var video = videos[i];" +
+                "           if(video.error) {" +
+                "               videoStatus.hasError = true;" +
+                "           } else if(video.paused && !video.ended) {" +
+                "               videoStatus.isPaused = true;" +
+                "           } else if(video.ended) {" +
+                "               videoStatus.isEnded = true;" +
+                "           } else if(!video.paused && !video.ended) {" +
+                "               videoStatus.isPlaying = true;" +
+                "               videoStatus.anyPlaying = true;" +
+                "               videoStatus.currentTime = video.currentTime;" +
+                "           }" +
                 "       }" +
                 "   }" +
                 "   JSON.stringify(videoStatus);" +
@@ -318,61 +311,294 @@ public class MainActivity extends AppCompatActivity {
                         boolean hasVideo = videoStatus.getBoolean("hasVideo");
                         boolean hasError = videoStatus.getBoolean("hasError");
                         boolean isPaused = videoStatus.getBoolean("isPaused");
-                        double bufferAhead = videoStatus.optDouble("bufferAhead", 0);
+                        boolean anyPlaying = videoStatus.getBoolean("anyPlaying");
+                        int videoCount = videoStatus.getInt("videoCount");
                         
-                        if (hasVideo && (hasError || (isPaused && bufferAhead < 1.0))) {
+                        if (hasVideo && (hasError || (isPaused && videoCount > 0 && !anyPlaying))) {
                             runOnUiThread(() -> {
-                                reloadPageAndForceFullscreen(boxIndex);
+                                recoveryAttempts[boxIndex]++;
+                                attemptVideoRecovery(boxIndex);
                             });
-                        } else if (hasVideo && bufferAhead < BUFFER_CRITICAL_THRESHOLD) {
-                            // Buffer crítico, ajustar playback rate
-                            adjustPlaybackRate(boxIndex, 0.8f);
+                        } else if (hasVideo && anyPlaying) {
+                            // Vídeo está rodando, resetar contador
+                            recoveryAttempts[boxIndex] = 0;
                         }
                     } catch (Exception e) {
-                        // Ignorar erros
+                        Log.e("VideoCheck", "Erro ao verificar vídeo: " + e.getMessage());
                     }
                 });
             }
         }
     }
     
-    private void reloadPageAndForceFullscreen(int boxIndex) {
+    private void attemptVideoRecovery(int boxIndex) {
+        Log.d("VideoRecovery", "Tentativa " + recoveryAttempts[boxIndex] + " de recuperar Box " + (boxIndex + 1));
+        
+        // ESTRATÉGIA EM CAMADAS
+        switch (recoveryAttempts[boxIndex]) {
+            case 1:
+                // Primeira tentativa: Tenta dar play no vídeo
+                tryForcePlay(boxIndex);
+                break;
+                
+            case 2:
+                // Segunda tentativa: Tenta maximizar e entrar em fullscreen
+                tryMaximizeAndFullscreen(boxIndex);
+                break;
+                
+            case 3:
+                // Terceira tentativa: Recarrega a página completamente
+                reloadPageCompletely(boxIndex);
+                break;
+        }
+    }
+    
+    private void tryForcePlay(int boxIndex) {
         WebView webView = webViews[boxIndex];
-        if (webView != null) {
-            String currentUrl = webView.getUrl();
-            if (currentUrl != null && !currentUrl.equals("about:blank")) {
-                webView.reload();
-                
-                new Handler().postDelayed(() -> {
-                    String forceFullscreenJS = 
-                        "try {" +
-                        "   var videos = document.getElementsByTagName('video');" +
-                        "   for(var i = 0; i < videos.length; i++) {" +
-                        "       var video = videos[i];" +
-                        "       video.style.width = '100%';" +
-                        "       video.style.height = '100%';" +
-                        "       video.style.position = 'absolute';" +
-                        "       video.style.top = '0';" +
-                        "       video.style.left = '0';" +
-                        "       video.style.zIndex = '9999';" +
-                        "       video.setAttribute('playsinline', 'false');" +
-                        "       video.setAttribute('webkit-playsinline', 'false');" +
-                        "       if(video.paused && !video.ended) {" +
-                        "           video.play();" +
-                        "       }" +
-                        "   }" +
-                        "   document.body.style.overflow = 'hidden';" +
-                        "} catch(e) {}";
-                    
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                        webView.evaluateJavascript(forceFullscreenJS, null);
-                    }
-                }, 2000);
-                
+        if (webView == null) return;
+        
+        String forcePlayJS = 
+            "try {" +
+            "   console.log('Tentando forçar play nos vídeos...');" +
+            "   var videos = document.getElementsByTagName('video');" +
+            "   var success = false;" +
+            "   " +
+            "   for(var i = 0; i < videos.length; i++) {" +
+            "       var video = videos[i];" +
+            "       video.muted = true;" + // SEMPRE MUTE
+            "       video.volume = 0;" +
+            "       " +
+            "       if(video.paused && !video.ended) {" +
+            "           video.play().then(function() {" +
+            "               console.log('Vídeo forçado a tocar');" +
+            "               success = true;" +
+            "           }).catch(function(e) {" +
+            "               console.log('Erro ao forçar play:', e);" +
+            "           });" +
+            "       }" +
+            "   }" +
+            "   " +
+            "   // Também tenta clicar em qualquer elemento de play" +
+            "   var playButtons = document.querySelectorAll('[class*=\"play\"], [id*=\"play\"], button, .play-button');" +
+            "   for(var i = 0; i < playButtons.length; i++) {" +
+            "       playButtons[i].click();" +
+            "       success = true;" +
+            "   }" +
+            "   " +
+            "   success;" +
+            "} catch(e) { false; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(forcePlayJS, result -> {
                 runOnUiThread(() -> {
-                    Toast.makeText(this, "Box " + (boxIndex + 1) + ": Auto-reload ativado", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, 
+                        "Box " + (boxIndex + 1) + ": Tentando forçar reprodução", 
+                        Toast.LENGTH_SHORT).show();
                 });
-            }
+            });
+        }
+    }
+    
+    private void tryMaximizeAndFullscreen(int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        String maximizeJS = 
+            "try {" +
+            "   console.log('Tentando maximizar vídeos...');" +
+            "   var videos = document.getElementsByTagName('video');" +
+            "   var success = false;" +
+            "   " +
+            "   for(var i = 0; i < videos.length; i++) {" +
+            "       var video = videos[i];" +
+            "       " +
+            "       // Maximizar estilo" +
+            "       video.style.width = '100%';" +
+            "       video.style.height = '100%';" +
+            "       video.style.position = 'fixed';" +
+            "       video.style.top = '0';" +
+            "       video.style.left = '0';" +
+            "       video.style.zIndex = '999999';" +
+            "       video.style.backgroundColor = 'black';" +
+            "       " +
+            "       // Forçar fullscreen attributes" +
+            "       video.setAttribute('playsinline', 'false');" +
+            "       video.setAttribute('webkit-playsinline', 'false');" +
+            "       " +
+            "       // Tentar entrar em fullscreen via API" +
+            "       if(video.webkitEnterFullscreen) {" +
+            "           video.webkitEnterFullscreen();" +
+            "           success = true;" +
+            "       }" +
+            "       " +
+            "       // Tentar play novamente" +
+            "       if(video.paused && !video.ended) {" +
+            "           video.play().catch(function(e) {" +
+            "               console.log('Play após maximizar falhou:', e);" +
+            "           });" +
+            "       }" +
+            "   }" +
+            "   " +
+            "   // Procurar botões de fullscreen e clicar" +
+            "   var fullscreenButtons = document.querySelectorAll(" +
+            "       '[class*=\"fullscreen\"], [class*=\"full-screen\"], " +
+            "       [id*=\"fullscreen\"], [id*=\"full-screen\"], " +
+            "       '.fullscreen-btn', '.fullscreen-button', " +
+            "       '.vjs-fullscreen-control', '.ytp-fullscreen-button'" +
+            "   );" +
+            "   " +
+            "   for(var i = 0; i < fullscreenButtons.length; i++) {" +
+            "       fullscreenButtons[i].click();" +
+            "       success = true;" +
+            "       console.log('Clicou em botão fullscreen');" +
+            "   }" +
+            "   " +
+            "   // Remover controles que podem atrapalhar" +
+            "   document.body.style.overflow = 'hidden';" +
+            "   " +
+            "   success;" +
+            "} catch(e) { " +
+            "   console.log('Erro ao maximizar:', e);" +
+            "   false; " +
+            "}";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(maximizeJS, result -> {
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, 
+                        "Box " + (boxIndex + 1) + ": Maximizando vídeo", 
+                        Toast.LENGTH_SHORT).show();
+                });
+            });
+        }
+    }
+    
+    private void reloadPageCompletely(int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        String currentUrl = webView.getUrl();
+        if (currentUrl != null && !currentUrl.equals("about:blank")) {
+            runOnUiThread(() -> {
+                webView.reload();
+                Toast.makeText(this, 
+                    "Box " + (boxIndex + 1) + ": Recarregando página", 
+                    Toast.LENGTH_SHORT).show();
+                
+                // Aguardar a página carregar e aplicar otimizações
+                new Handler().postDelayed(() -> {
+                    injectVideoOptimizations(boxIndex);
+                }, 3000);
+            });
+        }
+    }
+    
+    private void injectVideoOptimizations(int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        String optimizationJS = 
+            "try {" +
+            "   // CONFIGURAÇÃO INICIAL DOS VÍDEOS" +
+            "   var optimizeVideos = function() {" +
+            "       var videos = document.getElementsByTagName('video');" +
+            "       console.log('Otimizando ' + videos.length + ' vídeos');" +
+            "       " +
+            "       for(var i = 0; i < videos.length; i++) {" +
+            "           var video = videos[i];" +
+            "           " +
+            "           // CONFIGURAÇÕES BÁSICAS" +
+            "           video.muted = true;" + // SEMPRE MUTE
+            "           video.volume = 0;" +
+            "           video.preload = 'auto';" +
+            "           video.autoplay = true;" +
+            "           video.setAttribute('playsinline', 'false');" +
+            "           video.setAttribute('webkit-playsinline', 'false');" +
+            "           " +
+            "           // ESTILO MAXIMIZADO" +
+            "           video.style.width = '100%';" +
+            "           video.style.height = '100%';" +
+            "           video.style.position = 'fixed';" +
+            "           video.style.top = '0';" +
+            "           video.style.left = '0';" +
+            "           video.style.zIndex = '999999';" +
+            "           video.style.backgroundColor = 'black';" +
+            "           " +
+            "           // TENTAR REPRODUZIR" +
+            "           if(video.paused && !video.ended) {" +
+            "               video.play().catch(function(e) {" +
+            "                   console.log('Auto-play falhou, tentando muted:', e);" +
+            "                   video.muted = true;" +
+            "                   video.play().catch(function(e2) {" +
+            "                       console.log('Muted play também falhou:', e2);" +
+            "                   });" +
+            "               });" +
+            "           }" +
+            "           " +
+            "           // LISTENER PARA RE-TENTAR SE PAUSAR" +
+            "           video.addEventListener('pause', function() {" +
+            "               setTimeout(function() {" +
+            "                   if(this.paused && !this.ended) {" +
+            "                       this.play().catch(function(e) {" +
+            "                           console.log('Re-tentativa após pause falhou:', e);" +
+            "                       });" +
+            "                   }" +
+            "               }.bind(this), 1000);" +
+            "           });" +
+            "           " +
+            "           // LISTENER PARA ERROS" +
+            "           video.addEventListener('error', function() {" +
+            "               console.log('Erro no vídeo, tentando recarregar...');" +
+            "               setTimeout(function() {" +
+            "                   this.load();" +
+            "               }.bind(this), 2000);" +
+            "           });" +
+            "       }" +
+            "       " +
+            "       return videos.length;" +
+            "   };" +
+            "   " +
+            "   // EXECUTAR AGORA E REPETIDAMENTE (para vídeos dinâmicos)" +
+            "   optimizeVideos();" +
+            "   setInterval(optimizeVideos, 5000);" +
+            "   " +
+            "   // REMOVER BARRAS DE SCROLL" +
+            "   document.body.style.overflow = 'hidden';" +
+            "   document.documentElement.style.overflow = 'hidden';" +
+            "   " +
+            "   // CLICAR AUTOMATICAMENTE EM BOTÕES DE PLAY/COOKIES" +
+            "   setTimeout(function() {" +
+            "       var playButtons = document.querySelectorAll(" +
+            "           'button, [class*=\"play\"], [class*=\"Play\"], " +
+            "           [id*=\"play\"], [id*=\"Play\"], " +
+            "           '.play-button', '.ytp-play-button', " +
+            "           '.vjs-play-control', '.vjs-big-play-button'" +
+            "       );" +
+            "       " +
+            "       for(var i = 0; i < playButtons.length; i++) {" +
+            "           playButtons[i].click();" +
+            "       }" +
+            "       " +
+            "       // Remover popups de cookies" +
+            "       var cookieButtons = document.querySelectorAll(" +
+            "           '[class*=\"cookie\"], [id*=\"cookie\"], " +
+            "           '[class*=\"accept\"], [id*=\"accept\"], " +
+            "           '.cookie-accept', '.accept-cookies'" +
+            "       );" +
+            "       " +
+            "       for(var i = 0; i < cookieButtons.length; i++) {" +
+            "           cookieButtons[i].click();" +
+            "       }" +
+            "   }, 2000);" +
+            "   " +
+            "   true;" +
+            "} catch(e) {" +
+            "   console.log('Erro na otimização:', e);" +
+            "   false;" +
+            "}";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(optimizationJS, null);
         }
     }
     
@@ -488,35 +714,18 @@ public class MainActivity extends AppCompatActivity {
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setMediaPlaybackRequiresUserGesture(false); // PERMITIR AUTOPLAY
         
-        // CONFIGURAÇÕES AVANÇADAS PARA STREAMING
-        // Usar LOAD_DEFAULT que usa cache normalmente
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        
-        // Habilitar banco de dados (se disponível)
-        settings.setDatabaseEnabled(true);
-        
-        // OTIMIZAÇÕES PARA STREAMING
-        settings.setRenderPriority(WebSettings.RenderPriority.HIGH);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        
-        // HABILITAR SUPPORT PARA MÍDIA
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-            settings.setMediaPlaybackRequiresUserGesture(false);
-        }
-        
-        // BUFFER PARA VÍDEO
-        settings.setUseWideViewPort(true);
-        settings.setLoadWithOverviewMode(true);
-        
-        // USER AGENT OTIMIZADO PARA STREAMING
-        String userAgent = "Mozilla/5.0 (Linux; Android 10; AFTMM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Safari/537.36";
-        settings.setUserAgentString(userAgent);
-        
+        // OTIMIZAÇÕES PARA VÍDEO
         settings.setSupportZoom(true);
         settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
+        settings.setLoadWithOverviewMode(true);
+        settings.setUseWideViewPort(true);
+        
+        // USER AGENT PARA STREAMING
+        String userAgent = "Mozilla/5.0 (Linux; Android 10; AFTMM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Safari/537.36";
+        settings.setUserAgentString(userAgent);
         
         if (cbBlockAds != null) {
             settings.setBlockNetworkLoads(cbBlockAds.isChecked());
@@ -528,7 +737,7 @@ public class MainActivity extends AppCompatActivity {
         
         webView.setBackgroundColor(Color.BLACK);
         
-        // HABILITAR SCROLL VERTICAL
+        // SCROLL (mantemos habilitado para páginas longas)
         webView.setVerticalScrollBarEnabled(true);
         webView.setHorizontalScrollBarEnabled(false);
         webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
@@ -560,19 +769,6 @@ public class MainActivity extends AppCompatActivity {
             }
             
             @Override
-            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                // PRIORIZAR REQUISIÇÕES DE STREAMING
-                if (request != null && request.getUrl() != null) {
-                    String url = request.getUrl().toString().toLowerCase();
-                    if (url.contains(".m3u8") || url.contains(".mp4") || url.contains(".ts") || 
-                        url.contains(".m4s") || url.contains(".mpd") || url.contains(".webm")) {
-                        Log.d("StreamPriority", "Prioritizing streaming request: " + url);
-                    }
-                }
-                return super.shouldInterceptRequest(view, request);
-            }
-            
-            @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 if (cbBlockAds != null && cbBlockAds.isChecked()) {
                     injectAdBlocker(view);
@@ -581,156 +777,15 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onPageFinished(WebView view, String url) {
-                // SCRIPT COMPLETO PARA CONTROLE DE BUFFER E SCROLL
-                String videoOptimizationJS = 
-                    "try {" +
-                    "   // CONFIGURAR ELEMENTOS DE VÍDEO" +
-                    "   var videos = document.getElementsByTagName('video');" +
-                    "   for(var i = 0; i < videos.length; i++) {" +
-                    "       var video = videos[i];" +
-                    "       video.muted = " + isVideoMuted + ";" +
-                    "       video.setAttribute('playsinline', 'false');" +
-                    "       video.setAttribute('webkit-playsinline', 'false');" +
-                    "       video.controls = true;" +
-                    "       video.preload = 'auto';" +
-                    "       video.autobuffer = true;" +
-                    "       video.defaultPlaybackRate = 1.0;" +
-                    "       video.playbackRate = 1.0;" +
-                    "       video.style.width = '100%';" +
-                    "       video.style.height = '100%';" +
-                    "       video.style.position = 'absolute';" +
-                    "       video.style.top = '0';" +
-                    "       video.style.left = '0';" +
-                    "       video.style.zIndex = '9999';" +
-                    
-                    // MONITORAR ESTADO DO BUFFER
-                    "       video.addEventListener('waiting', function(e) {" +
-                    "           console.log('Video waiting - buffer empty at ' + this.currentTime);" +
-                    "           if(!this.paused) {" +
-                    "               this.pause();" +
-                    "               var self = this;" +
-                    "               setTimeout(function() {" +
-                    "                   if(self.readyState >= 2 && self.buffered.length > 0) {" +
-                    "                       var bufferEnd = self.buffered.end(self.buffered.length - 1);" +
-                    "                       if(bufferEnd - self.currentTime > 2) {" +
-                    "                           self.play().catch(function(err) {" +
-                    "                               console.log('Retry play failed:', err);" +
-                    "                           });" +
-                    "                       }" +
-                    "                   }" +
-                    "               }, 1500);" +
-                    "           }" +
-                    "       });" +
-                    
-                    "       video.addEventListener('playing', function() {" +
-                    "           console.log('Video playing, buffer: ' + " +
-                    "               (this.buffered.length > 0 ? this.buffered.end(this.buffered.length - 1) - this.currentTime : 0) + 's');" +
-                    "       });" +
-                    
-                    "       video.addEventListener('progress', function() {" +
-                    "           if(this.buffered.length > 0) {" +
-                    "               var bufferedEnd = this.buffered.end(this.buffered.length - 1);" +
-                    "               var currentTime = this.currentTime;" +
-                    "               var bufferAhead = bufferedEnd - currentTime;" +
-                    "               " +
-                    "               // AJUSTE ADAPTATIVO DE QUALIDADE" +
-                    "               if(bufferAhead < 2.0 && this.playbackRate > 0.7) {" +
-                    "                   this.playbackRate = Math.max(0.7, this.playbackRate - 0.1);" +
-                    "                   console.log('Reducing playback rate to ' + this.playbackRate + ', buffer: ' + bufferAhead + 's');" +
-                    "               } else if(bufferAhead > 8.0 && this.playbackRate < 1.0) {" +
-                    "                   this.playbackRate = Math.min(1.0, this.playbackRate + 0.05);" +
-                    "                   console.log('Increasing playback rate to ' + this.playbackRate + ', buffer: ' + bufferAhead + 's');" +
-                    "               }" +
-                    "           }" +
-                    "       });" +
-                    
-                    "       video.addEventListener('error', function(e) {" +
-                    "           console.error('Video error:', this.error);" +
-                    "           if(this.error && this.error.code === 4) {" +
-                    "               setTimeout(function() {" +
-                    "                   this.load();" +
-                    "               }.bind(this), 3000);" +
-                    "           }" +
-                    "       });" +
-                    
-                    // TENTAR REPRODUZIR AUTOMATICAMENTE
-                    "       if(video.paused && !video.ended && video.readyState >= 2) {" +
-                    "           setTimeout(function() {" +
-                    "               video.play().catch(function(e) {" +
-                    "                   console.log('Auto-play failed, trying muted:', e);" +
-                    "                   video.muted = true;" +
-                    "                   video.play().catch(function(e2) {" +
-                    "                       console.log('Muted play also failed:', e2);" +
-                    "                   });" +
-                    "               });" +
-                    "           }, 1000);" +
-                    "       }" +
-                    "   }" +
-                    
-                    // CONFIGURAR ÁUDIO
-                    "   var audios = document.getElementsByTagName('audio');" +
-                    "   for(var i = 0; i < audios.length; i++) {" +
-                    "       audios[i].preload = 'auto';" +
-                    "       audios[i].autobuffer = true;" +
-                    "   }" +
-                    
-                    // HABILITAR SCROLL VERTICAL
-                    "   document.body.style.overflowY = 'auto';" +
-                    "   document.body.style.overflowX = 'hidden';" +
-                    "   document.body.style.height = 'auto';" +
-                    "   document.body.style.minHeight = '100vh';" +
-                    "   document.body.style.margin = '0';" +
-                    "   document.body.style.padding = '0';" +
-                    "   document.documentElement.style.overflowY = 'auto';" +
-                    "   document.documentElement.style.overflowX = 'hidden';" +
-                    
-                    // INJETAR ADAPTIVE STREAMING CONTROLLER
-                    "   window.StreamController = {" +
-                    "       checkInterval: null," +
-                    "       checkBuffer: function() {" +
-                    "           var videos = document.getElementsByTagName('video');" +
-                    "           for(var i = 0; i < videos.length; i++) {" +
-                    "               var v = videos[i];" +
-                    "               if(v.buffered.length > 0 && !v.paused && !v.ended) {" +
-                    "                   var bufferEnd = v.buffered.end(v.buffered.length - 1);" +
-                    "                   var bufferAhead = bufferEnd - v.currentTime;" +
-                    "                   " +
-                    "                   if(bufferAhead < 1.0) {" +
-                    "                       console.warn('CRITICAL BUFFER: ' + bufferAhead + 's');" +
-                    "                       v.playbackRate = 0.8;" +
-                    "                       if(!v.paused) v.pause();" +
-                    "                       setTimeout(function() {" +
-                    "                           if(v.readyState >= 2) v.play();" +
-                    "                       }, 2000);" +
-                    "                   } else if(bufferAhead < 3.0 && v.playbackRate > 0.9) {" +
-                    "                       v.playbackRate = 0.9;" +
-                    "                   }" +
-                    "               }" +
-                    "           }" +
-                    "       }," +
-                    "       start: function() {" +
-                    "           if(this.checkInterval) clearInterval(this.checkInterval);" +
-                    "           this.checkInterval = setInterval(this.checkBuffer, 3000);" +
-                    "       }," +
-                    "       stop: function() {" +
-                    "           if(this.checkInterval) clearInterval(this.checkInterval);" +
-                    "       }" +
-                    "   };" +
-                    "   window.StreamController.start();" +
-                    "} catch(e) { console.error('Video optimization error:', e); }";
+                // INJETAR OTIMIZAÇÕES QUANDO A PÁGINA CARREGAR
+                injectVideoOptimizations(boxIndex);
                 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                    view.evaluateJavascript(videoOptimizationJS, null);
-                }
-                
+                // APLICAR ZOOM
                 applyZoom(boxIndex);
                 
                 if (cbBlockAds != null && cbBlockAds.isChecked()) {
                     injectAdBlocker(view);
                 }
-                
-                // INICIAR MONITORAMENTO DE BUFFER
-                startBufferMonitoring(boxIndex);
             }
         });
         
@@ -766,18 +821,6 @@ public class MainActivity extends AppCompatActivity {
                 mCustomView = null;
                 mCustomViewCallback = null;
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            }
-            
-            @Override
-            public void onPermissionRequest(PermissionRequest request) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    request.grant(request.getResources());
-                }
-            }
-            
-            @Override
-            public void onProgressChanged(WebView view, int newProgress) {
-                super.onProgressChanged(view, newProgress);
             }
         });
     }
@@ -967,7 +1010,7 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
             
-            // Checkbox para ativar/desativar box - COM VERIFICAÇÃO DE NULL
+            // Checkbox para ativar/desativar box
             if (checkBoxes[i] != null) {
                 checkBoxes[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                     @Override
@@ -978,19 +1021,24 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
             
-            // Checkbox Auto Reload - COM VERIFICAÇÃO DE NULL
+            // Checkbox Auto Reload - POR PADRÃO MARCADO (true)
             if (cbAutoReload[i] != null) {
+                // Configurar estado inicial como marcado
+                cbAutoReload[i].setChecked(true);
+                autoReloadEnabled[boxIndex] = true;
+                
                 cbAutoReload[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                     @Override
                     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                         autoReloadEnabled[boxIndex] = isChecked;
+                        
                         if (isChecked) {
-                            startBufferMonitoring(boxIndex);
-                        } else {
-                            stopBufferMonitoring(boxIndex);
+                            // Resetar contador quando ativar
+                            recoveryAttempts[boxIndex] = 0;
                         }
+                        
                         Toast.makeText(MainActivity.this, 
-                            "Box " + (boxIndex + 1) + " auto-reload: " + (isChecked ? "ON" : "OFF"), 
+                            "Box " + (boxIndex + 1) + " auto-recovery: " + (isChecked ? "ON" : "OFF"), 
                             Toast.LENGTH_SHORT).show();
                     }
                 });
@@ -1003,6 +1051,8 @@ public class MainActivity extends AppCompatActivity {
                     public void onClick(View v) {
                         if (webViews[boxIndex] != null) {
                             webViews[boxIndex].reload();
+                            // Resetar contador ao recarregar manualmente
+                            recoveryAttempts[boxIndex] = 0;
                             Toast.makeText(MainActivity.this, 
                                 "Box " + (boxIndex + 1) + " recarregada", Toast.LENGTH_SHORT).show();
                         }
@@ -1055,7 +1105,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         
-        // Configurações Web - COM VERIFICAÇÃO DE NULL
+        // Configurações Web
         if (cbAllowScripts != null) {
             cbAllowScripts.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
@@ -1146,247 +1196,16 @@ public class MainActivity extends AppCompatActivity {
                 if (boxContainers[i] != null) {
                     boxContainers[i].setVisibility(View.VISIBLE);
                     gridLayout.addView(boxContainers[i], params);
-                    
-                    // Iniciar monitoramento de buffer se a box estiver ativa
-                    if (autoReloadEnabled[i]) {
-                        startBufferMonitoring(i);
-                    }
                 }
                 position++;
             } else {
                 if (boxContainers[i] != null) {
                     boxContainers[i].setVisibility(View.GONE);
-                    // Parar monitoramento de buffer se a box estiver desativada
-                    stopBufferMonitoring(i);
                 }
             }
         }
         
         gridLayout.requestLayout();
-    }
-    
-    // ==============================
-    // MÉTODOS DE CONTROLE DE BUFFER
-    // ==============================
-    
-    private void startBufferMonitoring(final int boxIndex) {
-        if (!boxEnabled[boxIndex]) return;
-        
-        if (bufferHandlers[boxIndex] == null) {
-            bufferHandlers[boxIndex] = new Handler();
-        }
-        
-        // Parar monitoramento anterior se existir
-        if (bufferCheckRunnables[boxIndex] != null) {
-            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
-        }
-        
-        bufferCheckRunnables[boxIndex] = new Runnable() {
-            @Override
-            public void run() {
-                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
-                    checkVideoBufferStatus(boxIndex);
-                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
-                }
-            }
-        };
-        
-        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
-        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
-    }
-    
-    private void stopBufferMonitoring(int boxIndex) {
-        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
-            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
-            bufferCheckRunnables[boxIndex] = null;
-            isBuffering[boxIndex] = false;
-        }
-    }
-    
-    private void checkVideoBufferStatus(final int boxIndex) {
-        WebView webView = webViews[boxIndex];
-        if (webView == null || !boxEnabled[boxIndex]) return;
-        
-        String checkBufferJS = 
-            "try {" +
-            "   var videos = document.getElementsByTagName('video');" +
-            "   if(videos.length === 0) return null;" +
-            "   " +
-            "   var video = videos[0];" +
-            "   var status = {" +
-            "       hasVideo: true," +
-            "       isPlaying: !video.paused && !video.ended," +
-            "       isBuffering: video.readyState < 3," +
-            "       currentTime: video.currentTime," +
-            "       duration: video.duration," +
-            "       playbackRate: video.playbackRate," +
-            "       networkState: video.networkState," +
-            "       readyState: video.readyState" +
-            "   };" +
-            "   " +
-            "   if(video.buffered.length > 0) {" +
-            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
-            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
-            "       status.bufferedEnd = bufferedEnd;" +
-            "       status.bufferedLength = video.buffered.length;" +
-            "   } else {" +
-            "       status.bufferAhead = 0;" +
-            "   }" +
-            "   " +
-            "   JSON.stringify(status);" +
-            "} catch(e) { return null; }";
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.evaluateJavascript(checkBufferJS, value -> {
-                try {
-                    if (value == null || "null".equals(value)) return;
-                    
-                    String jsonStr = value.replace("\\\"", "\"");
-                    if (jsonStr.startsWith("\"") && jsonStr.endsWith("\"")) {
-                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
-                    }
-                    
-                    JSONObject status = new JSONObject(jsonStr);
-                    boolean hasVideo = status.optBoolean("hasVideo", false);
-                    boolean isPlaying = status.optBoolean("isPlaying", false);
-                    boolean isBufferingJS = status.optBoolean("isBuffering", false);
-                    double bufferAhead = status.optDouble("bufferAhead", 0);
-                    double playbackRate = status.optDouble("playbackRate", 1.0);
-                    
-                    playbackRates[boxIndex] = (float) playbackRate;
-                    
-                    runOnUiThread(() -> {
-                        if (hasVideo && isPlaying) {
-                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
-                                handleCriticalBuffer(boxIndex, bufferAhead);
-                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
-                                adjustPlaybackRate(boxIndex, 0.8f);
-                            }
-                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
-                            // Tem buffer mas não está tocando
-                            triggerVideoPlay(boxIndex);
-                        }
-                    });
-                    
-                } catch (Exception e) {
-                    // Ignorar erros de parsing
-                }
-            });
-        }
-    }
-    
-    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
-        if (isBuffering[boxIndex]) return;
-        
-        isBuffering[boxIndex] = true;
-        Log.w("BufferMonitor", "Box " + (boxIndex + 1) + ": Critical buffer (" + bufferAhead + "s)");
-        
-        // Estratégia 1: Reduzir velocidade
-        adjustPlaybackRate(boxIndex, 0.7f);
-        
-        // Estratégia 2: Pausar brevemente para acumular buffer
-        injectJavaScript(boxIndex,
-            "try {" +
-            "   var v = document.getElementsByTagName('video')[0];" +
-            "   if(v && !v.paused) {" +
-            "       v.pause();" +
-            "       console.log('Pausing for buffer accumulation');" +
-            "       setTimeout(function() {" +
-            "           if(v.readyState >= 2 && v.buffered.length > 0) {" +
-            "               var bufferEnd = v.buffered.end(v.buffered.length - 1);" +
-            "               if(bufferEnd - v.currentTime > 2) {" +
-            "                   v.play().catch(function(e) {" +
-            "                       console.log('Buffer recovery play failed:', e);" +
-            "                   });" +
-            "               }" +
-            "           }" +
-            "       }, 2000);" +
-            "   }" +
-            "} catch(e) {}");
-        
-        // Resetar flag após 5 segundos
-        new Handler().postDelayed(() -> {
-            isBuffering[boxIndex] = false;
-        }, 5000);
-    }
-    
-    private void adjustPlaybackRate(int boxIndex, float rate) {
-        playbackRates[boxIndex] = rate;
-        injectJavaScript(boxIndex,
-            "try {" +
-            "   var videos = document.getElementsByTagName('video');" +
-            "   for(var i = 0; i < videos.length; i++) {" +
-            "       videos[i].playbackRate = " + rate + ";" +
-            "   }" +
-            "} catch(e) {}");
-        
-        runOnUiThread(() -> {
-            Toast.makeText(this, "Box " + (boxIndex + 1) + " playback: " + (rate * 100) + "%", 
-                Toast.LENGTH_SHORT).show();
-        });
-    }
-    
-    private void triggerVideoPlay(int boxIndex) {
-        injectJavaScript(boxIndex,
-            "try {" +
-            "   var videos = document.getElementsByTagName('video');" +
-            "   for(var i = 0; i < videos.length; i++) {" +
-            "       var v = videos[i];" +
-            "       if(v.paused && !v.ended && v.readyState >= 2) {" +
-            "           v.play().catch(function(e) {" +
-            "               console.log('Auto-play trigger failed:', e);" +
-            "           });" +
-            "       }" +
-            "   }" +
-            "} catch(e) {}");
-    }
-    
-    private void injectJavaScript(int boxIndex, String javascript) {
-        WebView webView = webViews[boxIndex];
-        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.evaluateJavascript(javascript, null);
-        }
-    }
-    
-    // ==============================
-    // MÉTODOS DE CONTROLE DE SCROLL
-    // ==============================
-    
-    private void scrollWebView(int boxIndex, int deltaY) {
-        WebView webView = webViews[boxIndex];
-        if (webView == null) return;
-        
-        currentScrollY[boxIndex] += deltaY;
-        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
-        
-        String scrollJS = 
-            "try {" +
-            "   window.scrollTo(0, " + currentScrollY[boxIndex] + ");" +
-            "} catch(e) {}";
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.evaluateJavascript(scrollJS, null);
-        }
-    }
-    
-    private void scrollToTop(int boxIndex) {
-        currentScrollY[boxIndex] = 0;
-        scrollWebView(boxIndex, 0);
-    }
-    
-    private void scrollToBottom(int boxIndex) {
-        injectJavaScript(boxIndex,
-            "try {" +
-            "   var height = Math.max(" +
-            "       document.body.scrollHeight," +
-            "       document.body.offsetHeight," +
-            "       document.documentElement.clientHeight," +
-            "       document.documentElement.scrollHeight," +
-            "       document.documentElement.offsetHeight" +
-            "   );" +
-            "   window.scrollTo(0, height);" +
-            "   return height;" +
-            "} catch(e) { return 0; }");
     }
     
     private void loadAllURLs() {
@@ -1435,6 +1254,8 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < 4; i++) {
             if (boxEnabled[i] && webViews[i] != null) {
                 webViews[i].reload();
+                // Resetar contadores
+                recoveryAttempts[i] = 0;
             }
         }
         Toast.makeText(this, "Recarregando todas", Toast.LENGTH_SHORT).show();
@@ -1444,6 +1265,8 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < 4; i++) {
             if (webViews[i] != null) {
                 webViews[i].loadUrl("about:blank");
+                // Resetar contadores
+                recoveryAttempts[i] = 0;
             }
         }
         Toast.makeText(this, "Limpando todas", Toast.LENGTH_SHORT).show();
@@ -1468,7 +1291,6 @@ public class MainActivity extends AppCompatActivity {
             for (int i = 0; i < 4; i++) {
                 editor.putBoolean("box_enabled_" + i, boxEnabled[i]);
                 editor.putBoolean("auto_reload_" + i, autoReloadEnabled[i]);
-                editor.putFloat("playback_rate_" + i, playbackRates[i]);
             }
             
             for (int i = 0; i < 4; i++) {
@@ -1520,13 +1342,11 @@ public class MainActivity extends AppCompatActivity {
                     checkBoxes[i].setChecked(savedState);
                 }
                 
-                boolean savedAutoReload = preferences.getBoolean("auto_reload_" + i, false);
+                boolean savedAutoReload = preferences.getBoolean("auto_reload_" + i, true); // POR PADRÃO TRUE
                 autoReloadEnabled[i] = savedAutoReload;
                 if (cbAutoReload[i] != null) {
                     cbAutoReload[i].setChecked(savedAutoReload);
                 }
-                
-                playbackRates[i] = preferences.getFloat("playback_rate_" + i, 1.0f);
             }
             
             for (int i = 0; i < 4; i++) {
@@ -1787,11 +1607,6 @@ public class MainActivity extends AppCompatActivity {
         if (autoReloadHandler != null && autoReloadRunnable != null) {
             autoReloadHandler.removeCallbacks(autoReloadRunnable);
         }
-        
-        // Parar todos os buffer monitors
-        for (int i = 0; i < 4; i++) {
-            stopBufferMonitoring(i);
-        }
     }
     
     @Override
@@ -1804,13 +1619,6 @@ public class MainActivity extends AppCompatActivity {
         if (autoReloadHandler != null && autoReloadRunnable != null) {
             autoReloadHandler.postDelayed(autoReloadRunnable, AUTO_RELOAD_INTERVAL);
         }
-        
-        // Reiniciar buffer monitors para boxes ativas
-        for (int i = 0; i < 4; i++) {
-            if (boxEnabled[i] && autoReloadEnabled[i]) {
-                startBufferMonitoring(i);
-            }
-        }
     }
     
     @Override
@@ -1818,11 +1626,6 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         if (autoReloadHandler != null && autoReloadRunnable != null) {
             autoReloadHandler.removeCallbacks(autoReloadRunnable);
-        }
-        
-        // Parar todos os buffer monitors
-        for (int i = 0; i < 4; i++) {
-            stopBufferMonitoring(i);
         }
     }
     
@@ -1849,49 +1652,6 @@ public class MainActivity extends AppCompatActivity {
                         openSidebar();
                     }
                     return true;
-                    
-                // CONTROLES DE SCROLL COM TECLADO
-                case KeyEvent.KEYCODE_DPAD_UP:
-                    if (!isSidebarVisible) {
-                        scrollWebView(focusedBoxIndex, -SCROLL_STEP);
-                        return true;
-                    }
-                    break;
-                    
-                case KeyEvent.KEYCODE_DPAD_DOWN:
-                    if (!isSidebarVisible) {
-                        scrollWebView(focusedBoxIndex, SCROLL_STEP);
-                        return true;
-                    }
-                    break;
-                    
-                case KeyEvent.KEYCODE_PAGE_UP:
-                    if (!isSidebarVisible) {
-                        scrollWebView(focusedBoxIndex, -SCROLL_STEP * 5);
-                        return true;
-                    }
-                    break;
-                    
-                case KeyEvent.KEYCODE_PAGE_DOWN:
-                    if (!isSidebarVisible) {
-                        scrollWebView(focusedBoxIndex, SCROLL_STEP * 5);
-                        return true;
-                    }
-                    break;
-                    
-                case KeyEvent.KEYCODE_MOVE_HOME:
-                    if (!isSidebarVisible) {
-                        scrollToTop(focusedBoxIndex);
-                        return true;
-                    }
-                    break;
-                    
-                case KeyEvent.KEYCODE_MOVE_END:
-                    if (!isSidebarVisible) {
-                        scrollToBottom(focusedBoxIndex);
-                        return true;
-                    }
-                    break;
             }
         }
         return super.onKeyDown(keyCode, event);
