@@ -14,6 +14,8 @@ import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.webkit.WebChromeClient;
+import android.webkit.PermissionRequest;
+import android.util.Log;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -74,6 +76,21 @@ public class MainActivity extends AppCompatActivity {
     private SharedPreferences preferences;
     
     private Handler autoReloadHandler = new Handler();
+    // VARIÁVEIS PARA MONITORAMENTO DE BUFFER
+    private Handler[] bufferHandlers = new Handler[4];
+    private Runnable[] bufferCheckRunnables = new Runnable[4];
+    private boolean[] isBuffering = new boolean[4];
+    private float[] playbackRates = {1.0f, 1.0f, 1.0f, 1.0f};
+    
+    // VARIÁVEIS PARA CONTROLE DE SCROLL
+    private int[] currentScrollY = {0, 0, 0, 0};
+    private int SCROLL_STEP = 100;
+    
+    // CONFIGURAÇÕES DE BUFFER
+    private static final int BUFFER_CACHE_SIZE = 100 * 1024 * 1024; // 100MB
+    private static final long BUFFER_CHECK_INTERVAL = 2000; // 2 segundos
+    private static final double BUFFER_CRITICAL_THRESHOLD = 1.5; // segundos
+    private static final double BUFFER_LOW_THRESHOLD = 3.0; // segundos
     private Runnable autoReloadRunnable;
     private final long AUTO_RELOAD_INTERVAL = 5000;
     
@@ -113,10 +130,365 @@ public class MainActivity extends AppCompatActivity {
         if (!hasSavedState()) {
             new Handler().postDelayed(this::loadInitialURLs, 1000);
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void initViews() {
         gridLayout = findViewById(R.id.gridLayout);
+    // Modificar updateLayout para gerenciar buffer monitoring
+    private void updateLayout() {
+        int activeBoxes = 0;
+        for (boolean enabled : boxEnabled) {
+            if (enabled) activeBoxes++;
+        }
+        
+        if (activeBoxes == 0) {
+            for (int i = 0; i < 4; i++) {
+                boxEnabled[i] = true;
+                if (checkBoxes[i] != null) {
+                    checkBoxes[i].setChecked(true);
+                }
+            }
+            activeBoxes = 4;
+        }
+        
+        int rows, cols;
+        
+        switch (activeBoxes) {
+            case 1:
+                rows = 1; cols = 1;
+                break;
+            case 2:
+                rows = 1; cols = 2;
+                break;
+            case 3:
+                rows = 1; cols = 3;
+                break;
+            case 4:
+                rows = 2; cols = 2;
+                break;
+            default:
+                rows = 1; cols = 1;
+                break;
+        }
+        
+        gridLayout.removeAllViews();
+        gridLayout.setRowCount(rows);
+        gridLayout.setColumnCount(cols);
+        
+        int position = 0;
+        for (int i = 0; i < 4; i++) {
+            if (boxEnabled[i]) {
+                GridLayout.Spec rowSpec = GridLayout.spec(position / cols, 1f);
+                GridLayout.Spec colSpec = GridLayout.spec(position % cols, 1f);
+                
+                GridLayout.LayoutParams params = new GridLayout.LayoutParams(rowSpec, colSpec);
+                params.width = 0;
+                params.height = 0;
+                
+                if (activeBoxes == 1) {
+                    params.setMargins(0, 0, 0, 0);
+                } else if (activeBoxes == 2) {
+                    params.setMargins(2, 2, 2, 2);
+                } else {
+                    params.setMargins(1, 1, 1, 1);
+                }
+                
+                if (boxContainers[i] != null) {
+                    boxContainers[i].setVisibility(View.VISIBLE);
+                    gridLayout.addView(boxContainers[i], params);
+                    
+                    // Iniciar monitoramento de buffer se a box estiver ativa
+                    if (autoReloadEnabled[i]) {
+                        startBufferMonitoring(i);
+                    }
+                }
+                position++;
+            } else {
+                if (boxContainers[i] != null) {
+                    boxContainers[i].setVisibility(View.GONE);
+                    // Parar monitoramento de buffer se a box estiver desativada
+                    stopBufferMonitoring(i);
+                }
+            }
+        }
+        
+        gridLayout.requestLayout();
+    }
+    
+    // Modificar checkAndFixStuckVideo para usar buffer monitoring
+    private void checkAndFixStuckVideo(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null) {
+            String checkVideoJS = 
+                "try {" +
+                "   var videos = document.getElementsByTagName('video');" +
+                "   var videoStatus = {hasVideo: false, hasError: false, isPaused: false, isEnded: false, isPlaying: false, bufferAhead: 0};" +
+                "   for(var i = 0; i < videos.length; i++) {" +
+                "       var video = videos[i];" +
+                "       videoStatus.hasVideo = true;" +
+                "       if(video.error) {" +
+                "           videoStatus.hasError = true;" +
+                "       } else if(video.paused && !video.ended) {" +
+                "           videoStatus.isPaused = true;" +
+                "       } else if(video.ended) {" +
+                "           videoStatus.isEnded = true;" +
+                "       } else {" +
+                "           videoStatus.isPlaying = true;" +
+                "       }" +
+                "       " +
+                "       // Verificar buffer" +
+                "       if(video.buffered.length > 0) {" +
+                "           var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+                "           videoStatus.bufferAhead = bufferedEnd - video.currentTime;" +
+                "       }" +
+                "   }" +
+                "   JSON.stringify(videoStatus);" +
+                "} catch(e) { '{\"hasVideo\":false}' }";
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                webView.evaluateJavascript(checkVideoJS, value -> {
+                    try {
+                        String jsonStr = value.replace("\"", "").replace("\\\"", "\"");
+                        JSONObject videoStatus = new JSONObject(jsonStr);
+                        
+                        boolean hasVideo = videoStatus.getBoolean("hasVideo");
+                        boolean hasError = videoStatus.getBoolean("hasError");
+                        boolean isPaused = videoStatus.getBoolean("isPaused");
+                        double bufferAhead = videoStatus.optDouble("bufferAhead", 0);
+                        
+                        if (hasVideo && (hasError || (isPaused && bufferAhead < 1.0))) {
+                            runOnUiThread(() -> {
+                                reloadPageAndForceFullscreen(boxIndex);
+                            });
+                        } else if (hasVideo && bufferAhead < BUFFER_CRITICAL_THRESHOLD) {
+                            // Buffer crítico, ajustar playback rate
+                            adjustPlaybackRate(boxIndex, 0.8f);
+                        }
+                    } catch (Exception e) {
+                        // Ignorar erros
+                    }
+                });
+            }
+        }
+    }
         bottomControls = findViewById(R.id.bottomControls);
         sidebarContainer = findViewById(R.id.sidebarContainer);
         mainLayout = findViewById(R.id.main_layout);
@@ -244,6 +616,224 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void startAutoReloadMonitoring() {
@@ -259,6 +849,224 @@ public class MainActivity extends AppCompatActivity {
             }
         };
         autoReloadHandler.postDelayed(autoReloadRunnable, AUTO_RELOAD_INTERVAL);
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void checkAndFixStuckVideo(final int boxIndex) {
@@ -305,6 +1113,224 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void reloadPageAndForceFullscreen(int boxIndex) {
@@ -345,6 +1371,224 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void showKeyboard(View view) {
@@ -358,6 +1602,224 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }, 100);
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void hideKeyboard() {
@@ -369,10 +1831,446 @@ public class MainActivity extends AppCompatActivity {
                 imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
             }
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     public void closeSidebarFromOverlay(View view) {
         closeSidebar();
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void closeSidebar() {
@@ -386,6 +2284,224 @@ public class MainActivity extends AppCompatActivity {
         
         hideKeyboard();
         btnMenu.requestFocus();
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void openSidebar() {
@@ -398,6 +2514,224 @@ public class MainActivity extends AppCompatActivity {
         gridLayout.setLayoutParams(params);
         
         btnCloseMenu.requestFocus();
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     @SuppressLint("SetJavaScriptEnabled")
@@ -445,153 +2779,449 @@ public class MainActivity extends AppCompatActivity {
         }
         
         btnMenu.requestFocus();
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void updateFocusedBoxIndicator() {
         tvFocusedBox.setText("Foco: " + (focusedBoxIndex + 1));
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     @SuppressLint("SetJavaScriptEnabled")
-    private void setupWebView(WebView webView, int boxIndex) {
-        WebSettings settings = webView.getSettings();
-        
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
-        
-        settings.setSupportZoom(true);
-        settings.setBuiltInZoomControls(true);
-        settings.setDisplayZoomControls(false);
-        settings.setLoadWithOverviewMode(true);
-        settings.setUseWideViewPort(true);
-        
-        if (cbBlockAds != null) {
-            settings.setBlockNetworkLoads(cbBlockAds.isChecked());
-            settings.setBlockNetworkImage(cbBlockAds.isChecked());
-        }
-        
-        settings.setTextZoom((int)(zoomLevels[boxIndex] * 100));
-        webView.setInitialScale((int)(zoomLevels[boxIndex] * 100));
-        
-        // HABILITAR SCROLL VERTICAL
-        webView.setVerticalScrollBarEnabled(true);
-        webView.setHorizontalScrollBarEnabled(false);
-        webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
-        
-        settings.setUserAgentString("Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) AppleWebKit/537.36");
-        webView.setBackgroundColor(Color.BLACK);
-        
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return handleUrlLoading(view, request.getUrl().toString());
-            }
-            
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return handleUrlLoading(view, url);
-            }
-            
-            private boolean handleUrlLoading(WebView view, String url) {
-                if (cbBlockRedirects != null && cbBlockRedirects.isChecked()) {
-                    String currentUrl = view.getUrl();
-                    if (currentUrl != null && !isSameDomain(currentUrl, url)) {
-                        return true;
-                    }
-                }
-                
-                if (cbBlockAds != null && cbBlockAds.isChecked() && isAdUrl(url)) {
-                    return true;
-                }
-                
-                return false;
-            }
-            
-            @Override
-            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-                if (cbBlockAds != null && cbBlockAds.isChecked()) {
-                    injectAdBlocker(view);
-                }
-            }
-            
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                String fullscreenJS = 
-                    "try {" +
-                    "   var videos = document.getElementsByTagName('video');" +
-                    "   for(var i = 0; i < videos.length; i++) {" +
-                    "       videos[i].muted = " + isVideoMuted + ";" +
-                    "       videos[i].setAttribute('playsinline', 'false');" +
-                    "       videos[i].setAttribute('webkit-playsinline', 'false');" +
-                    "       videos[i].controls = true;" +
-                    "       videos[i].style.width = '100%';" +
-                    "       videos[i].style.height = '100%';" +
-                    "       videos[i].style.position = 'absolute';" +
-                    "       videos[i].style.top = '0';" +
-                    "       videos[i].style.left = '0';" +
-                    "       videos[i].style.zIndex = '9999';" +
-                    "       if(videos[i].paused && !videos[i].ended) {" +
-                    "           videos[i].play();" +
-                    "       }" +
-                    "   }" +
-                    // HABILITAR SCROLL VERTICAL NA PÁGINA
-                    "   document.body.style.overflowY = 'auto';" +
-                    "   document.body.style.overflowX = 'hidden';" +
-                    "   document.body.style.height = 'auto';" +
-                    "   document.body.style.minHeight = '100vh';" +
-                    "   document.body.style.margin = '0';" +
-                    "   document.body.style.padding = '0';" +
-                    "} catch(e) {}";
-                
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                    view.evaluateJavascript(fullscreenJS, null);
-                }
-                
-                applyZoom(boxIndex);
-                
-                if (cbBlockAds != null && cbBlockAds.isChecked()) {
-                    injectAdBlocker(view);
-                }
-            }
-        });
-        
-        webView.setWebChromeClient(new WebChromeClient() {
-            private View mCustomView;
-            private WebChromeClient.CustomViewCallback mCustomViewCallback;
-            
-            @Override
-            public void onShowCustomView(View view, CustomViewCallback callback) {
-                mCustomView = view;
-                mCustomViewCallback = callback;
-                
-                boxContainers[boxIndex].addView(view, 
-                    new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT));
-                
-                webView.setVisibility(View.GONE);
-                getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            }
-            
-            @Override
-            public void onHideCustomView() {
-                if (mCustomView == null) return;
-                
-                boxContainers[boxIndex].removeView(mCustomView);
-                webView.setVisibility(View.VISIBLE);
-                
-                if (mCustomViewCallback != null) {
-                    mCustomViewCallback.onCustomViewHidden();
-                }
-                
-                mCustomView = null;
-                mCustomViewCallback = null;
-                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            }
-        });
-    }
     
     private void applyZoom(int boxIndex) {
         WebView webView = webViews[boxIndex];
@@ -602,6 +3232,224 @@ public class MainActivity extends AppCompatActivity {
             }
             webView.getSettings().setTextZoom((int)(zoomLevels[boxIndex] * 100));
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void zoomIn(int boxIndex) {
@@ -611,6 +3459,224 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + String.format("%.0f", zoomLevels[boxIndex] * 100) + "%", 
                 Toast.LENGTH_SHORT).show();
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void zoomOut(int boxIndex) {
@@ -620,6 +3686,224 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + String.format("%.0f", zoomLevels[boxIndex] * 100) + "%", 
                 Toast.LENGTH_SHORT).show();
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void injectAdBlocker(WebView view) {
@@ -641,6 +3925,224 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             view.evaluateJavascript(adBlockJS, null);
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private boolean isAdUrl(String url) {
@@ -650,6 +4152,224 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         return false;
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private String getDomain(String url) {
@@ -660,6 +4380,224 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             return url;
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private boolean isSameDomain(String url1, String url2) {
@@ -670,6 +4608,224 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             return false;
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void initEventListeners() {
@@ -889,79 +5045,415 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
     }
     
-    private void updateLayout() {
-        int activeBoxes = 0;
-        for (boolean enabled : boxEnabled) {
-            if (enabled) activeBoxes++;
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
         }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
         
-        if (activeBoxes == 0) {
-            for (int i = 0; i < 4; i++) {
-                boxEnabled[i] = true;
-                if (checkBoxes[i] != null) {
-                    checkBoxes[i].setChecked(true);
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
                 }
-            }
-            activeBoxes = 4;
+            });
         }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
         
-        int rows, cols;
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
         
-        switch (activeBoxes) {
-            case 1:
-                rows = 1; cols = 1;
-                break;
-            case 2:
-                rows = 1; cols = 2;
-                break;
-            case 3:
-                rows = 1; cols = 3;
-                break;
-            case 4:
-                rows = 2; cols = 2;
-                break;
-            default:
-                rows = 1; cols = 1;
-                break;
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
         }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
         
-        gridLayout.removeAllViews();
-        gridLayout.setRowCount(rows);
-        gridLayout.setColumnCount(cols);
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
         
-        int position = 0;
-        for (int i = 0; i < 4; i++) {
-            if (boxEnabled[i]) {
-                GridLayout.Spec rowSpec = GridLayout.spec(position / cols, 1f);
-                GridLayout.Spec colSpec = GridLayout.spec(position % cols, 1f);
-                
-                GridLayout.LayoutParams params = new GridLayout.LayoutParams(rowSpec, colSpec);
-                params.width = 0;
-                params.height = 0;
-                
-                if (activeBoxes == 1) {
-                    params.setMargins(0, 0, 0, 0);
-                } else if (activeBoxes == 2) {
-                    params.setMargins(2, 2, 2, 2);
-                } else {
-                    params.setMargins(1, 1, 1, 1);
-                }
-                
-                if (boxContainers[i] != null) {
-                    boxContainers[i].setVisibility(View.VISIBLE);
-                    gridLayout.addView(boxContainers[i], params);
-                }
-                position++;
-            } else {
-                if (boxContainers[i] != null) {
-                    boxContainers[i].setVisibility(View.GONE);
-                }
-            }
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
         }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
+    }
+    
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
         
-        gridLayout.requestLayout();
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void loadAllURLs() {
@@ -978,6 +5470,224 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         Toast.makeText(this, "Carregando todas as URLs", Toast.LENGTH_SHORT).show();
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void loadInitialURLs() {
@@ -991,6 +5701,224 @@ public class MainActivity extends AppCompatActivity {
             }
             loadURL(i, url);
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void loadURL(int boxIndex, String url) {
@@ -1004,6 +5932,224 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Toast.makeText(this, "Erro ao carregar Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void reloadAllWebViews() {
@@ -1013,6 +6159,224 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         Toast.makeText(this, "Recarregando todas", Toast.LENGTH_SHORT).show();
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void clearAllWebViews() {
@@ -1022,10 +6386,446 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         Toast.makeText(this, "Limpando todas", Toast.LENGTH_SHORT).show();
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private boolean hasSavedState() {
         return preferences.contains("url_0") || preferences.contains("box_enabled_0");
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void saveCurrentState() {
@@ -1061,6 +6861,224 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Toast.makeText(this, "❌ Erro ao guardar estado", Toast.LENGTH_SHORT).show();
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void loadSavedState(boolean silent) {
@@ -1124,10 +7142,446 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "❌ Erro ao carregar estado", Toast.LENGTH_SHORT).show();
             }
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private String getDefaultUrl(int boxIndex) {
         return "https://dzritv.com/sport/football/";
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void loadFavoritesList() {
@@ -1144,6 +7598,224 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             favoritesList.clear();
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void saveFavoritesList() {
@@ -1155,6 +7827,224 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void saveFavorite(String favoriteName) {
@@ -1189,6 +8079,224 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Toast.makeText(this, "❌ Erro ao guardar favorito", Toast.LENGTH_SHORT).show();
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void loadFavorite(String favoriteName, int targetBox) {
@@ -1230,6 +8338,224 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Toast.makeText(this, "❌ Erro ao carregar favorito!", Toast.LENGTH_SHORT).show();
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void deleteFavorite(String favoriteName) {
@@ -1246,6 +8572,224 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Toast.makeText(this, "❌ Erro ao remover favorito", Toast.LENGTH_SHORT).show();
         }
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void showSaveFavoriteDialog() {
@@ -1258,6 +8802,51 @@ public class MainActivity extends AppCompatActivity {
         input.setSelectAllOnFocus(true);
         
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
+    @Override
+    protected void onPause() {
+        super.onPause();
+        saveCurrentState();
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.removeCallbacks(autoReloadRunnable);
+        }
+        
+        // Parar todos os buffer monitors
+        for (int i = 0; i < 4; i++) {
+            stopBufferMonitoring(i);
+        }
+    }
+    
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadFavoritesList();
+        if (btnMenu != null) {
+            btnMenu.requestFocus();
+        }
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.postDelayed(autoReloadRunnable, AUTO_RELOAD_INTERVAL);
+        }
+        
+        // Reiniciar buffer monitors para boxes ativas
+        for (int i = 0; i < 4; i++) {
+            if (boxEnabled[i] && autoReloadEnabled[i]) {
+                startBufferMonitoring(i);
+            }
+        }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.removeCallbacks(autoReloadRunnable);
+        }
+        
+        // Parar todos os buffer monitors
+        for (int i = 0; i < 4; i++) {
+            stopBufferMonitoring(i);
+        }
+    }
         builder.setTitle("Guardar Favorito");
         builder.setView(input);
         
@@ -1278,6 +8867,224 @@ public class MainActivity extends AppCompatActivity {
         
         input.requestFocus();
         input.selectAll();
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void showLoadFavoritesDialog() {
@@ -1287,6 +9094,51 @@ public class MainActivity extends AppCompatActivity {
         }
         
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
+    @Override
+    protected void onPause() {
+        super.onPause();
+        saveCurrentState();
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.removeCallbacks(autoReloadRunnable);
+        }
+        
+        // Parar todos os buffer monitors
+        for (int i = 0; i < 4; i++) {
+            stopBufferMonitoring(i);
+        }
+    }
+    
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadFavoritesList();
+        if (btnMenu != null) {
+            btnMenu.requestFocus();
+        }
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.postDelayed(autoReloadRunnable, AUTO_RELOAD_INTERVAL);
+        }
+        
+        // Reiniciar buffer monitors para boxes ativas
+        for (int i = 0; i < 4; i++) {
+            if (boxEnabled[i] && autoReloadEnabled[i]) {
+                startBufferMonitoring(i);
+            }
+        }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.removeCallbacks(autoReloadRunnable);
+        }
+        
+        // Parar todos os buffer monitors
+        for (int i = 0; i < 4; i++) {
+            stopBufferMonitoring(i);
+        }
+    }
         builder.setTitle("Carregar Favorito");
         
         final String[] favoriteNames = favoritesList.toArray(new String[0]);
@@ -1301,10 +9153,273 @@ public class MainActivity extends AppCompatActivity {
         
         builder.setNegativeButton("CANCELAR", null);
         builder.show();
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void showFavoriteOptionsDialog(final String favoriteName) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
+    @Override
+    protected void onPause() {
+        super.onPause();
+        saveCurrentState();
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.removeCallbacks(autoReloadRunnable);
+        }
+        
+        // Parar todos os buffer monitors
+        for (int i = 0; i < 4; i++) {
+            stopBufferMonitoring(i);
+        }
+    }
+    
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadFavoritesList();
+        if (btnMenu != null) {
+            btnMenu.requestFocus();
+        }
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.postDelayed(autoReloadRunnable, AUTO_RELOAD_INTERVAL);
+        }
+        
+        // Reiniciar buffer monitors para boxes ativas
+        for (int i = 0; i < 4; i++) {
+            if (boxEnabled[i] && autoReloadEnabled[i]) {
+                startBufferMonitoring(i);
+            }
+        }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.removeCallbacks(autoReloadRunnable);
+        }
+        
+        // Parar todos os buffer monitors
+        for (int i = 0; i < 4; i++) {
+            stopBufferMonitoring(i);
+        }
+    }
         builder.setTitle("Favorito: " + favoriteName);
         
         String[] options = {"Carregar em Todas", "Carregar em Box 1", "Carregar em Box 2", 
@@ -1325,39 +9440,239 @@ public class MainActivity extends AppCompatActivity {
         });
         
         builder.show();
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
     
     private void showDeleteConfirmDialog(final String favoriteName) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Confirmar Eliminação");
-        builder.setMessage("Eliminar o favorito '" + favoriteName + "'?");
-        
-        builder.setPositiveButton("ELIMINAR", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                deleteFavorite(favoriteName);
-            }
-        });
-        
-        builder.setNegativeButton("CANCELAR", null);
-        builder.show();
-    }
-    
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        if (newConfig.orientation != Configuration.ORIENTATION_LANDSCAPE) {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-        }
-        updateLayout();
-    }
-    
     @Override
     protected void onPause() {
         super.onPause();
         saveCurrentState();
         if (autoReloadHandler != null && autoReloadRunnable != null) {
             autoReloadHandler.removeCallbacks(autoReloadRunnable);
+        }
+        
+        // Parar todos os buffer monitors
+        for (int i = 0; i < 4; i++) {
+            stopBufferMonitoring(i);
         }
     }
     
@@ -1371,6 +9686,13 @@ public class MainActivity extends AppCompatActivity {
         if (autoReloadHandler != null && autoReloadRunnable != null) {
             autoReloadHandler.postDelayed(autoReloadRunnable, AUTO_RELOAD_INTERVAL);
         }
+        
+        // Reiniciar buffer monitors para boxes ativas
+        for (int i = 0; i < 4; i++) {
+            if (boxEnabled[i] && autoReloadEnabled[i]) {
+                startBufferMonitoring(i);
+            }
+        }
     }
     
     @Override
@@ -1379,8 +9701,1241 @@ public class MainActivity extends AppCompatActivity {
         if (autoReloadHandler != null && autoReloadRunnable != null) {
             autoReloadHandler.removeCallbacks(autoReloadRunnable);
         }
+        
+        // Parar todos os buffer monitors
+        for (int i = 0; i < 4; i++) {
+            stopBufferMonitoring(i);
+        }
+    }
+        builder.setTitle("Confirmar Eliminação");
+        builder.setMessage("Eliminar o favorito '" + favoriteName + "'?");
+        
+        builder.setPositiveButton("ELIMINAR", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                deleteFavorite(favoriteName);
+            }
+        });
+        
+        builder.setNegativeButton("CANCELAR", null);
+        builder.show();
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
     }
     
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
+    }
+    
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (newConfig.orientation != Configuration.ORIENTATION_LANDSCAPE) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+        }
+        updateLayout();
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
+    }
+    
+    @Override
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
+    }
+    
+    @Override
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
+    }
+    
+    @Override
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
+    }
+    
+    @Override
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
+    }
+    
+    @Override
+    public void onBackPressed() {
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
@@ -1404,13 +10959,53 @@ public class MainActivity extends AppCompatActivity {
                         openSidebar();
                     }
                     return true;
+                    
+                // CONTROLES DE SCROLL COM TECLADO
+                case KeyEvent.KEYCODE_DPAD_UP:
+                    if (!isSidebarVisible) {
+                        scrollWebView(focusedBoxIndex, -SCROLL_STEP);
+                        return true;
+                    }
+                    break;
+                    
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    if (!isSidebarVisible) {
+                        scrollWebView(focusedBoxIndex, SCROLL_STEP);
+                        return true;
+                    }
+                    break;
+                    
+                case KeyEvent.KEYCODE_PAGE_UP:
+                    if (!isSidebarVisible) {
+                        scrollWebView(focusedBoxIndex, -SCROLL_STEP * 5);
+                        return true;
+                    }
+                    break;
+                    
+                case KeyEvent.KEYCODE_PAGE_DOWN:
+                    if (!isSidebarVisible) {
+                        scrollWebView(focusedBoxIndex, SCROLL_STEP * 5);
+                        return true;
+                    }
+                    break;
+                    
+                case KeyEvent.KEYCODE_MOVE_HOME:
+                    if (!isSidebarVisible) {
+                        scrollToTop(focusedBoxIndex);
+                        return true;
+                    }
+                    break;
+                    
+                case KeyEvent.KEYCODE_MOVE_END:
+                    if (!isSidebarVisible) {
+                        scrollToBottom(focusedBoxIndex);
+                        return true;
+                    }
+                    break;
             }
         }
         return super.onKeyDown(keyCode, event);
     }
-    
-    @Override
-    public void onBackPressed() {
         if (isSidebarVisible) {
             closeSidebar();
             return;
@@ -1429,6 +11024,51 @@ public class MainActivity extends AppCompatActivity {
         }
         
         new AlertDialog.Builder(this)
+    @Override
+    protected void onPause() {
+        super.onPause();
+        saveCurrentState();
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.removeCallbacks(autoReloadRunnable);
+        }
+        
+        // Parar todos os buffer monitors
+        for (int i = 0; i < 4; i++) {
+            stopBufferMonitoring(i);
+        }
+    }
+    
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadFavoritesList();
+        if (btnMenu != null) {
+            btnMenu.requestFocus();
+        }
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.postDelayed(autoReloadRunnable, AUTO_RELOAD_INTERVAL);
+        }
+        
+        // Reiniciar buffer monitors para boxes ativas
+        for (int i = 0; i < 4; i++) {
+            if (boxEnabled[i] && autoReloadEnabled[i]) {
+                startBufferMonitoring(i);
+            }
+        }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (autoReloadHandler != null && autoReloadRunnable != null) {
+            autoReloadHandler.removeCallbacks(autoReloadRunnable);
+        }
+        
+        // Parar todos os buffer monitors
+        for (int i = 0; i < 4; i++) {
+            stopBufferMonitoring(i);
+        }
+    }
             .setTitle("Sair do App")
             .setMessage("Deseja sair?")
             .setPositiveButton("SIM", new DialogInterface.OnClickListener() {
@@ -1439,5 +11079,223 @@ public class MainActivity extends AppCompatActivity {
             })
             .setNegativeButton("NÃO", null)
             .show();
+
+    // ==============================
+    // MÉTODOS DE CONTROLE DE BUFFER
+    // ==============================
+    
+    private void startBufferMonitoring(final int boxIndex) {
+        if (!boxEnabled[boxIndex]) return;
+        
+        if (bufferHandlers[boxIndex] == null) {
+            bufferHandlers[boxIndex] = new Handler();
+        }
+        
+        if (bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+        }
+        
+        bufferCheckRunnables[boxIndex] = new Runnable() {
+            @Override
+            public void run() {
+                if (boxEnabled[boxIndex] && autoReloadEnabled[boxIndex]) {
+                    checkVideoBufferStatus(boxIndex);
+                    bufferHandlers[boxIndex].postDelayed(this, BUFFER_CHECK_INTERVAL);
+                }
+            }
+        };
+        
+        bufferHandlers[boxIndex].postDelayed(bufferCheckRunnables[boxIndex], BUFFER_CHECK_INTERVAL);
+        Log.d("BufferMonitor", "Started buffer monitoring for box " + (boxIndex + 1));
+    }
+    
+    private void stopBufferMonitoring(int boxIndex) {
+        if (bufferHandlers[boxIndex] != null && bufferCheckRunnables[boxIndex] != null) {
+            bufferHandlers[boxIndex].removeCallbacks(bufferCheckRunnables[boxIndex]);
+            bufferCheckRunnables[boxIndex] = null;
+            isBuffering[boxIndex] = false;
+        }
+    }
+    
+    private void checkVideoBufferStatus(final int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null || !boxEnabled[boxIndex]) return;
+        
+        String checkBufferJS = 
+            "try {" +
+            "   var videos = document.getElementsByTagName(.video.);" +
+            "   if(videos.length === 0) return null;" +
+            "   " +
+            "   var video = videos[0];" +
+            "   var status = {" +
+            "       hasVideo: true," +
+            "       isPlaying: !video.paused && !video.ended," +
+            "       isBuffering: video.readyState < 3," +
+            "       currentTime: video.currentTime," +
+            "       duration: video.duration," +
+            "       playbackRate: video.playbackRate," +
+            "       networkState: video.networkState," +
+            "       readyState: video.readyState" +
+            "   };" +
+            "   " +
+            "   if(video.buffered.length > 0) {" +
+            "       var bufferedEnd = video.buffered.end(video.buffered.length - 1);" +
+            "       status.bufferAhead = bufferedEnd - video.currentTime;" +
+            "       status.bufferedEnd = bufferedEnd;" +
+            "       status.bufferedLength = video.buffered.length;" +
+            "   } else {" +
+            "       status.bufferAhead = 0;" +
+            "   }" +
+            "   " +
+            "   JSON.stringify(status);" +
+            "} catch(e) { return null; }";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(checkBufferJS, value -> {
+                try {
+                    if (value == null || .null..equals(value)) return;
+                    
+                    String jsonStr = value.replace(.\., ..);
+                    if (jsonStr.startsWith(.".) && jsonStr.endsWith(.".)) {
+                        jsonStr = jsonStr.substring(1, jsonStr.length() - 1);
+                    }
+                    
+                    JSONObject status = new JSONObject(jsonStr);
+                    boolean hasVideo = status.optBoolean(.hasVideo., false);
+                    boolean isPlaying = status.optBoolean(.isPlaying., false);
+                    boolean isBufferingJS = status.optBoolean(.isBuffering., false);
+                    double bufferAhead = status.optDouble(.bufferAhead., 0);
+                    double playbackRate = status.optDouble(.playbackRate., 1.0);
+                    
+                    playbackRates[boxIndex] = (float) playbackRate;
+                    
+                    runOnUiThread(() -> {
+                        if (hasVideo && isPlaying) {
+                            if (bufferAhead < BUFFER_CRITICAL_THRESHOLD && !isBuffering[boxIndex]) {
+                                handleCriticalBuffer(boxIndex, bufferAhead);
+                            } else if (bufferAhead < BUFFER_LOW_THRESHOLD && playbackRate > 0.8f) {
+                                adjustPlaybackRate(boxIndex, 0.8f);
+                            }
+                        } else if (hasVideo && !isPlaying && bufferAhead > 5.0) {
+                            triggerVideoPlay(boxIndex);
+                        }
+                    });
+                    
+                } catch (Exception e) {
+                }
+            });
+        }
+    }
+    
+    private void handleCriticalBuffer(int boxIndex, double bufferAhead) {
+        if (isBuffering[boxIndex]) return;
+        
+        isBuffering[boxIndex] = true;
+        Log.w(.BufferMonitor., .Box . + (boxIndex + 1) + .: Critical buffer (. + bufferAhead + .s).);
+        
+        adjustPlaybackRate(boxIndex, 0.7f);
+        
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var v = document.getElementsByTagName(.video.)[0];. +
+            .   if(v && !v.paused) {. +
+            .       v.pause();. +
+            .       console.log(.Pausing for buffer accumulation.);. +
+            .       setTimeout(function() {. +
+            .           if(v.readyState >= 2 && v.buffered.length > 0) {. +
+            .               var bufferEnd = v.buffered.end(v.buffered.length - 1);. +
+            .               if(bufferEnd - v.currentTime > 2) {. +
+            .                   v.play().catch(function(e) {. +
+            .                       console.log(.Buffer recovery play failed:., e);. +
+            .                   });. +
+            .               }. +
+            .           }. +
+            .       }, 2000);. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        new Handler().postDelayed(() -> {
+            isBuffering[boxIndex] = false;
+        }, 5000);
+    }
+    
+    private void adjustPlaybackRate(int boxIndex, float rate) {
+        playbackRates[boxIndex] = rate;
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       videos[i].playbackRate = . + rate + .;. +
+            .   }. +
+            .} catch(e) {}.);
+        
+        runOnUiThread(() -> {
+            Toast.makeText(this, .Box . + (boxIndex + 1) + . playback: . + (rate * 100) + .%., 
+                Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    private void triggerVideoPlay(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var videos = document.getElementsByTagName(.video.);. +
+            .   for(var i = 0; i < videos.length; i++) {. +
+            .       var v = videos[i];. +
+            .       if(v.paused && !v.ended && v.readyState >= 2) {. +
+            .           v.play().catch(function(e) {. +
+            .               console.log(.Auto-play trigger failed:., e);. +
+            .           });. +
+            .       }. +
+            .   }. +
+            .} catch(e) {}.);
+    }
+    
+    private void injectJavaScript(int boxIndex, String javascript) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(javascript, null);
+        }
+    }
+    
+    // ==============================
+    // MÉTODOS DE CONTROLE DE SCROLL
+    // ==============================
+    
+    private void scrollWebView(int boxIndex, int deltaY) {
+        WebView webView = webViews[boxIndex];
+        if (webView == null) return;
+        
+        currentScrollY[boxIndex] += deltaY;
+        if (currentScrollY[boxIndex] < 0) currentScrollY[boxIndex] = 0;
+        
+        String scrollJS = 
+            .try {. +
+            .   window.scrollTo(0, . + currentScrollY[boxIndex] + .);. +
+            .} catch(e) {}.;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(scrollJS, null);
+        }
+    }
+    
+    private void scrollToTop(int boxIndex) {
+        currentScrollY[boxIndex] = 0;
+        scrollWebView(boxIndex, 0);
+    }
+    
+    private void scrollToBottom(int boxIndex) {
+        injectJavaScript(boxIndex,
+            .try {. +
+            .   var height = Math.max(. +
+            .       document.body.scrollHeight,. +
+            .       document.body.offsetHeight,. +
+            .       document.documentElement.clientHeight,. +
+            .       document.documentElement.scrollHeight,. +
+            .       document.documentElement.offsetHeight. +
+            .   );. +
+            .   window.scrollTo(0, height);. +
+            .   return height;. +
+            .} catch(e) { return 0; }.);
+    }
     }
 }
