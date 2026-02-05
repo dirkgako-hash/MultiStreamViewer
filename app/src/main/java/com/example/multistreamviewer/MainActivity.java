@@ -630,13 +630,10 @@ public class MainActivity extends AppCompatActivity {
                 fullscreenCallbacks[boxIndex] = null;
                 boxInFullscreen[boxIndex] = false;
                 
-                // Remover fullscreen da janela
-                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-                getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_FULLSCREEN |
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                );
+                // Remover fullscreen da janela apenas se nenhuma box estiver em fullscreen
+                if (!isAnyBoxInFullscreen()) {
+                    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                }
             }
             
             @Override
@@ -646,6 +643,15 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+    
+    private boolean isAnyBoxInFullscreen() {
+        for (int i = 0; i < 4; i++) {
+            if (boxInFullscreen[i]) {
+                return true;
+            }
+        }
+        return false;
     }
     
     private void injectMuteScript(WebView webView, int boxIndex) {
@@ -726,8 +732,10 @@ public class MainActivity extends AppCompatActivity {
             fullscreenCallbacks[boxIndex] = null;
             boxInFullscreen[boxIndex] = false;
             
-            // Remover fullscreen da janela
-            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            // Remover fullscreen da janela apenas se nenhuma box estiver em fullscreen
+            if (!isAnyBoxInFullscreen()) {
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            }
         }
     }
     
@@ -1068,11 +1076,7 @@ public class MainActivity extends AppCompatActivity {
         int position = 0;
         for (int i = 0; i < 4; i++) {
             if (boxEnabled[i]) {
-                // Se a box estava em fullscreen e foi desativada, sai do fullscreen
-                if (boxInFullscreen[i]) {
-                    exitFullscreen(i);
-                }
-                
+                // Box ativa: NÃO sai do fullscreen
                 GridLayout.Spec rowSpec = GridLayout.spec(position / cols, 1f);
                 GridLayout.Spec colSpec = GridLayout.spec(position % cols, 1f);
                 
@@ -1089,26 +1093,19 @@ public class MainActivity extends AppCompatActivity {
                 }
                 
                 if (boxContainers[i] != null) {
-                    // Limpar qualquer view de fullscreen que possa estar no container
-                    if (boxContainers[i].getChildCount() > 1) {
-                        // Remove todas as views exceto o WebView (índice 0)
-                        for (int j = boxContainers[i].getChildCount() - 1; j >= 1; j--) {
-                            boxContainers[i].removeViewAt(j);
-                        }
-                    }
-                    
-                    // Garantir que o WebView está visível
-                    if (webViews[i] != null) {
-                        webViews[i].setVisibility(View.VISIBLE);
-                    }
-                    
+                    // Box ativa: mantém o estado atual (fullscreen ou não)
                     boxContainers[i].setVisibility(View.VISIBLE);
                     gridLayout.addView(boxContainers[i], params);
+                    
+                    // Garantir que o WebView está visível se não estiver em fullscreen
+                    if (!boxInFullscreen[i] && webViews[i] != null) {
+                        webViews[i].setVisibility(View.VISIBLE);
+                    }
                 }
                 position++;
             } else {
+                // Box desativada: sai do fullscreen se estiver
                 if (boxContainers[i] != null) {
-                    // Se a box estiver em fullscreen, sai do fullscreen antes de esconder
                     if (boxInFullscreen[i]) {
                         exitFullscreen(i);
                     }
