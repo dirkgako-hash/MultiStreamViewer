@@ -24,7 +24,6 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
@@ -60,7 +59,6 @@ public class MainActivity extends AppCompatActivity {
     private Button[] btnPrevious = new Button[4];
     private Button[] btnNext = new Button[4];
     private Button[] btnLoadUrl = new Button[4];
-    private ImageButton[] btnSound = new ImageButton[4];
     private CheckBox[] checkBoxes = new CheckBox[4];
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
     private EditText[] urlInputs = new EditText[4];
@@ -68,7 +66,6 @@ public class MainActivity extends AppCompatActivity {
     
     private boolean[] boxEnabled = {true, true, true, true};
     private boolean[] autoReloadEnabled = {true, true, true, true};
-    private boolean[] boxMuted = {true, true, true, true};
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
     private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -111,8 +108,6 @@ public class MainActivity extends AppCompatActivity {
         loadFavoritesList();
         updateLayout();
         updateFocusedBoxIndicator();
-        createSoundButtons();
-        updateSoundButtons();
         
         // Iniciar auto-reload monitoring
         startAutoReloadMonitoring();
@@ -239,48 +234,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     
-    private void createSoundButtons() {
-        // Criar botões de som programaticamente
-        for (int i = 0; i < 4; i++) {
-            btnSound[i] = new ImageButton(this);
-            btnSound[i].setId(View.generateViewId());
-            
-            // Configurar layout
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            );
-            params.setMargins(8, 0, 8, 0);
-            btnSound[i].setLayoutParams(params);
-            
-            // Configurar aparência
-            btnSound[i].setBackgroundResource(android.R.drawable.btn_default);
-            btnSound[i].setScaleType(ImageButton.ScaleType.CENTER);
-            btnSound[i].setPadding(16, 16, 16, 16);
-            
-            // Encontrar o layout onde adicionar o botão
-            // Vamos adicionar próximo ao botão de refresh correspondente
-            if (btnRefresh[i] != null && btnRefresh[i].getParent() instanceof LinearLayout) {
-                LinearLayout parentLayout = (LinearLayout) btnRefresh[i].getParent();
-                // Adicionar após o botão de refresh
-                int refreshIndex = parentLayout.indexOfChild(btnRefresh[i]);
-                parentLayout.addView(btnSound[i], refreshIndex + 1);
-            } else {
-                // Se não encontrar, adicionar ao bottomControls
-                bottomControls.addView(btnSound[i]);
-            }
-            
-            // Configurar listener
-            final int boxIndex = i;
-            btnSound[i].setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    toggleSound(boxIndex);
-                }
-            });
-        }
-    }
-    
     private void startAutoReloadMonitoring() {
         autoReloadRunnable = new Runnable() {
             @Override
@@ -336,13 +289,14 @@ public class MainActivity extends AppCompatActivity {
     private void handleStuckVideo(int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
-            // Primeiro tenta forçar play
+            // Primeiro tenta forçar play (SEMPRE mutado para manter todos os vídeos funcionando)
             String forcePlayJS = 
                 "try {" +
                 "   var videos = document.getElementsByTagName('video');" +
                 "   for(var i = 0; i < videos.length; i++) {" +
                 "       var video = videos[i];" +
-                "       video.muted = " + boxMuted[boxIndex] + ";" +
+                "       // SEMPRE mutado para garantir que todos os 4 vídeos continuem funcionando" +
+                "       video.muted = true;" +
                 "       if(video.paused && !video.ended) {" +
                 "           video.play().catch(function(e) {" +
                 "               console.log('Auto-play failed: ' + e);" +
@@ -517,58 +471,6 @@ public class MainActivity extends AppCompatActivity {
         tvFocusedBox.setText("Foco: " + (focusedBoxIndex + 1));
     }
     
-    private void updateSoundButtons() {
-        for (int i = 0; i < 4; i++) {
-            if (btnSound[i] != null) {
-                if (boxMuted[i]) {
-                    // Ícone de mute (som desligado)
-                    btnSound[i].setImageResource(android.R.drawable.ic_lock_silent_mode);
-                    btnSound[i].setContentDescription("Ativar som Box " + (i + 1));
-                } else {
-                    // Ícone de som (som ligado)
-                    btnSound[i].setImageResource(android.R.drawable.ic_btn_speak_now);
-                    btnSound[i].setContentDescription("Desativar som Box " + (i + 1));
-                }
-            }
-        }
-    }
-    
-    private void toggleSound(int boxIndex) {
-        boxMuted[boxIndex] = !boxMuted[boxIndex];
-        applySoundState(boxIndex);
-        updateSoundButtons();
-        
-        String status = boxMuted[boxIndex] ? "mutada" : "com som";
-        Toast.makeText(this, "Box " + (boxIndex + 1) + " " + status, Toast.LENGTH_SHORT).show();
-    }
-    
-    private void applySoundState(int boxIndex) {
-        WebView webView = webViews[boxIndex];
-        if (webView != null) {
-            String soundJS = 
-                "try {" +
-                "   // Configurar som para todos os vídeos" +
-                "   var videos = document.getElementsByTagName('video');" +
-                "   for(var i = 0; i < videos.length; i++) {" +
-                "       var video = videos[i];" +
-                "       video.muted = " + boxMuted[boxIndex] + ";" +
-                "   }" +
-                "   // Configurar som para todos os áudios" +
-                "   var audios = document.getElementsByTagName('audio');" +
-                "   for(var i = 0; i < audios.length; i++) {" +
-                "       var audio = audios[i];" +
-                "       audio.muted = " + boxMuted[boxIndex] + ";" +
-                "   }" +
-                "} catch(e) {" +
-                "   console.log('Erro ao configurar som: ' + e);" +
-                "}";
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                webView.evaluateJavascript(soundJS, null);
-            }
-        }
-    }
-    
     @SuppressLint("SetJavaScriptEnabled")
     private void setupWebView(WebView webView, int boxIndex) {
         WebSettings settings = webView.getSettings();
@@ -650,17 +552,17 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onPageFinished(WebView view, String url) {
-                // JAVASCRIPT PARA TODOS OS WEBVIEWS - COM CONTROLE DE SOM
+                // JAVASCRIPT PARA TODOS OS WEBVIEWS - SEMPRE MUTADO (para permitir todos os 4 vídeos em play)
                 String videoSetupJS = 
                     "try {" +
-                    "   // Função para configurar vídeos com estado de som controlável" +
-                    "   function setupAllMedia() {" +
+                    "   // Função para configurar TODOS os vídeos SEMPRE mutados" +
+                    "   function setupAllMediaMuted() {" +
                     "       var videos = document.getElementsByTagName('video');" +
                     "       var audios = document.getElementsByTagName('audio');" +
                     "       " +
-                    "       // Configurar todos os vídeos" +
+                    "       // Configurar TODOS os vídeos SEMPRE mutados (para permitir 4 vídeos simultâneos)" +
                     "       for(var i = 0; i < videos.length; i++) {" +
-                    "           videos[i].muted = " + boxMuted[boxIndex] + ";" +
+                    "           videos[i].muted = true;" +
                     "           videos[i].playsInline = true;" +
                     "           videos[i].webkitPlaysInline = true;" +
                     "           " +
@@ -672,18 +574,18 @@ public class MainActivity extends AppCompatActivity {
                     "           }" +
                     "       }" +
                     "       " +
-                    "       // Configurar todos os áudios" +
+                    "       // Configurar TODOS os áudios SEMPRE mutados" +
                     "       for(var i = 0; i < audios.length; i++) {" +
-                    "           audios[i].muted = " + boxMuted[boxIndex] + ";" +
+                    "           audios[i].muted = true;" +
                     "       }" +
                     "   }" +
                     "   " +
-                    "   // Executar agora" +
-                    "   setupAllMedia();" +
+                    "   // Executar agora (TODOS MUTADOS)" +
+                    "   setupAllMediaMuted();" +
                     "   " +
-                    "   // Observar alterações no DOM para novos vídeos/áudios" +
+                    "   // Observar alterações no DOM para novos vídeos/áudios (SEMPRE mantendo mutados)" +
                     "   var observer = new MutationObserver(function(mutations) {" +
-                    "       setTimeout(setupAllMedia, 500);" +
+                    "       setTimeout(setupAllMediaMuted, 500);" +
                     "   });" +
                     "   " +
                     "   // Começar a observar o body para adição de nós filhos" +
@@ -968,8 +870,6 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
             
-            // Botão Sound (já configurado no createSoundButtons())
-            
             // Checkbox para ativar/desativar box
             if (checkBoxes[i] != null) {
                 checkBoxes[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -1237,7 +1137,6 @@ public class MainActivity extends AppCompatActivity {
             for (int i = 0; i < 4; i++) {
                 editor.putBoolean("box_enabled_" + i, boxEnabled[i]);
                 editor.putBoolean("auto_reload_" + i, autoReloadEnabled[i]);
-                editor.putBoolean("box_muted_" + i, boxMuted[i]);
             }
             
             for (int i = 0; i < 4; i++) {
@@ -1295,16 +1194,11 @@ public class MainActivity extends AppCompatActivity {
                 if (cbAutoReload[i] != null) {
                     cbAutoReload[i].setChecked(savedAutoReload);
                 }
-                
-                // Carregar estado do som
-                boolean savedMuted = preferences.getBoolean("box_muted_" + i, true);
-                boxMuted[i] = savedMuted;
             }
             
             for (int i = 0; i < 4; i++) {
                 zoomLevels[i] = preferences.getFloat("zoom_level_" + i, 1.0f);
                 applyZoom(i);
-                applySoundState(i);
             }
             
             if (cbAllowScripts != null) cbAllowScripts.setChecked(preferences.getBoolean("allow_scripts", true));
@@ -1319,7 +1213,6 @@ public class MainActivity extends AppCompatActivity {
             
             updateLayout();
             updateFocusedBoxIndicator();
-            updateSoundButtons();
             
         } catch (Exception e) {
             Log.e(TAG, "Erro ao carregar estado", e);
@@ -1645,14 +1538,6 @@ public class MainActivity extends AppCompatActivity {
                 case KeyEvent.KEYCODE_PAGE_DOWN:
                     if (!isSidebarVisible) {
                         scrollWebView(focusedBoxIndex, 500);
-                        return true;
-                    }
-                    break;
-                    
-                // Atalho para alternar som da box focada
-                case KeyEvent.KEYCODE_S:
-                    if (!isSidebarVisible) {
-                        toggleSound(focusedBoxIndex);
                         return true;
                     }
                     break;
