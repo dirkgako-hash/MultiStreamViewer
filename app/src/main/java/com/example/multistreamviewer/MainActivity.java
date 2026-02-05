@@ -60,7 +60,7 @@ public class MainActivity extends AppCompatActivity {
     private Button[] btnPrevious = new Button[4];
     private Button[] btnNext = new Button[4];
     private Button[] btnLoadUrl = new Button[4];
-    private ImageButton[] btnSound = new ImageButton[4]; // Botões de som
+    private ImageButton[] btnSound = new ImageButton[4];
     private CheckBox[] checkBoxes = new CheckBox[4];
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
     private EditText[] urlInputs = new EditText[4];
@@ -68,7 +68,7 @@ public class MainActivity extends AppCompatActivity {
     
     private boolean[] boxEnabled = {true, true, true, true};
     private boolean[] autoReloadEnabled = {true, true, true, true};
-    private boolean[] boxMuted = {true, true, true, true}; // Estado do som de cada box
+    private boolean[] boxMuted = {true, true, true, true};
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
     private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -111,7 +111,7 @@ public class MainActivity extends AppCompatActivity {
         loadFavoritesList();
         updateLayout();
         updateFocusedBoxIndicator();
-        updateSoundButtons(); // Atualizar ícones dos botões de som
+        updateSoundButtons();
         
         // Iniciar auto-reload monitoring
         startAutoReloadMonitoring();
@@ -305,9 +305,7 @@ public class MainActivity extends AppCompatActivity {
                 "   var videos = document.getElementsByTagName('video');" +
                 "   for(var i = 0; i < videos.length; i++) {" +
                 "       var video = videos[i];" +
-                "       // Manter o estado do som conforme configuração" +
                 "       video.muted = " + boxMuted[boxIndex] + ";" +
-                "       video.volume = " + (boxMuted[boxIndex] ? "0" : "1") + ";" +
                 "       if(video.paused && !video.ended) {" +
                 "           video.play().catch(function(e) {" +
                 "               console.log('Auto-play failed: ' + e);" +
@@ -517,14 +515,12 @@ public class MainActivity extends AppCompatActivity {
                 "   for(var i = 0; i < videos.length; i++) {" +
                 "       var video = videos[i];" +
                 "       video.muted = " + boxMuted[boxIndex] + ";" +
-                "       video.volume = " + (boxMuted[boxIndex] ? "0" : "1") + ";" +
                 "   }" +
                 "   // Configurar som para todos os áudios" +
                 "   var audios = document.getElementsByTagName('audio');" +
                 "   for(var i = 0; i < audios.length; i++) {" +
                 "       var audio = audios[i];" +
                 "       audio.muted = " + boxMuted[boxIndex] + ";" +
-                "       audio.volume = " + (boxMuted[boxIndex] ? "0" : "1") + ";" +
                 "   }" +
                 "} catch(e) {" +
                 "   console.log('Erro ao configurar som: ' + e);" +
@@ -628,15 +624,8 @@ public class MainActivity extends AppCompatActivity {
                     "       // Configurar todos os vídeos" +
                     "       for(var i = 0; i < videos.length; i++) {" +
                     "           videos[i].muted = " + boxMuted[boxIndex] + ";" +
-                    "           videos[i].volume = " + (boxMuted[boxIndex] ? "0" : "1") + ";" +
                     "           videos[i].playsInline = true;" +
                     "           videos[i].webkitPlaysInline = true;" +
-                    "           " +
-                    "           // Permitir controle de volume pelo usuário" +
-                    "           videos[i].addEventListener('volumechange', function(e) {" +
-                    "               // Não bloqueia mais - permite controle livre" +
-                    "               console.log('Volume alterado: ' + this.volume);" +
-                    "           });" +
                     "           " +
                     "           // Tentar play automático se estiver pausado" +
                     "           if(videos[i].paused && !videos[i].ended) {" +
@@ -649,7 +638,6 @@ public class MainActivity extends AppCompatActivity {
                     "       // Configurar todos os áudios" +
                     "       for(var i = 0; i < audios.length; i++) {" +
                     "           audios[i].muted = " + boxMuted[boxIndex] + ";" +
-                    "           audios[i].volume = " + (boxMuted[boxIndex] ? "0" : "1") + ";" +
                     "       }" +
                     "   }" +
                     "   " +
@@ -667,14 +655,6 @@ public class MainActivity extends AppCompatActivity {
                     "   // Remover scroll desnecessário" +
                     "   document.body.style.overflow = 'hidden';" +
                     "   document.documentElement.style.overflow = 'hidden';" +
-                    "   " +
-                    "   // CSS para melhorar experiência" +
-                    "   var style = document.createElement('style');" +
-                    "   style.textContent = '.volume-control, .sound-button, .mute-button { " +
-                    "       opacity: 0.8 !important; " +
-                    "       transition: opacity 0.3s !important; " +
-                    "   }';" +
-                    "   document.head.appendChild(style);" +
                     "} catch(e) {" +
                     "   console.log('Erro na configuração: ' + e);" +
                     "}";
@@ -1228,7 +1208,7 @@ public class MainActivity extends AppCompatActivity {
             for (int i = 0; i < 4; i++) {
                 editor.putBoolean("box_enabled_" + i, boxEnabled[i]);
                 editor.putBoolean("auto_reload_" + i, autoReloadEnabled[i]);
-                editor.putBoolean("box_muted_" + i, boxMuted[i]); // Salvar estado do som
+                editor.putBoolean("box_muted_" + i, boxMuted[i]);
             }
             
             for (int i = 0; i < 4; i++) {
@@ -1295,7 +1275,7 @@ public class MainActivity extends AppCompatActivity {
             for (int i = 0; i < 4; i++) {
                 zoomLevels[i] = preferences.getFloat("zoom_level_" + i, 1.0f);
                 applyZoom(i);
-                applySoundState(i); // Aplicar estado do som
+                applySoundState(i);
             }
             
             if (cbAllowScripts != null) cbAllowScripts.setChecked(preferences.getBoolean("allow_scripts", true));
@@ -1310,7 +1290,7 @@ public class MainActivity extends AppCompatActivity {
             
             updateLayout();
             updateFocusedBoxIndicator();
-            updateSoundButtons(); // Atualizar ícones dos botões de som
+            updateSoundButtons();
             
         } catch (Exception e) {
             Log.e(TAG, "Erro ao carregar estado", e);
@@ -1611,25 +1591,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                     return true;
                     
-                // Controle de som com botões do controle remoto
-                case KeyEvent.KEYCODE_VOLUME_UP:
-                    // Quando uma box tem som ativo, permite ajustar volume
-                    if (!boxMuted[focusedBoxIndex]) {
-                        // Injeta JavaScript para aumentar volume
-                        adjustVolume(focusedBoxIndex, 0.1f);
-                        return true;
-                    }
-                    break;
-                    
-                case KeyEvent.KEYCODE_VOLUME_DOWN:
-                    // Quando uma box tem som ativo, permite ajustar volume
-                    if (!boxMuted[focusedBoxIndex]) {
-                        // Injeta JavaScript para diminuir volume
-                        adjustVolume(focusedBoxIndex, -0.1f);
-                        return true;
-                    }
-                    break;
-                    
                 // Controles de scroll
                 case KeyEvent.KEYCODE_DPAD_UP:
                     if (!isSidebarVisible) {
@@ -1669,26 +1630,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         return super.onKeyDown(keyCode, event);
-    }
-    
-    private void adjustVolume(int boxIndex, float delta) {
-        WebView webView = webViews[boxIndex];
-        if (webView != null && !boxMuted[boxIndex]) {
-            String volumeJS = 
-                "try {" +
-                "   var videos = document.getElementsByTagName('video');" +
-                "   for(var i = 0; i < videos.length; i++) {" +
-                "       var video = videos[i];" +
-                "       var newVolume = Math.max(0, Math.min(1, video.volume + " + delta + "));" +
-                "       video.volume = newVolume;" +
-                "       console.log('Volume ajustado para: ' + newVolume);" +
-                "   }" +
-                "} catch(e) {}";
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                webView.evaluateJavascript(volumeJS, null);
-            }
-        }
     }
     
     private void scrollWebView(int boxIndex, int deltaY) {
