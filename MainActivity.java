@@ -9,7 +9,6 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -75,13 +74,11 @@ public class MainActivity extends AppCompatActivity {
     
     private Handler autoReloadHandler = new Handler();
     private Runnable autoReloadRunnable;
-    private final long AUTO_RELOAD_INTERVAL = 10000;
+    private final long AUTO_RELOAD_INTERVAL = 10000; // 10 segundos
     
     private final List<String> adDomains = Arrays.asList(
         "doubleclick.net", "googleadservices.com", "googlesyndication.com"
     );
-
-    private static final String TAG = "MultiStreamViewer";
 
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
@@ -279,7 +276,7 @@ public class MainActivity extends AppCompatActivity {
                             }
                         });
                     } catch (Exception e) {
-                        Log.e(TAG, "Error checking video status", e);
+                        // Ignorar erros
                     }
                 });
             }
@@ -343,7 +340,7 @@ public class MainActivity extends AppCompatActivity {
                             }
                         });
                     } catch (Exception e) {
-                        Log.e(TAG, "Error checking video status after attempt", e);
+                        // Ignorar erros
                     }
                 });
             }
@@ -413,7 +410,6 @@ public class MainActivity extends AppCompatActivity {
     
     @SuppressLint("SetJavaScriptEnabled")
     private void initWebViews() {
-        // PRIMEIRO: Criar todos os containers
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
             
@@ -436,6 +432,15 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
             
+            webViews[i] = new WebView(this);
+            webViews[i].setId(View.generateViewId());
+            setupWebView(webViews[i], boxIndex);
+            
+            boxContainers[i].addView(webViews[i], 
+                new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT));
+            
             boxContainers[i].setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -443,23 +448,7 @@ public class MainActivity extends AppCompatActivity {
                     boxContainers[boxIndex].requestFocus();
                 }
             });
-        }
-        
-        // SEGUNDO: Criar e configurar TODOS os WebViews com EXATAMENTE as mesmas configurações
-        for (int i = 0; i < 4; i++) {
-            webViews[i] = new WebView(this);
-            webViews[i].setId(View.generateViewId());
-            setupWebView(webViews[i], i);
             
-            // Adicionar WebView ao container
-            boxContainers[i].addView(webViews[i], 
-                new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT));
-        }
-        
-        // TERCEIRO: Adicionar todos os containers ao GridLayout
-        for (int i = 0; i < 4; i++) {
             gridLayout.addView(boxContainers[i]);
         }
         
@@ -474,7 +463,6 @@ public class MainActivity extends AppCompatActivity {
     private void setupWebView(WebView webView, int boxIndex) {
         WebSettings settings = webView.getSettings();
         
-        // CONFIGURAÇÕES IDÊNTICAS PARA TODOS OS WEBVIEWS
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(true);
@@ -487,36 +475,22 @@ public class MainActivity extends AppCompatActivity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         
-        // IMPORTANTE: Permitir conteúdo misto para streaming
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        }
-        
-        // Configurações de cache (todas iguais)
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        
-        // USER AGENT CONSISTENTE
-        String userAgent = "Mozilla/5.0 (Linux; Android 10; AFTMM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Safari/537.36";
-        settings.setUserAgentString(userAgent);
-        
-        // Configurar bloqueio de ads (se disponível)
         if (cbBlockAds != null) {
             settings.setBlockNetworkLoads(cbBlockAds.isChecked());
             settings.setBlockNetworkImage(cbBlockAds.isChecked());
         }
         
-        // Zoom consistente
         settings.setTextZoom((int)(zoomLevels[boxIndex] * 100));
         webView.setInitialScale((int)(zoomLevels[boxIndex] * 100));
         
+        settings.setUserAgentString("Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) AppleWebKit/537.36");
         webView.setBackgroundColor(Color.BLACK);
         
-        // SCROLL VERTICAL HABILITADO PARA TODOS
+        // HABILITAR SCROLL VERTICAL
         webView.setVerticalScrollBarEnabled(true);
         webView.setHorizontalScrollBarEnabled(false);
         webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
         
-        // CONFIGURAR WEBVIEWCLIENT COM MESMAS REGRAS
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -540,107 +514,60 @@ public class MainActivity extends AppCompatActivity {
                     return true;
                 }
                 
-                // Se for URL de stream, carregar na própria view
-                if (url.contains("youtube.com") || url.contains("twitch.tv") || url.contains("stream")) {
-                    view.loadUrl(url);
-                    return true;
-                }
-                
                 return false;
             }
             
             @Override
             public void onPageFinished(WebView view, String url) {
-                // MESMO JAVASCRIPT PARA TODOS OS WEBVIEWS
+                // Configura vídeos para mute e tenta play automático
                 String videoSetupJS = 
                     "try {" +
-                    "   // Configurar todos os vídeos para mute" +
                     "   var videos = document.getElementsByTagName('video');" +
-                    "   console.log('Encontrados ' + videos.length + ' vídeos na Box ' + " + (boxIndex + 1) + ");" +
-                    "   " +
                     "   for(var i = 0; i < videos.length; i++) {" +
                     "       videos[i].muted = true;" +
-                    "       videos[i].playsInline = false;" +
-                    "       videos[i].webkitPlaysInline = false;" +
-                    "       " +
-                    "       // Tentar play automático" +
                     "       if(videos[i].paused && !videos[i].ended) {" +
                     "           videos[i].play().catch(function(e) {" +
-                    "               console.log('Auto-play falhou: ' + e);" +
+                    "               console.log('Auto-play failed: ' + e);" +
                     "           });" +
                     "       }" +
                     "   }" +
-                    "   " +
-                    "   // Remover scroll desnecessário" +
-                    "   document.body.style.overflow = 'hidden';" +
-                    "   document.documentElement.style.overflow = 'hidden';" +
-                    "} catch(e) {" +
-                    "   console.log('Erro na configuração: ' + e);" +
-                    "}";
+                    "} catch(e) {}";
                 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                     view.evaluateJavascript(videoSetupJS, null);
                 }
                 
-                // Aplicar zoom igual para todos
                 applyZoom(boxIndex);
                 
-                // Bloqueador de ads igual para todos
                 if (cbBlockAds != null && cbBlockAds.isChecked()) {
                     injectAdBlocker(view);
                 }
             }
         });
         
-        // CONFIGURAR WEBCHROMECLIENT CONSISTENTE
         webView.setWebChromeClient(new WebChromeClient() {
             private View mCustomView;
             private WebChromeClient.CustomViewCallback mCustomViewCallback;
             
             @Override
             public void onShowCustomView(View view, CustomViewCallback callback) {
-                Log.d(TAG, "DEBUG: Fullscreen na Box " + (boxIndex + 1));
-                
                 mCustomView = view;
                 mCustomViewCallback = callback;
                 
-                // Remover view anterior se existir
-                if (boxContainers[boxIndex].getChildCount() > 1) {
-                    boxContainers[boxIndex].removeViewAt(1);
-                }
-                
-                // Adicionar a view de fullscreen
                 boxContainers[boxIndex].addView(view, 
                     new FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT));
                 
-                // Esconder o WebView
                 webView.setVisibility(View.GONE);
-                
-                // Configurar fullscreen na janela
                 getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-                
-                // Notificar
-                runOnUiThread(() -> {
-                    Toast.makeText(MainActivity.this, 
-                        "Box " + (boxIndex + 1) + " em fullscreen", 
-                        Toast.LENGTH_SHORT).show();
-                });
             }
             
             @Override
             public void onHideCustomView() {
                 if (mCustomView == null) return;
                 
-                Log.d(TAG, "DEBUG: Saindo do fullscreen na Box " + (boxIndex + 1));
-                
-                // Remover view de fullscreen
-                if (boxContainers[boxIndex].indexOfChild(mCustomView) != -1) {
-                    boxContainers[boxIndex].removeView(mCustomView);
-                }
-                
-                // Mostrar WebView novamente
+                boxContainers[boxIndex].removeView(mCustomView);
                 webView.setVisibility(View.VISIBLE);
                 
                 if (mCustomViewCallback != null) {
@@ -649,30 +576,18 @@ public class MainActivity extends AppCompatActivity {
                 
                 mCustomView = null;
                 mCustomViewCallback = null;
-                
-                // Remover fullscreen da janela
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             }
-            
-            @Override
-            public void onProgressChanged(WebView view, int newProgress) {
-                // DEBUG: Monitorar progresso
-                if (newProgress == 100) {
-                    Log.d(TAG, "DEBUG: Box " + (boxIndex + 1) + " carregada 100%");
-                }
-            }
         });
-        
-        Log.d(TAG, "DEBUG: Configurações da Box " + (boxIndex + 1) + ":");
-        Log.d(TAG, "  JavaScript: " + settings.getJavaScriptEnabled());
-        Log.d(TAG, "  DomStorage: " + settings.getDomStorageEnabled());
-        Log.d(TAG, "  MediaPlaybackRequiresUserGesture: " + settings.getMediaPlaybackRequiresUserGesture());
-        Log.d(TAG, "  UserAgent: " + settings.getUserAgentString());
     }
     
     private void applyZoom(int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
+            String zoomJS = "document.body.style.zoom = '" + (zoomLevels[boxIndex] * 100) + "%';";
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                webView.evaluateJavascript(zoomJS, null);
+            }
             webView.getSettings().setTextZoom((int)(zoomLevels[boxIndex] * 100));
         }
     }
@@ -934,7 +849,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         
-        // Configurações Web - APLICAR A TODAS AS BOXES
+        // Configurações Web
         if (cbAllowScripts != null) {
             cbAllowScripts.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
@@ -1068,14 +983,13 @@ public class MainActivity extends AppCompatActivity {
     
     private void loadURL(int boxIndex, String url) {
         try {
-            if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("file://")) {
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
                 url = "https://" + url;
             }
             if (webViews[boxIndex] != null) {
                 webViews[boxIndex].loadUrl(url);
             }
         } catch (Exception e) {
-            Log.e(TAG, "Erro ao carregar Box " + (boxIndex + 1), e);
             Toast.makeText(this, "Erro ao carregar Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
         }
     }
@@ -1133,7 +1047,6 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "✅ Estado guardado!", Toast.LENGTH_SHORT).show();
             
         } catch (Exception e) {
-            Log.e(TAG, "Erro ao guardar estado", e);
             Toast.makeText(this, "❌ Erro ao guardar estado", Toast.LENGTH_SHORT).show();
         }
     }
@@ -1195,7 +1108,6 @@ public class MainActivity extends AppCompatActivity {
             updateFocusedBoxIndicator();
             
         } catch (Exception e) {
-            Log.e(TAG, "Erro ao carregar estado", e);
             if (!silent) {
                 Toast.makeText(this, "❌ Erro ao carregar estado", Toast.LENGTH_SHORT).show();
             }
@@ -1218,7 +1130,6 @@ public class MainActivity extends AppCompatActivity {
             }
             
         } catch (Exception e) {
-            Log.e(TAG, "Erro ao carregar lista de favoritos", e);
             favoritesList.clear();
         }
     }
@@ -1230,7 +1141,7 @@ public class MainActivity extends AppCompatActivity {
             editor.putString("favorites_list", jsonArray.toString());
             editor.apply();
         } catch (Exception e) {
-            Log.e(TAG, "Erro ao guardar lista de favoritos", e);
+            e.printStackTrace();
         }
     }
     
@@ -1264,7 +1175,6 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "✅ Favorito guardado!", Toast.LENGTH_SHORT).show();
             
         } catch (Exception e) {
-            Log.e(TAG, "Erro ao guardar favorito", e);
             Toast.makeText(this, "❌ Erro ao guardar favorito", Toast.LENGTH_SHORT).show();
         }
     }
@@ -1306,7 +1216,6 @@ public class MainActivity extends AppCompatActivity {
             }
             
         } catch (Exception e) {
-            Log.e(TAG, "Erro ao carregar favorito", e);
             Toast.makeText(this, "❌ Erro ao carregar favorito!", Toast.LENGTH_SHORT).show();
         }
     }
@@ -1323,7 +1232,6 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "✅ Favorito removido!", Toast.LENGTH_SHORT).show();
             
         } catch (Exception e) {
-            Log.e(TAG, "Erro ao remover favorito", e);
             Toast.makeText(this, "❌ Erro ao remover favorito", Toast.LENGTH_SHORT).show();
         }
     }
@@ -1459,14 +1367,6 @@ public class MainActivity extends AppCompatActivity {
         if (autoReloadHandler != null && autoReloadRunnable != null) {
             autoReloadHandler.removeCallbacks(autoReloadRunnable);
         }
-        for (WebView webView : webViews) {
-            if (webView != null) {
-                webView.stopLoading();
-                webView.setWebViewClient(null);
-                webView.setWebChromeClient(null);
-                webView.destroy();
-            }
-        }
     }
     
     @Override
@@ -1492,46 +1392,9 @@ public class MainActivity extends AppCompatActivity {
                         openSidebar();
                     }
                     return true;
-                    
-                // Controles de scroll
-                case KeyEvent.KEYCODE_DPAD_UP:
-                    if (!isSidebarVisible) {
-                        scrollWebView(focusedBoxIndex, -100);
-                        return true;
-                    }
-                    break;
-                    
-                case KeyEvent.KEYCODE_DPAD_DOWN:
-                    if (!isSidebarVisible) {
-                        scrollWebView(focusedBoxIndex, 100);
-                        return true;
-                    }
-                    break;
-                    
-                case KeyEvent.KEYCODE_PAGE_UP:
-                    if (!isSidebarVisible) {
-                        scrollWebView(focusedBoxIndex, -500);
-                        return true;
-                    }
-                    break;
-                    
-                case KeyEvent.KEYCODE_PAGE_DOWN:
-                    if (!isSidebarVisible) {
-                        scrollWebView(focusedBoxIndex, 500);
-                        return true;
-                    }
-                    break;
             }
         }
         return super.onKeyDown(keyCode, event);
-    }
-    
-    private void scrollWebView(int boxIndex, int deltaY) {
-        WebView webView = webViews[boxIndex];
-        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            String scrollJS = "window.scrollBy(0, " + deltaY + ");";
-            webView.evaluateJavascript(scrollJS, null);
-        }
     }
     
     @Override
