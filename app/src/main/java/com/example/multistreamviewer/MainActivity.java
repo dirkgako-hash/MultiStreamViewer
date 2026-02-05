@@ -9,7 +9,6 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -65,10 +64,9 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvFocusedBox;
     
     private boolean[] boxEnabled = {true, true, true, true};
-    private boolean[] autoReloadEnabled = {true, true, true, true}; // POR PADRÃO ATIVADO
+    private boolean[] autoReloadEnabled = {true, true, true, true};
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
-    private boolean isVideoMuted = true; // VÍDEOS MUTE POR PADRÃO
     private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
     
     private ArrayList<String> favoritesList = new ArrayList<>();
@@ -76,14 +74,7 @@ public class MainActivity extends AppCompatActivity {
     
     private Handler autoReloadHandler = new Handler();
     private Runnable autoReloadRunnable;
-    private final long AUTO_RELOAD_INTERVAL = 3000; // 3 segundos (mais rápido)
-    
-    // CONTADORES DE TENTATIVAS PARA EVITAR LOOP
-    private int[] recoveryAttempts = {0, 0, 0, 0};
-    private static final int MAX_RECOVERY_ATTEMPTS = 3;
-    
-    // TEMPO DE ESPERA ANTES DE TENTAR NOVAMENTE
-    private static final long RECOVERY_COOLDOWN = 10000; // 10 segundos
+    private final long AUTO_RELOAD_INTERVAL = 10000; // 10 segundos
     
     private final List<String> adDomains = Arrays.asList(
         "doubleclick.net", "googleadservices.com", "googlesyndication.com"
@@ -246,7 +237,7 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 for (int i = 0; i < 4; i++) {
                     if (boxEnabled[i] && autoReloadEnabled[i] && webViews[i] != null) {
-                        checkAndFixStuckVideo(i);
+                        checkVideoStatus(i);
                     }
                 }
                 autoReloadHandler.postDelayed(this, AUTO_RELOAD_INTERVAL);
@@ -255,350 +246,112 @@ public class MainActivity extends AppCompatActivity {
         autoReloadHandler.postDelayed(autoReloadRunnable, AUTO_RELOAD_INTERVAL);
     }
     
-    private void checkAndFixStuckVideo(final int boxIndex) {
-        if (recoveryAttempts[boxIndex] >= MAX_RECOVERY_ATTEMPTS) {
-            // Já tentou muitas vezes, espera um tempo antes de tentar de novo
-            new Handler().postDelayed(() -> {
-                recoveryAttempts[boxIndex] = 0;
-            }, RECOVERY_COOLDOWN);
-            return;
-        }
-        
+    private void checkVideoStatus(final int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
             String checkVideoJS = 
                 "try {" +
                 "   var videos = document.getElementsByTagName('video');" +
-                "   var videoStatus = {" +
-                "       hasVideo: false," +
-                "       hasError: false," +
-                "       isPaused: false," +
-                "       isEnded: false," +
-                "       isPlaying: false," +
-                "       videoCount: 0," +
-                "       anyPlaying: false," +
-                "       currentTime: 0" +
-                "   };" +
+                "   if (videos.length === 0) return 'novideo';" +
                 "   " +
-                "   if (videos.length > 0) {" +
-                "       videoStatus.hasVideo = true;" +
-                "       videoStatus.videoCount = videos.length;" +
-                "       " +
-                "       for(var i = 0; i < videos.length; i++) {" +
-                "           var video = videos[i];" +
-                "           if(video.error) {" +
-                "               videoStatus.hasError = true;" +
-                "           } else if(video.paused && !video.ended) {" +
-                "               videoStatus.isPaused = true;" +
-                "           } else if(video.ended) {" +
-                "               videoStatus.isEnded = true;" +
-                "           } else if(!video.paused && !video.ended) {" +
-                "               videoStatus.isPlaying = true;" +
-                "               videoStatus.anyPlaying = true;" +
-                "               videoStatus.currentTime = video.currentTime;" +
-                "           }" +
+                "   for(var i = 0; i < videos.length; i++) {" +
+                "       var video = videos[i];" +
+                "       if(video.paused && !video.ended) {" +
+                "           return 'paused';" +
+                "       }" +
+                "       if(video.error) {" +
+                "           return 'error';" +
                 "       }" +
                 "   }" +
-                "   JSON.stringify(videoStatus);" +
-                "} catch(e) { '{\"hasVideo\":false}' }";
+                "   return 'playing';" +
+                "} catch(e) { return 'error'; }";
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 webView.evaluateJavascript(checkVideoJS, value -> {
                     try {
-                        String jsonStr = value.replace("\"", "").replace("\\\"", "\"");
-                        JSONObject videoStatus = new JSONObject(jsonStr);
-                        
-                        boolean hasVideo = videoStatus.getBoolean("hasVideo");
-                        boolean hasError = videoStatus.getBoolean("hasError");
-                        boolean isPaused = videoStatus.getBoolean("isPaused");
-                        boolean anyPlaying = videoStatus.getBoolean("anyPlaying");
-                        int videoCount = videoStatus.getInt("videoCount");
-                        
-                        if (hasVideo && (hasError || (isPaused && videoCount > 0 && !anyPlaying))) {
-                            runOnUiThread(() -> {
-                                recoveryAttempts[boxIndex]++;
-                                attemptVideoRecovery(boxIndex);
-                            });
-                        } else if (hasVideo && anyPlaying) {
-                            // Vídeo está rodando, resetar contador
-                            recoveryAttempts[boxIndex] = 0;
-                        }
+                        String status = value.replace("\"", "");
+                        runOnUiThread(() -> {
+                            if ("paused".equals(status) || "error".equals(status)) {
+                                handleStuckVideo(boxIndex);
+                            }
+                        });
                     } catch (Exception e) {
-                        Log.e("VideoCheck", "Erro ao verificar vídeo: " + e.getMessage());
+                        // Ignorar erros
                     }
                 });
             }
         }
     }
     
-    private void attemptVideoRecovery(int boxIndex) {
-        Log.d("VideoRecovery", "Tentativa " + recoveryAttempts[boxIndex] + " de recuperar Box " + (boxIndex + 1));
-        
-        // ESTRATÉGIA EM CAMADAS
-        switch (recoveryAttempts[boxIndex]) {
-            case 1:
-                // Primeira tentativa: Tenta dar play no vídeo
-                tryForcePlay(boxIndex);
-                break;
-                
-            case 2:
-                // Segunda tentativa: Tenta maximizar e entrar em fullscreen
-                tryMaximizeAndFullscreen(boxIndex);
-                break;
-                
-            case 3:
-                // Terceira tentativa: Recarrega a página completamente
-                reloadPageCompletely(boxIndex);
-                break;
+    private void handleStuckVideo(int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null) {
+            // Primeiro tenta forçar play
+            String forcePlayJS = 
+                "try {" +
+                "   var videos = document.getElementsByTagName('video');" +
+                "   for(var i = 0; i < videos.length; i++) {" +
+                "       var video = videos[i];" +
+                "       video.muted = true;" +
+                "       if(video.paused && !video.ended) {" +
+                "           video.play().catch(function(e) {" +
+                "               console.log('Auto-play failed: ' + e);" +
+                "           });" +
+                "       }" +
+                "   }" +
+                "} catch(e) {}";
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                webView.evaluateJavascript(forcePlayJS, null);
+            }
+            
+            // Espera 2 segundos e verifica novamente
+            new Handler().postDelayed(() -> {
+                checkVideoStatusAfterAttempt(boxIndex);
+            }, 2000);
         }
     }
     
-    private void tryForcePlay(int boxIndex) {
+    private void checkVideoStatusAfterAttempt(final int boxIndex) {
         WebView webView = webViews[boxIndex];
-        if (webView == null) return;
-        
-        String forcePlayJS = 
-            "try {" +
-            "   console.log('Tentando forçar play nos vídeos...');" +
-            "   var videos = document.getElementsByTagName('video');" +
-            "   var success = false;" +
-            "   " +
-            "   for(var i = 0; i < videos.length; i++) {" +
-            "       var video = videos[i];" +
-            "       video.muted = true;" + // SEMPRE MUTE
-            "       video.volume = 0;" +
-            "       " +
-            "       if(video.paused && !video.ended) {" +
-            "           video.play().then(function() {" +
-            "               console.log('Vídeo forçado a tocar');" +
-            "               success = true;" +
-            "           }).catch(function(e) {" +
-            "               console.log('Erro ao forçar play:', e);" +
-            "           });" +
-            "       }" +
-            "   }" +
-            "   " +
-            "   // Também tenta clicar em qualquer elemento de play" +
-            "   var playButtons = document.querySelectorAll('[class*=\"play\"], [id*=\"play\"], button, .play-button');" +
-            "   for(var i = 0; i < playButtons.length; i++) {" +
-            "       playButtons[i].click();" +
-            "       success = true;" +
-            "   }" +
-            "   " +
-            "   success;" +
-            "} catch(e) { false; }";
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.evaluateJavascript(forcePlayJS, result -> {
-                runOnUiThread(() -> {
-                    Toast.makeText(MainActivity.this, 
-                        "Box " + (boxIndex + 1) + ": Tentando forçar reprodução", 
-                        Toast.LENGTH_SHORT).show();
+        if (webView != null) {
+            String checkVideoJS = 
+                "try {" +
+                "   var videos = document.getElementsByTagName('video');" +
+                "   if (videos.length === 0) return 'novideo';" +
+                "   " +
+                "   for(var i = 0; i < videos.length; i++) {" +
+                "       var video = videos[i];" +
+                "       if(video.paused && !video.ended) {" +
+                "           return 'stillpaused';" +
+                "       }" +
+                "   }" +
+                "   return 'playing';" +
+                "} catch(e) { return 'error'; }";
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                webView.evaluateJavascript(checkVideoJS, value -> {
+                    try {
+                        String status = value.replace("\"", "");
+                        runOnUiThread(() -> {
+                            if ("stillpaused".equals(status) || "error".equals(status)) {
+                                // Se ainda pausado, recarrega a página
+                                reloadWebView(boxIndex);
+                            }
+                        });
+                    } catch (Exception e) {
+                        // Ignorar erros
+                    }
                 });
-            });
+            }
         }
     }
     
-    private void tryMaximizeAndFullscreen(int boxIndex) {
+    private void reloadWebView(int boxIndex) {
         WebView webView = webViews[boxIndex];
-        if (webView == null) return;
-        
-        String maximizeJS = 
-            "try {" +
-            "   console.log('Tentando maximizar vídeos...');" +
-            "   var videos = document.getElementsByTagName('video');" +
-            "   var success = false;" +
-            "   " +
-            "   for(var i = 0; i < videos.length; i++) {" +
-            "       var video = videos[i];" +
-            "       " +
-            "       // Maximizar estilo" +
-            "       video.style.width = '100%';" +
-            "       video.style.height = '100%';" +
-            "       video.style.position = 'fixed';" +
-            "       video.style.top = '0';" +
-            "       video.style.left = '0';" +
-            "       video.style.zIndex = '999999';" +
-            "       video.style.backgroundColor = 'black';" +
-            "       " +
-            "       // Forçar fullscreen attributes" +
-            "       video.setAttribute('playsinline', 'false');" +
-            "       video.setAttribute('webkit-playsinline', 'false');" +
-            "       " +
-            "       // Tentar entrar em fullscreen via API" +
-            "       if(video.webkitEnterFullscreen) {" +
-            "           video.webkitEnterFullscreen();" +
-            "           success = true;" +
-            "       }" +
-            "       " +
-            "       // Tentar play novamente" +
-            "       if(video.paused && !video.ended) {" +
-            "           video.play().catch(function(e) {" +
-            "               console.log('Play após maximizar falhou:', e);" +
-            "           });" +
-            "       }" +
-            "   }" +
-            "   " +
-            "   // Procurar botões de fullscreen e clicar" +
-            "   var fullscreenButtons = document.querySelectorAll(" +
-            "       '[class*=\"fullscreen\"], [class*=\"full-screen\"], " +
-            "       [id*=\"fullscreen\"], [id*=\"full-screen\"], " +
-            "       '.fullscreen-btn', '.fullscreen-button', " +
-            "       '.vjs-fullscreen-control', '.ytp-fullscreen-button'" +
-            "   );" +
-            "   " +
-            "   for(var i = 0; i < fullscreenButtons.length; i++) {" +
-            "       fullscreenButtons[i].click();" +
-            "       success = true;" +
-            "       console.log('Clicou em botão fullscreen');" +
-            "   }" +
-            "   " +
-            "   // Remover controles que podem atrapalhar" +
-            "   document.body.style.overflow = 'hidden';" +
-            "   " +
-            "   success;" +
-            "} catch(e) { " +
-            "   console.log('Erro ao maximizar:', e);" +
-            "   false; " +
-            "}";
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.evaluateJavascript(maximizeJS, result -> {
-                runOnUiThread(() -> {
-                    Toast.makeText(MainActivity.this, 
-                        "Box " + (boxIndex + 1) + ": Maximizando vídeo", 
-                        Toast.LENGTH_SHORT).show();
-                });
-            });
-        }
-    }
-    
-    private void reloadPageCompletely(int boxIndex) {
-        WebView webView = webViews[boxIndex];
-        if (webView == null) return;
-        
-        String currentUrl = webView.getUrl();
-        if (currentUrl != null && !currentUrl.equals("about:blank")) {
-            runOnUiThread(() -> {
-                webView.reload();
-                Toast.makeText(this, 
-                    "Box " + (boxIndex + 1) + ": Recarregando página", 
-                    Toast.LENGTH_SHORT).show();
-                
-                // Aguardar a página carregar e aplicar otimizações
-                new Handler().postDelayed(() -> {
-                    injectVideoOptimizations(boxIndex);
-                }, 3000);
-            });
-        }
-    }
-    
-    private void injectVideoOptimizations(int boxIndex) {
-        WebView webView = webViews[boxIndex];
-        if (webView == null) return;
-        
-        String optimizationJS = 
-            "try {" +
-            "   // CONFIGURAÇÃO INICIAL DOS VÍDEOS" +
-            "   var optimizeVideos = function() {" +
-            "       var videos = document.getElementsByTagName('video');" +
-            "       console.log('Otimizando ' + videos.length + ' vídeos');" +
-            "       " +
-            "       for(var i = 0; i < videos.length; i++) {" +
-            "           var video = videos[i];" +
-            "           " +
-            "           // CONFIGURAÇÕES BÁSICAS" +
-            "           video.muted = true;" + // SEMPRE MUTE
-            "           video.volume = 0;" +
-            "           video.preload = 'auto';" +
-            "           video.autoplay = true;" +
-            "           video.setAttribute('playsinline', 'false');" +
-            "           video.setAttribute('webkit-playsinline', 'false');" +
-            "           " +
-            "           // ESTILO MAXIMIZADO" +
-            "           video.style.width = '100%';" +
-            "           video.style.height = '100%';" +
-            "           video.style.position = 'fixed';" +
-            "           video.style.top = '0';" +
-            "           video.style.left = '0';" +
-            "           video.style.zIndex = '999999';" +
-            "           video.style.backgroundColor = 'black';" +
-            "           " +
-            "           // TENTAR REPRODUZIR" +
-            "           if(video.paused && !video.ended) {" +
-            "               video.play().catch(function(e) {" +
-            "                   console.log('Auto-play falhou, tentando muted:', e);" +
-            "                   video.muted = true;" +
-            "                   video.play().catch(function(e2) {" +
-            "                       console.log('Muted play também falhou:', e2);" +
-            "                   });" +
-            "               });" +
-            "           }" +
-            "           " +
-            "           // LISTENER PARA RE-TENTAR SE PAUSAR" +
-            "           video.addEventListener('pause', function() {" +
-            "               setTimeout(function() {" +
-            "                   if(this.paused && !this.ended) {" +
-            "                       this.play().catch(function(e) {" +
-            "                           console.log('Re-tentativa após pause falhou:', e);" +
-            "                       });" +
-            "                   }" +
-            "               }.bind(this), 1000);" +
-            "           });" +
-            "           " +
-            "           // LISTENER PARA ERROS" +
-            "           video.addEventListener('error', function() {" +
-            "               console.log('Erro no vídeo, tentando recarregar...');" +
-            "               setTimeout(function() {" +
-            "                   this.load();" +
-            "               }.bind(this), 2000);" +
-            "           });" +
-            "       }" +
-            "       " +
-            "       return videos.length;" +
-            "   };" +
-            "   " +
-            "   // EXECUTAR AGORA E REPETIDAMENTE (para vídeos dinâmicos)" +
-            "   optimizeVideos();" +
-            "   setInterval(optimizeVideos, 5000);" +
-            "   " +
-            "   // REMOVER BARRAS DE SCROLL" +
-            "   document.body.style.overflow = 'hidden';" +
-            "   document.documentElement.style.overflow = 'hidden';" +
-            "   " +
-            "   // CLICAR AUTOMATICAMENTE EM BOTÕES DE PLAY/COOKIES" +
-            "   setTimeout(function() {" +
-            "       var playButtons = document.querySelectorAll(" +
-            "           'button, [class*=\"play\"], [class*=\"Play\"], " +
-            "           [id*=\"play\"], [id*=\"Play\"], " +
-            "           '.play-button', '.ytp-play-button', " +
-            "           '.vjs-play-control', '.vjs-big-play-button'" +
-            "       );" +
-            "       " +
-            "       for(var i = 0; i < playButtons.length; i++) {" +
-            "           playButtons[i].click();" +
-            "       }" +
-            "       " +
-            "       // Remover popups de cookies" +
-            "       var cookieButtons = document.querySelectorAll(" +
-            "           '[class*=\"cookie\"], [id*=\"cookie\"], " +
-            "           '[class*=\"accept\"], [id*=\"accept\"], " +
-            "           '.cookie-accept', '.accept-cookies'" +
-            "       );" +
-            "       " +
-            "       for(var i = 0; i < cookieButtons.length; i++) {" +
-            "           cookieButtons[i].click();" +
-            "       }" +
-            "   }, 2000);" +
-            "   " +
-            "   true;" +
-            "} catch(e) {" +
-            "   console.log('Erro na otimização:', e);" +
-            "   false;" +
-            "}";
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.evaluateJavascript(optimizationJS, null);
+        if (webView != null) {
+            webView.reload();
+            Toast.makeText(this, "Box " + (boxIndex + 1) + " recarregada", Toast.LENGTH_SHORT).show();
         }
     }
     
@@ -714,18 +467,13 @@ public class MainActivity extends AppCompatActivity {
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
-        settings.setMediaPlaybackRequiresUserGesture(false); // PERMITIR AUTOPLAY
+        settings.setMediaPlaybackRequiresUserGesture(false);
         
-        // OTIMIZAÇÕES PARA VÍDEO
         settings.setSupportZoom(true);
         settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
-        
-        // USER AGENT PARA STREAMING
-        String userAgent = "Mozilla/5.0 (Linux; Android 10; AFTMM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Safari/537.36";
-        settings.setUserAgentString(userAgent);
         
         if (cbBlockAds != null) {
             settings.setBlockNetworkLoads(cbBlockAds.isChecked());
@@ -735,9 +483,10 @@ public class MainActivity extends AppCompatActivity {
         settings.setTextZoom((int)(zoomLevels[boxIndex] * 100));
         webView.setInitialScale((int)(zoomLevels[boxIndex] * 100));
         
+        settings.setUserAgentString("Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) AppleWebKit/537.36");
         webView.setBackgroundColor(Color.BLACK);
         
-        // SCROLL (mantemos habilitado para páginas longas)
+        // HABILITAR SCROLL VERTICAL
         webView.setVerticalScrollBarEnabled(true);
         webView.setHorizontalScrollBarEnabled(false);
         webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
@@ -769,18 +518,25 @@ public class MainActivity extends AppCompatActivity {
             }
             
             @Override
-            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-                if (cbBlockAds != null && cbBlockAds.isChecked()) {
-                    injectAdBlocker(view);
-                }
-            }
-            
-            @Override
             public void onPageFinished(WebView view, String url) {
-                // INJETAR OTIMIZAÇÕES QUANDO A PÁGINA CARREGAR
-                injectVideoOptimizations(boxIndex);
+                // Configura vídeos para mute e tenta play automático
+                String videoSetupJS = 
+                    "try {" +
+                    "   var videos = document.getElementsByTagName('video');" +
+                    "   for(var i = 0; i < videos.length; i++) {" +
+                    "       videos[i].muted = true;" +
+                    "       if(videos[i].paused && !videos[i].ended) {" +
+                    "           videos[i].play().catch(function(e) {" +
+                    "               console.log('Auto-play failed: ' + e);" +
+                    "           });" +
+                    "       }" +
+                    "   }" +
+                    "} catch(e) {}";
                 
-                // APLICAR ZOOM
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                    view.evaluateJavascript(videoSetupJS, null);
+                }
+                
                 applyZoom(boxIndex);
                 
                 if (cbBlockAds != null && cbBlockAds.isChecked()) {
@@ -905,7 +661,6 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void initEventListeners() {
-        // Verificar se btnMenu existe antes de adicionar listener
         if (btnMenu != null) {
             btnMenu.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -1021,24 +776,15 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
             
-            // Checkbox Auto Reload - POR PADRÃO MARCADO (true)
+            // Checkbox Auto Reload - configurar como true por padrão
             if (cbAutoReload[i] != null) {
-                // Configurar estado inicial como marcado
                 cbAutoReload[i].setChecked(true);
-                autoReloadEnabled[boxIndex] = true;
-                
                 cbAutoReload[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                     @Override
                     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                         autoReloadEnabled[boxIndex] = isChecked;
-                        
-                        if (isChecked) {
-                            // Resetar contador quando ativar
-                            recoveryAttempts[boxIndex] = 0;
-                        }
-                        
                         Toast.makeText(MainActivity.this, 
-                            "Box " + (boxIndex + 1) + " auto-recovery: " + (isChecked ? "ON" : "OFF"), 
+                            "Box " + (boxIndex + 1) + " auto-reload: " + (isChecked ? "ON" : "OFF"), 
                             Toast.LENGTH_SHORT).show();
                     }
                 });
@@ -1051,8 +797,6 @@ public class MainActivity extends AppCompatActivity {
                     public void onClick(View v) {
                         if (webViews[boxIndex] != null) {
                             webViews[boxIndex].reload();
-                            // Resetar contador ao recarregar manualmente
-                            recoveryAttempts[boxIndex] = 0;
                             Toast.makeText(MainActivity.this, 
                                 "Box " + (boxIndex + 1) + " recarregada", Toast.LENGTH_SHORT).show();
                         }
@@ -1254,8 +998,6 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < 4; i++) {
             if (boxEnabled[i] && webViews[i] != null) {
                 webViews[i].reload();
-                // Resetar contadores
-                recoveryAttempts[i] = 0;
             }
         }
         Toast.makeText(this, "Recarregando todas", Toast.LENGTH_SHORT).show();
@@ -1265,8 +1007,6 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < 4; i++) {
             if (webViews[i] != null) {
                 webViews[i].loadUrl("about:blank");
-                // Resetar contadores
-                recoveryAttempts[i] = 0;
             }
         }
         Toast.makeText(this, "Limpando todas", Toast.LENGTH_SHORT).show();
@@ -1342,7 +1082,7 @@ public class MainActivity extends AppCompatActivity {
                     checkBoxes[i].setChecked(savedState);
                 }
                 
-                boolean savedAutoReload = preferences.getBoolean("auto_reload_" + i, true); // POR PADRÃO TRUE
+                boolean savedAutoReload = preferences.getBoolean("auto_reload_" + i, true);
                 autoReloadEnabled[i] = savedAutoReload;
                 if (cbAutoReload[i] != null) {
                     cbAutoReload[i].setChecked(savedAutoReload);
