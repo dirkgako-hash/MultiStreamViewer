@@ -184,12 +184,6 @@ public class MainActivity extends AppCompatActivity {
         btnLoadUrl[2] = findViewById(R.id.btnLoadUrl3);
         btnLoadUrl[3] = findViewById(R.id.btnLoadUrl4);
         
-        // Inicializar botões de som
-        btnSound[0] = findViewById(R.id.btnSound1);
-        btnSound[1] = findViewById(R.id.btnSound2);
-        btnSound[2] = findViewById(R.id.btnSound3);
-        btnSound[3] = findViewById(R.id.btnSound4);
-        
         // Inicializar checkboxes de configuração web
         cbAllowScripts = findViewById(R.id.cbAllowScripts);
         cbAllowForms = findViewById(R.id.cbAllowForms);
@@ -240,6 +234,67 @@ public class MainActivity extends AppCompatActivity {
                         return false;
                     }
                 });
+            }
+        }
+        
+        // Criar botões de som programaticamente se não existirem no layout
+        createSoundButtons();
+    }
+    
+    private void createSoundButtons() {
+        // IDs dos layouts de controle que já devem existir no layout
+        int[] controlLayoutIds = {
+            R.id.controls1, R.id.controls2, R.id.controls3, R.id.controls4
+        };
+        
+        for (int i = 0; i < 4; i++) {
+            LinearLayout controlsLayout = findViewById(controlLayoutIds[i]);
+            if (controlsLayout != null) {
+                // Criar botão de som
+                btnSound[i] = new ImageButton(this);
+                btnSound[i].setId(View.generateViewId());
+                
+                // Configurar layout
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                params.setMargins(8, 0, 8, 0);
+                btnSound[i].setLayoutParams(params);
+                
+                // Configurar aparência
+                btnSound[i].setBackgroundResource(android.R.drawable.btn_default);
+                btnSound[i].setScaleType(ImageButton.ScaleType.CENTER);
+                btnSound[i].setPadding(16, 16, 16, 16);
+                
+                // Adicionar ao layout
+                controlsLayout.addView(btnSound[i]);
+                
+                // Configurar ícone inicial
+                updateSoundButtonIcon(i);
+                
+                // Configurar listener
+                final int boxIndex = i;
+                btnSound[i].setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        toggleSound(boxIndex);
+                    }
+                });
+            }
+        }
+    }
+    
+    private void updateSoundButtonIcon(int boxIndex) {
+        if (btnSound[boxIndex] != null) {
+            if (boxMuted[boxIndex]) {
+                // Ícone de mute (som desligado)
+                btnSound[boxIndex].setImageResource(android.R.drawable.ic_lock_silent_mode);
+                btnSound[boxIndex].setContentDescription("Ativar som Box " + (boxIndex + 1));
+            } else {
+                // Ícone de som (som ligado)
+                btnSound[boxIndex].setImageResource(android.R.drawable.ic_btn_speak_now);
+                btnSound[boxIndex].setContentDescription("Desativar som Box " + (boxIndex + 1));
             }
         }
     }
@@ -482,24 +537,14 @@ public class MainActivity extends AppCompatActivity {
     
     private void updateSoundButtons() {
         for (int i = 0; i < 4; i++) {
-            if (btnSound[i] != null) {
-                if (boxMuted[i]) {
-                    // Ícone de mute (som desligado)
-                    btnSound[i].setImageResource(android.R.drawable.ic_lock_silent_mode);
-                    btnSound[i].setContentDescription("Ativar som Box " + (i + 1));
-                } else {
-                    // Ícone de som (som ligado)
-                    btnSound[i].setImageResource(android.R.drawable.ic_btn_speak_now);
-                    btnSound[i].setContentDescription("Desativar som Box " + (i + 1));
-                }
-            }
+            updateSoundButtonIcon(i);
         }
     }
     
     private void toggleSound(int boxIndex) {
         boxMuted[boxIndex] = !boxMuted[boxIndex];
         applySoundState(boxIndex);
-        updateSoundButtons();
+        updateSoundButtonIcon(boxIndex);
         
         String status = boxMuted[boxIndex] ? "mutada" : "com som";
         Toast.makeText(this, "Box " + (boxIndex + 1) + " " + status, Toast.LENGTH_SHORT).show();
@@ -931,15 +976,7 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
             
-            // Botão Sound
-            if (btnSound[i] != null) {
-                btnSound[i].setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        toggleSound(boxIndex);
-                    }
-                });
-            }
+            // Botão Sound (já configurado no createSoundButtons())
             
             // Checkbox para ativar/desativar box
             if (checkBoxes[i] != null) {
