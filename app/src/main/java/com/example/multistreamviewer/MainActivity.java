@@ -24,6 +24,7 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
@@ -59,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
     private Button[] btnPrevious = new Button[4];
     private Button[] btnNext = new Button[4];
     private Button[] btnLoadUrl = new Button[4];
+    private ImageButton[] btnSound = new ImageButton[4]; // Botões de som
     private CheckBox[] checkBoxes = new CheckBox[4];
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
     private EditText[] urlInputs = new EditText[4];
@@ -66,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
     
     private boolean[] boxEnabled = {true, true, true, true};
     private boolean[] autoReloadEnabled = {true, true, true, true};
+    private boolean[] boxMuted = {true, true, true, true}; // Estado do som de cada box
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
     private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -108,6 +111,7 @@ public class MainActivity extends AppCompatActivity {
         loadFavoritesList();
         updateLayout();
         updateFocusedBoxIndicator();
+        updateSoundButtons(); // Atualizar ícones dos botões de som
         
         // Iniciar auto-reload monitoring
         startAutoReloadMonitoring();
@@ -179,6 +183,12 @@ public class MainActivity extends AppCompatActivity {
         btnLoadUrl[1] = findViewById(R.id.btnLoadUrl2);
         btnLoadUrl[2] = findViewById(R.id.btnLoadUrl3);
         btnLoadUrl[3] = findViewById(R.id.btnLoadUrl4);
+        
+        // Inicializar botões de som
+        btnSound[0] = findViewById(R.id.btnSound1);
+        btnSound[1] = findViewById(R.id.btnSound2);
+        btnSound[2] = findViewById(R.id.btnSound3);
+        btnSound[3] = findViewById(R.id.btnSound4);
         
         // Inicializar checkboxes de configuração web
         cbAllowScripts = findViewById(R.id.cbAllowScripts);
@@ -289,15 +299,15 @@ public class MainActivity extends AppCompatActivity {
     private void handleStuckVideo(int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
-            // Primeiro tenta forçar play (mantendo mute)
+            // Primeiro tenta forçar play
             String forcePlayJS = 
                 "try {" +
                 "   var videos = document.getElementsByTagName('video');" +
                 "   for(var i = 0; i < videos.length; i++) {" +
                 "       var video = videos[i];" +
-                "       // GARANTIR que o vídeo está mutado" +
-                "       video.muted = true;" +
-                "       video.volume = 0;" +
+                "       // Manter o estado do som conforme configuração" +
+                "       video.muted = " + boxMuted[boxIndex] + ";" +
+                "       video.volume = " + (boxMuted[boxIndex] ? "0" : "1") + ";" +
                 "       if(video.paused && !video.ended) {" +
                 "           video.play().catch(function(e) {" +
                 "               console.log('Auto-play failed: ' + e);" +
@@ -472,6 +482,60 @@ public class MainActivity extends AppCompatActivity {
         tvFocusedBox.setText("Foco: " + (focusedBoxIndex + 1));
     }
     
+    private void updateSoundButtons() {
+        for (int i = 0; i < 4; i++) {
+            if (btnSound[i] != null) {
+                if (boxMuted[i]) {
+                    // Ícone de mute (som desligado)
+                    btnSound[i].setImageResource(android.R.drawable.ic_lock_silent_mode);
+                    btnSound[i].setContentDescription("Ativar som Box " + (i + 1));
+                } else {
+                    // Ícone de som (som ligado)
+                    btnSound[i].setImageResource(android.R.drawable.ic_btn_speak_now);
+                    btnSound[i].setContentDescription("Desativar som Box " + (i + 1));
+                }
+            }
+        }
+    }
+    
+    private void toggleSound(int boxIndex) {
+        boxMuted[boxIndex] = !boxMuted[boxIndex];
+        applySoundState(boxIndex);
+        updateSoundButtons();
+        
+        String status = boxMuted[boxIndex] ? "mutada" : "com som";
+        Toast.makeText(this, "Box " + (boxIndex + 1) + " " + status, Toast.LENGTH_SHORT).show();
+    }
+    
+    private void applySoundState(int boxIndex) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null) {
+            String soundJS = 
+                "try {" +
+                "   // Configurar som para todos os vídeos" +
+                "   var videos = document.getElementsByTagName('video');" +
+                "   for(var i = 0; i < videos.length; i++) {" +
+                "       var video = videos[i];" +
+                "       video.muted = " + boxMuted[boxIndex] + ";" +
+                "       video.volume = " + (boxMuted[boxIndex] ? "0" : "1") + ";" +
+                "   }" +
+                "   // Configurar som para todos os áudios" +
+                "   var audios = document.getElementsByTagName('audio');" +
+                "   for(var i = 0; i < audios.length; i++) {" +
+                "       var audio = audios[i];" +
+                "       audio.muted = " + boxMuted[boxIndex] + ";" +
+                "       audio.volume = " + (boxMuted[boxIndex] ? "0" : "1") + ";" +
+                "   }" +
+                "} catch(e) {" +
+                "   console.log('Erro ao configurar som: ' + e);" +
+                "}";
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                webView.evaluateJavascript(soundJS, null);
+            }
+        }
+    }
+    
     @SuppressLint("SetJavaScriptEnabled")
     private void setupWebView(WebView webView, int boxIndex) {
         WebSettings settings = webView.getSettings();
@@ -553,27 +617,25 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onPageFinished(WebView view, String url) {
-                // MESMO JAVASCRIPT PARA TODOS OS WEBVIEWS - MUTE POR PADRÃO
+                // JAVASCRIPT PARA TODOS OS WEBVIEWS - COM CONTROLE DE SOM
                 String videoSetupJS = 
                     "try {" +
-                    "   // Função para mutar e configurar vídeos" +
-                    "   function setupAllVideos() {" +
+                    "   // Função para configurar vídeos com estado de som controlável" +
+                    "   function setupAllMedia() {" +
                     "       var videos = document.getElementsByTagName('video');" +
                     "       var audios = document.getElementsByTagName('audio');" +
                     "       " +
-                    "       // Mutar todos os vídeos" +
+                    "       // Configurar todos os vídeos" +
                     "       for(var i = 0; i < videos.length; i++) {" +
-                    "           videos[i].muted = true;" +
-                    "           videos[i].volume = 0;" +
+                    "           videos[i].muted = " + boxMuted[boxIndex] + ";" +
+                    "           videos[i].volume = " + (boxMuted[boxIndex] ? "0" : "1") + ";" +
                     "           videos[i].playsInline = true;" +
                     "           videos[i].webkitPlaysInline = true;" +
                     "           " +
-                    "           // Forçar mute mesmo se tentarem mudar" +
+                    "           // Permitir controle de volume pelo usuário" +
                     "           videos[i].addEventListener('volumechange', function(e) {" +
-                    "               if(this.volume > 0) {" +
-                    "                   this.muted = true;" +
-                    "                   this.volume = 0;" +
-                    "               }" +
+                    "               // Não bloqueia mais - permite controle livre" +
+                    "               console.log('Volume alterado: ' + this.volume);" +
                     "           });" +
                     "           " +
                     "           // Tentar play automático se estiver pausado" +
@@ -584,39 +646,34 @@ public class MainActivity extends AppCompatActivity {
                     "           }" +
                     "       }" +
                     "       " +
-                    "       // Mutar todos os áudios também" +
+                    "       // Configurar todos os áudios" +
                     "       for(var i = 0; i < audios.length; i++) {" +
-                    "           audios[i].muted = true;" +
-                    "           audios[i].volume = 0;" +
+                    "           audios[i].muted = " + boxMuted[boxIndex] + ";" +
+                    "           audios[i].volume = " + (boxMuted[boxIndex] ? "0" : "1") + ";" +
                     "       }" +
                     "   }" +
                     "   " +
                     "   // Executar agora" +
-                    "   setupAllVideos();" +
+                    "   setupAllMedia();" +
                     "   " +
                     "   // Observar alterações no DOM para novos vídeos/áudios" +
                     "   var observer = new MutationObserver(function(mutations) {" +
-                    "       setTimeout(setupAllVideos, 500);" +
+                    "       setTimeout(setupAllMedia, 500);" +
                     "   });" +
                     "   " +
                     "   // Começar a observar o body para adição de nós filhos" +
                     "   observer.observe(document.body, { childList: true, subtree: true });" +
                     "   " +
-                    "   // Também observar mudanças de volume" +
-                    "   document.addEventListener('volumechange', function(e) {" +
-                    "       if(e.target.volume > 0) {" +
-                    "           e.target.muted = true;" +
-                    "           e.target.volume = 0;" +
-                    "       }" +
-                    "   }, true);" +
-                    "   " +
                     "   // Remover scroll desnecessário" +
                     "   document.body.style.overflow = 'hidden';" +
                     "   document.documentElement.style.overflow = 'hidden';" +
                     "   " +
-                    "   // Injetar CSS para esconder controles de volume se existirem" +
+                    "   // CSS para melhorar experiência" +
                     "   var style = document.createElement('style');" +
-                    "   style.textContent = '.volume-control, .sound-button, .mute-button, [class*=\"volume\"], [id*=\"volume\"], [class*=\"sound\"], [id*=\"sound\"] { display: none !important; }';" +
+                    "   style.textContent = '.volume-control, .sound-button, .mute-button { " +
+                    "       opacity: 0.8 !important; " +
+                    "       transition: opacity 0.3s !important; " +
+                    "   }';" +
                     "   document.head.appendChild(style);" +
                     "} catch(e) {" +
                     "   console.log('Erro na configuração: ' + e);" +
@@ -633,9 +690,6 @@ public class MainActivity extends AppCompatActivity {
                 if (cbBlockAds != null && cbBlockAds.isChecked()) {
                     injectAdBlocker(view);
                 }
-                
-                // Adicionar listener para detectar tentativas de mudar volume
-                injectVolumeBlocker(view);
             }
         });
         
@@ -715,38 +769,6 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "  DomStorage: " + settings.getDomStorageEnabled());
         Log.d(TAG, "  MediaPlaybackRequiresUserGesture: " + settings.getMediaPlaybackRequiresUserGesture());
         Log.d(TAG, "  UserAgent: " + settings.getUserAgentString());
-    }
-    
-    private void injectVolumeBlocker(WebView view) {
-        String volumeBlockerJS = 
-            "try {" +
-            "   // Bloquear qualquer tentativa de mudar volume" +
-            "   var originalVolumeSetter = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'volume').set;" +
-            "   Object.defineProperty(HTMLMediaElement.prototype, 'volume', {" +
-            "       set: function(value) {" +
-            "           originalVolumeSetter.call(this, 0);" +
-            "           this.muted = true;" +
-            "       }," +
-            "       get: function() {" +
-            "           return 0;" +
-            "       }" +
-            "   });" +
-            "   " +
-            "   // Também bloquear muted setter" +
-            "   var originalMutedSetter = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'muted').set;" +
-            "   Object.defineProperty(HTMLMediaElement.prototype, 'muted', {" +
-            "       set: function(value) {" +
-            "           originalMutedSetter.call(this, true);" +
-            "       }," +
-            "       get: function() {" +
-            "           return true;" +
-            "       }" +
-            "   });" +
-            "} catch(e) {}";
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            view.evaluateJavascript(volumeBlockerJS, null);
-        }
     }
     
     private void applyZoom(int boxIndex) {
@@ -925,6 +947,16 @@ public class MainActivity extends AppCompatActivity {
                             Toast.makeText(MainActivity.this, "Box " + (boxIndex + 1) + " carregando...", 
                                 Toast.LENGTH_SHORT).show();
                         }
+                    }
+                });
+            }
+            
+            // Botão Sound
+            if (btnSound[i] != null) {
+                btnSound[i].setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        toggleSound(boxIndex);
                     }
                 });
             }
@@ -1196,6 +1228,7 @@ public class MainActivity extends AppCompatActivity {
             for (int i = 0; i < 4; i++) {
                 editor.putBoolean("box_enabled_" + i, boxEnabled[i]);
                 editor.putBoolean("auto_reload_" + i, autoReloadEnabled[i]);
+                editor.putBoolean("box_muted_" + i, boxMuted[i]); // Salvar estado do som
             }
             
             for (int i = 0; i < 4; i++) {
@@ -1253,11 +1286,16 @@ public class MainActivity extends AppCompatActivity {
                 if (cbAutoReload[i] != null) {
                     cbAutoReload[i].setChecked(savedAutoReload);
                 }
+                
+                // Carregar estado do som
+                boolean savedMuted = preferences.getBoolean("box_muted_" + i, true);
+                boxMuted[i] = savedMuted;
             }
             
             for (int i = 0; i < 4; i++) {
                 zoomLevels[i] = preferences.getFloat("zoom_level_" + i, 1.0f);
                 applyZoom(i);
+                applySoundState(i); // Aplicar estado do som
             }
             
             if (cbAllowScripts != null) cbAllowScripts.setChecked(preferences.getBoolean("allow_scripts", true));
@@ -1272,6 +1310,7 @@ public class MainActivity extends AppCompatActivity {
             
             updateLayout();
             updateFocusedBoxIndicator();
+            updateSoundButtons(); // Atualizar ícones dos botões de som
             
         } catch (Exception e) {
             Log.e(TAG, "Erro ao carregar estado", e);
@@ -1572,6 +1611,25 @@ public class MainActivity extends AppCompatActivity {
                     }
                     return true;
                     
+                // Controle de som com botões do controle remoto
+                case KeyEvent.KEYCODE_VOLUME_UP:
+                    // Quando uma box tem som ativo, permite ajustar volume
+                    if (!boxMuted[focusedBoxIndex]) {
+                        // Injeta JavaScript para aumentar volume
+                        adjustVolume(focusedBoxIndex, 0.1f);
+                        return true;
+                    }
+                    break;
+                    
+                case KeyEvent.KEYCODE_VOLUME_DOWN:
+                    // Quando uma box tem som ativo, permite ajustar volume
+                    if (!boxMuted[focusedBoxIndex]) {
+                        // Injeta JavaScript para diminuir volume
+                        adjustVolume(focusedBoxIndex, -0.1f);
+                        return true;
+                    }
+                    break;
+                    
                 // Controles de scroll
                 case KeyEvent.KEYCODE_DPAD_UP:
                     if (!isSidebarVisible) {
@@ -1600,9 +1658,37 @@ public class MainActivity extends AppCompatActivity {
                         return true;
                     }
                     break;
+                    
+                // Atalho para alternar som da box focada
+                case KeyEvent.KEYCODE_S:
+                    if (!isSidebarVisible) {
+                        toggleSound(focusedBoxIndex);
+                        return true;
+                    }
+                    break;
             }
         }
         return super.onKeyDown(keyCode, event);
+    }
+    
+    private void adjustVolume(int boxIndex, float delta) {
+        WebView webView = webViews[boxIndex];
+        if (webView != null && !boxMuted[boxIndex]) {
+            String volumeJS = 
+                "try {" +
+                "   var videos = document.getElementsByTagName('video');" +
+                "   for(var i = 0; i < videos.length; i++) {" +
+                "       var video = videos[i];" +
+                "       var newVolume = Math.max(0, Math.min(1, video.volume + " + delta + "));" +
+                "       video.volume = newVolume;" +
+                "       console.log('Volume ajustado para: ' + newVolume);" +
+                "   }" +
+                "} catch(e) {}";
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                webView.evaluateJavascript(volumeJS, null);
+            }
+        }
     }
     
     private void scrollWebView(int boxIndex, int deltaY) {
