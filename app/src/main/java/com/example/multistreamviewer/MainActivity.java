@@ -289,13 +289,15 @@ public class MainActivity extends AppCompatActivity {
     private void handleStuckVideo(int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
-            // Primeiro tenta forçar play
+            // Primeiro tenta forçar play (mantendo mute)
             String forcePlayJS = 
                 "try {" +
                 "   var videos = document.getElementsByTagName('video');" +
                 "   for(var i = 0; i < videos.length; i++) {" +
                 "       var video = videos[i];" +
+                "       // GARANTIR que o vídeo está mutado" +
                 "       video.muted = true;" +
+                "       video.volume = 0;" +
                 "       if(video.paused && !video.ended) {" +
                 "           video.play().catch(function(e) {" +
                 "               console.log('Auto-play failed: ' + e);" +
@@ -551,29 +553,71 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onPageFinished(WebView view, String url) {
-                // MESMO JAVASCRIPT PARA TODOS OS WEBVIEWS
+                // MESMO JAVASCRIPT PARA TODOS OS WEBVIEWS - MUTE POR PADRÃO
                 String videoSetupJS = 
                     "try {" +
-                    "   // Configurar todos os vídeos para mute" +
-                    "   var videos = document.getElementsByTagName('video');" +
-                    "   console.log('Encontrados ' + videos.length + ' vídeos na Box ' + " + (boxIndex + 1) + ");" +
-                    "   " +
-                    "   for(var i = 0; i < videos.length; i++) {" +
-                    "       videos[i].muted = true;" +
-                    "       videos[i].playsInline = false;" +
-                    "       videos[i].webkitPlaysInline = false;" +
+                    "   // Função para mutar e configurar vídeos" +
+                    "   function setupAllVideos() {" +
+                    "       var videos = document.getElementsByTagName('video');" +
+                    "       var audios = document.getElementsByTagName('audio');" +
                     "       " +
-                    "       // Tentar play automático" +
-                    "       if(videos[i].paused && !videos[i].ended) {" +
-                    "           videos[i].play().catch(function(e) {" +
-                    "               console.log('Auto-play falhou: ' + e);" +
+                    "       // Mutar todos os vídeos" +
+                    "       for(var i = 0; i < videos.length; i++) {" +
+                    "           videos[i].muted = true;" +
+                    "           videos[i].volume = 0;" +
+                    "           videos[i].playsInline = true;" +
+                    "           videos[i].webkitPlaysInline = true;" +
+                    "           " +
+                    "           // Forçar mute mesmo se tentarem mudar" +
+                    "           videos[i].addEventListener('volumechange', function(e) {" +
+                    "               if(this.volume > 0) {" +
+                    "                   this.muted = true;" +
+                    "                   this.volume = 0;" +
+                    "               }" +
                     "           });" +
+                    "           " +
+                    "           // Tentar play automático se estiver pausado" +
+                    "           if(videos[i].paused && !videos[i].ended) {" +
+                    "               videos[i].play().catch(function(e) {" +
+                    "                   console.log('Auto-play falhou: ' + e);" +
+                    "               });" +
+                    "           }" +
+                    "       }" +
+                    "       " +
+                    "       // Mutar todos os áudios também" +
+                    "       for(var i = 0; i < audios.length; i++) {" +
+                    "           audios[i].muted = true;" +
+                    "           audios[i].volume = 0;" +
                     "       }" +
                     "   }" +
+                    "   " +
+                    "   // Executar agora" +
+                    "   setupAllVideos();" +
+                    "   " +
+                    "   // Observar alterações no DOM para novos vídeos/áudios" +
+                    "   var observer = new MutationObserver(function(mutations) {" +
+                    "       setTimeout(setupAllVideos, 500);" +
+                    "   });" +
+                    "   " +
+                    "   // Começar a observar o body para adição de nós filhos" +
+                    "   observer.observe(document.body, { childList: true, subtree: true });" +
+                    "   " +
+                    "   // Também observar mudanças de volume" +
+                    "   document.addEventListener('volumechange', function(e) {" +
+                    "       if(e.target.volume > 0) {" +
+                    "           e.target.muted = true;" +
+                    "           e.target.volume = 0;" +
+                    "       }" +
+                    "   }, true);" +
                     "   " +
                     "   // Remover scroll desnecessário" +
                     "   document.body.style.overflow = 'hidden';" +
                     "   document.documentElement.style.overflow = 'hidden';" +
+                    "   " +
+                    "   // Injetar CSS para esconder controles de volume se existirem" +
+                    "   var style = document.createElement('style');" +
+                    "   style.textContent = '.volume-control, .sound-button, .mute-button, [class*=\"volume\"], [id*=\"volume\"], [class*=\"sound\"], [id*=\"sound\"] { display: none !important; }';" +
+                    "   document.head.appendChild(style);" +
                     "} catch(e) {" +
                     "   console.log('Erro na configuração: ' + e);" +
                     "}";
@@ -589,6 +633,9 @@ public class MainActivity extends AppCompatActivity {
                 if (cbBlockAds != null && cbBlockAds.isChecked()) {
                     injectAdBlocker(view);
                 }
+                
+                // Adicionar listener para detectar tentativas de mudar volume
+                injectVolumeBlocker(view);
             }
         });
         
@@ -668,6 +715,38 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "  DomStorage: " + settings.getDomStorageEnabled());
         Log.d(TAG, "  MediaPlaybackRequiresUserGesture: " + settings.getMediaPlaybackRequiresUserGesture());
         Log.d(TAG, "  UserAgent: " + settings.getUserAgentString());
+    }
+    
+    private void injectVolumeBlocker(WebView view) {
+        String volumeBlockerJS = 
+            "try {" +
+            "   // Bloquear qualquer tentativa de mudar volume" +
+            "   var originalVolumeSetter = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'volume').set;" +
+            "   Object.defineProperty(HTMLMediaElement.prototype, 'volume', {" +
+            "       set: function(value) {" +
+            "           originalVolumeSetter.call(this, 0);" +
+            "           this.muted = true;" +
+            "       }," +
+            "       get: function() {" +
+            "           return 0;" +
+            "       }" +
+            "   });" +
+            "   " +
+            "   // Também bloquear muted setter" +
+            "   var originalMutedSetter = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'muted').set;" +
+            "   Object.defineProperty(HTMLMediaElement.prototype, 'muted', {" +
+            "       set: function(value) {" +
+            "           originalMutedSetter.call(this, true);" +
+            "       }," +
+            "       get: function() {" +
+            "           return true;" +
+            "       }" +
+            "   });" +
+            "} catch(e) {}";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            view.evaluateJavascript(volumeBlockerJS, null);
+        }
     }
     
     private void applyZoom(int boxIndex) {
