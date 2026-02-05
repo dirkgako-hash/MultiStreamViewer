@@ -82,6 +82,11 @@ public class MainActivity extends AppCompatActivity {
     );
 
     private static final String TAG = "MultiStreamViewer";
+    
+    // Rastrear estado de fullscreen para cada box
+    private boolean[] boxInFullscreen = new boolean[4];
+    private View[] fullscreenViews = new View[4];
+    private WebChromeClient.CustomViewCallback[] fullscreenCallbacks = new WebChromeClient.CustomViewCallback[4];
 
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
@@ -289,14 +294,14 @@ public class MainActivity extends AppCompatActivity {
     private void handleStuckVideo(int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
-            // Primeiro tenta forçar play (SEMPRE mutado para manter todos os vídeos funcionando)
+            // Primeiro tenta forçar play (SEMPRE mutado)
             String forcePlayJS = 
                 "try {" +
                 "   var videos = document.getElementsByTagName('video');" +
                 "   for(var i = 0; i < videos.length; i++) {" +
                 "       var video = videos[i];" +
-                "       // SEMPRE mutado para garantir que todos os 4 vídeos continuem funcionando" +
                 "       video.muted = true;" +
+                "       video.volume = 0;" +
                 "       if(video.paused && !video.ended) {" +
                 "           video.play().catch(function(e) {" +
                 "               console.log('Auto-play failed: ' + e);" +
@@ -354,6 +359,12 @@ public class MainActivity extends AppCompatActivity {
     private void reloadWebView(int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
+            // Se estiver em fullscreen, sai do fullscreen antes de recarregar
+            if (boxInFullscreen[boxIndex]) {
+                exitFullscreen(boxIndex);
+            }
+            
+            injectMuteScript(webView, boxIndex);
             webView.reload();
             Toast.makeText(this, "Box " + (boxIndex + 1) + " recarregada", Toast.LENGTH_SHORT).show();
         }
@@ -414,7 +425,7 @@ public class MainActivity extends AppCompatActivity {
     
     @SuppressLint("SetJavaScriptEnabled")
     private void initWebViews() {
-        // PRIMEIRO: Criar todos os containers
+        // Criar todos os containers
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
             
@@ -446,7 +457,7 @@ public class MainActivity extends AppCompatActivity {
             });
         }
         
-        // SEGUNDO: Criar e configurar TODOS os WebViews com EXATAMENTE as mesmas configurações
+        // Criar e configurar TODOS os WebViews
         for (int i = 0; i < 4; i++) {
             webViews[i] = new WebView(this);
             webViews[i].setId(View.generateViewId());
@@ -459,11 +470,12 @@ public class MainActivity extends AppCompatActivity {
                     FrameLayout.LayoutParams.MATCH_PARENT));
         }
         
-        // TERCEIRO: Adicionar todos os containers ao GridLayout
+        // Adicionar todos os containers ao GridLayout
         for (int i = 0; i < 4; i++) {
             gridLayout.addView(boxContainers[i]);
         }
         
+        updateLayout(); // Configurar layout inicial
         btnMenu.requestFocus();
     }
     
@@ -475,7 +487,7 @@ public class MainActivity extends AppCompatActivity {
     private void setupWebView(WebView webView, int boxIndex) {
         WebSettings settings = webView.getSettings();
         
-        // CONFIGURAÇÕES IDÊNTICAS PARA TODOS OS WEBVIEWS
+        // CONFIGURAÇÕES BÁSICAS
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(true);
@@ -488,36 +500,29 @@ public class MainActivity extends AppCompatActivity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         
-        // IMPORTANTE: Permitir conteúdo misto para streaming
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         }
         
-        // Configurações de cache (todas iguais)
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         
-        // USER AGENT CONSISTENTE
         String userAgent = "Mozilla/5.0 (Linux; Android 10; AFTMM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Safari/537.36";
         settings.setUserAgentString(userAgent);
         
-        // Configurar bloqueio de ads (se disponível)
         if (cbBlockAds != null) {
             settings.setBlockNetworkLoads(cbBlockAds.isChecked());
             settings.setBlockNetworkImage(cbBlockAds.isChecked());
         }
         
-        // Zoom consistente
         settings.setTextZoom((int)(zoomLevels[boxIndex] * 100));
         webView.setInitialScale((int)(zoomLevels[boxIndex] * 100));
         
         webView.setBackgroundColor(Color.BLACK);
-        
-        // SCROLL VERTICAL HABILITADO PARA TODOS
         webView.setVerticalScrollBarEnabled(true);
         webView.setHorizontalScrollBarEnabled(false);
         webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
         
-        // CONFIGURAR WEBVIEWCLIENT COM MESMAS REGRAS
+        // CONFIGURAR WEBVIEWCLIENT
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -541,7 +546,6 @@ public class MainActivity extends AppCompatActivity {
                     return true;
                 }
                 
-                // Se for URL de stream, carregar na própria view
                 if (url.contains("youtube.com") || url.contains("twitch.tv") || url.contains("stream")) {
                     view.loadUrl(url);
                     return true;
@@ -552,80 +556,31 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onPageFinished(WebView view, String url) {
-                // JAVASCRIPT PARA TODOS OS WEBVIEWS - SEMPRE MUTADO (para permitir todos os 4 vídeos em play)
-                String videoSetupJS = 
-                    "try {" +
-                    "   // Função para configurar TODOS os vídeos SEMPRE mutados" +
-                    "   function setupAllMediaMuted() {" +
-                    "       var videos = document.getElementsByTagName('video');" +
-                    "       var audios = document.getElementsByTagName('audio');" +
-                    "       " +
-                    "       // Configurar TODOS os vídeos SEMPRE mutados (para permitir 4 vídeos simultâneos)" +
-                    "       for(var i = 0; i < videos.length; i++) {" +
-                    "           videos[i].muted = true;" +
-                    "           videos[i].playsInline = true;" +
-                    "           videos[i].webkitPlaysInline = true;" +
-                    "           " +
-                    "           // Tentar play automático se estiver pausado" +
-                    "           if(videos[i].paused && !videos[i].ended) {" +
-                    "               videos[i].play().catch(function(e) {" +
-                    "                   console.log('Auto-play falhou: ' + e);" +
-                    "               });" +
-                    "           }" +
-                    "       }" +
-                    "       " +
-                    "       // Configurar TODOS os áudios SEMPRE mutados" +
-                    "       for(var i = 0; i < audios.length; i++) {" +
-                    "           audios[i].muted = true;" +
-                    "       }" +
-                    "   }" +
-                    "   " +
-                    "   // Executar agora (TODOS MUTADOS)" +
-                    "   setupAllMediaMuted();" +
-                    "   " +
-                    "   // Observar alterações no DOM para novos vídeos/áudios (SEMPRE mantendo mutados)" +
-                    "   var observer = new MutationObserver(function(mutations) {" +
-                    "       setTimeout(setupAllMediaMuted, 500);" +
-                    "   });" +
-                    "   " +
-                    "   // Começar a observar o body para adição de nós filhos" +
-                    "   observer.observe(document.body, { childList: true, subtree: true });" +
-                    "   " +
-                    "   // Remover scroll desnecessário" +
-                    "   document.body.style.overflow = 'hidden';" +
-                    "   document.documentElement.style.overflow = 'hidden';" +
-                    "} catch(e) {" +
-                    "   console.log('Erro na configuração: ' + e);" +
-                    "}";
+                // Injeta script de mute
+                injectMuteScript(view, boxIndex);
                 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                    view.evaluateJavascript(videoSetupJS, null);
-                }
-                
-                // Aplicar zoom igual para todos
                 applyZoom(boxIndex);
                 
-                // Bloqueador de ads igual para todos
                 if (cbBlockAds != null && cbBlockAds.isChecked()) {
                     injectAdBlocker(view);
                 }
             }
         });
         
-        // CONFIGURAR WEBCHROMECLIENT CONSISTENTE
+        // CONFIGURAR WEBCHROMECLIENT - CORRIGIDO PARA FULLSCREEN
         webView.setWebChromeClient(new WebChromeClient() {
-            private View mCustomView;
-            private WebChromeClient.CustomViewCallback mCustomViewCallback;
-            
             @Override
             public void onShowCustomView(View view, CustomViewCallback callback) {
                 Log.d(TAG, "DEBUG: Fullscreen na Box " + (boxIndex + 1));
                 
-                mCustomView = view;
-                mCustomViewCallback = callback;
+                // Guardar referências
+                fullscreenViews[boxIndex] = view;
+                fullscreenCallbacks[boxIndex] = callback;
+                boxInFullscreen[boxIndex] = true;
                 
-                // Remover view anterior se existir
+                // Limpar container antes de adicionar nova view
                 if (boxContainers[boxIndex].getChildCount() > 1) {
+                    // Remove todas as views exceto o WebView (índice 0)
                     boxContainers[boxIndex].removeViewAt(1);
                 }
                 
@@ -640,8 +595,12 @@ public class MainActivity extends AppCompatActivity {
                 
                 // Configurar fullscreen na janela
                 getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_FULLSCREEN |
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                );
                 
-                // Notificar
                 runOnUiThread(() -> {
                     Toast.makeText(MainActivity.this, 
                         "Box " + (boxIndex + 1) + " em fullscreen", 
@@ -651,43 +610,125 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onHideCustomView() {
-                if (mCustomView == null) return;
+                if (fullscreenViews[boxIndex] == null) return;
                 
                 Log.d(TAG, "DEBUG: Saindo do fullscreen na Box " + (boxIndex + 1));
                 
                 // Remover view de fullscreen
-                if (boxContainers[boxIndex].indexOfChild(mCustomView) != -1) {
-                    boxContainers[boxIndex].removeView(mCustomView);
+                if (boxContainers[boxIndex].indexOfChild(fullscreenViews[boxIndex]) != -1) {
+                    boxContainers[boxIndex].removeView(fullscreenViews[boxIndex]);
                 }
                 
                 // Mostrar WebView novamente
                 webView.setVisibility(View.VISIBLE);
                 
-                if (mCustomViewCallback != null) {
-                    mCustomViewCallback.onCustomViewHidden();
+                if (fullscreenCallbacks[boxIndex] != null) {
+                    fullscreenCallbacks[boxIndex].onCustomViewHidden();
                 }
                 
-                mCustomView = null;
-                mCustomViewCallback = null;
+                fullscreenViews[boxIndex] = null;
+                fullscreenCallbacks[boxIndex] = null;
+                boxInFullscreen[boxIndex] = false;
                 
                 // Remover fullscreen da janela
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_FULLSCREEN |
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                );
             }
             
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
-                // DEBUG: Monitorar progresso
                 if (newProgress == 100) {
                     Log.d(TAG, "DEBUG: Box " + (boxIndex + 1) + " carregada 100%");
                 }
             }
         });
+    }
+    
+    private void injectMuteScript(WebView webView, int boxIndex) {
+        String muteScript = 
+            "javascript:(function() {" +
+            "   console.log('Injecting mute script for box " + (boxIndex + 1) + "');" +
+            "   " +
+            "   function muteAllMedia() {" +
+            "       var videos = document.getElementsByTagName('video');" +
+            "       for(var i = 0; i < videos.length; i++) {" +
+            "           try {" +
+            "               videos[i].muted = true;" +
+            "               videos[i].volume = 0;" +
+            "               videos[i].playsInline = true;" +
+            "               videos[i].webkitPlaysInline = true;" +
+            "               " +
+            "               if(videos[i].paused && !videos[i].ended) {" +
+            "                   videos[i].play().catch(function(e) {" +
+            "                       console.log('Play failed:', e);" +
+            "                   });" +
+            "               }" +
+            "           } catch(e) {}" +
+            "       }" +
+            "       " +
+            "       var audios = document.getElementsByTagName('audio');" +
+            "       for(var i = 0; i < audios.length; i++) {" +
+            "           try {" +
+            "               audios[i].muted = true;" +
+            "               audios[i].volume = 0;" +
+            "           } catch(e) {}" +
+            "       }" +
+            "   }" +
+            "   " +
+            "   muteAllMedia();" +
+            "   setTimeout(muteAllMedia, 1000);" +
+            "   setTimeout(muteAllMedia, 2000);" +
+            "   setTimeout(muteAllMedia, 3000);" +
+            "   " +
+            "   if (window.MutationObserver) {" +
+            "       var observer = new MutationObserver(function(mutations) {" +
+            "           setTimeout(muteAllMedia, 100);" +
+            "       });" +
+            "       observer.observe(document.body, { childList: true, subtree: true });" +
+            "   }" +
+            "})()";
         
-        Log.d(TAG, "DEBUG: Configurações da Box " + (boxIndex + 1) + ":");
-        Log.d(TAG, "  JavaScript: " + settings.getJavaScriptEnabled());
-        Log.d(TAG, "  DomStorage: " + settings.getDomStorageEnabled());
-        Log.d(TAG, "  MediaPlaybackRequiresUserGesture: " + settings.getMediaPlaybackRequiresUserGesture());
-        Log.d(TAG, "  UserAgent: " + settings.getUserAgentString());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(muteScript, null);
+        } else {
+            webView.loadUrl(muteScript);
+        }
+        
+        webView.loadUrl("javascript:(function(){" +
+            "var v=document.getElementsByTagName('video');" +
+            "for(var i=0;i<v.length;i++){v[i].muted=true;v[i].volume=0;}" +
+            "var a=document.getElementsByTagName('audio');" +
+            "for(var i=0;i<a.length;i++){a[i].muted=true;a[i].volume=0;}" +
+            "})()");
+    }
+    
+    private void exitFullscreen(int boxIndex) {
+        if (boxInFullscreen[boxIndex] && fullscreenViews[boxIndex] != null) {
+            // Remover view de fullscreen
+            if (boxContainers[boxIndex].indexOfChild(fullscreenViews[boxIndex]) != -1) {
+                boxContainers[boxIndex].removeView(fullscreenViews[boxIndex]);
+            }
+            
+            // Mostrar WebView novamente
+            if (webViews[boxIndex] != null) {
+                webViews[boxIndex].setVisibility(View.VISIBLE);
+            }
+            
+            if (fullscreenCallbacks[boxIndex] != null) {
+                fullscreenCallbacks[boxIndex].onCustomViewHidden();
+            }
+            
+            fullscreenViews[boxIndex] = null;
+            fullscreenCallbacks[boxIndex] = null;
+            boxInFullscreen[boxIndex] = false;
+            
+            // Remover fullscreen da janela
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        }
     }
     
     private void applyZoom(int boxIndex) {
@@ -881,7 +922,7 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
             
-            // Checkbox Auto Reload - configurar como true por padrão
+            // Checkbox Auto Reload
             if (cbAutoReload[i] != null) {
                 cbAutoReload[i].setChecked(true);
                 cbAutoReload[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -954,7 +995,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         
-        // Configurações Web - APLICAR A TODAS AS BOXES
+        // Configurações Web
         if (cbAllowScripts != null) {
             cbAllowScripts.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
@@ -1027,6 +1068,11 @@ public class MainActivity extends AppCompatActivity {
         int position = 0;
         for (int i = 0; i < 4; i++) {
             if (boxEnabled[i]) {
+                // Se a box estava em fullscreen e foi desativada, sai do fullscreen
+                if (boxInFullscreen[i]) {
+                    exitFullscreen(i);
+                }
+                
                 GridLayout.Spec rowSpec = GridLayout.spec(position / cols, 1f);
                 GridLayout.Spec colSpec = GridLayout.spec(position % cols, 1f);
                 
@@ -1043,12 +1089,29 @@ public class MainActivity extends AppCompatActivity {
                 }
                 
                 if (boxContainers[i] != null) {
+                    // Limpar qualquer view de fullscreen que possa estar no container
+                    if (boxContainers[i].getChildCount() > 1) {
+                        // Remove todas as views exceto o WebView (índice 0)
+                        for (int j = boxContainers[i].getChildCount() - 1; j >= 1; j--) {
+                            boxContainers[i].removeViewAt(j);
+                        }
+                    }
+                    
+                    // Garantir que o WebView está visível
+                    if (webViews[i] != null) {
+                        webViews[i].setVisibility(View.VISIBLE);
+                    }
+                    
                     boxContainers[i].setVisibility(View.VISIBLE);
                     gridLayout.addView(boxContainers[i], params);
                 }
                 position++;
             } else {
                 if (boxContainers[i] != null) {
+                    // Se a box estiver em fullscreen, sai do fullscreen antes de esconder
+                    if (boxInFullscreen[i]) {
+                        exitFullscreen(i);
+                    }
                     boxContainers[i].setVisibility(View.GONE);
                 }
             }
@@ -1092,6 +1155,12 @@ public class MainActivity extends AppCompatActivity {
                 url = "https://" + url;
             }
             if (webViews[boxIndex] != null) {
+                // Se estiver em fullscreen, sai do fullscreen antes de carregar nova URL
+                if (boxInFullscreen[boxIndex]) {
+                    exitFullscreen(boxIndex);
+                }
+                
+                injectMuteScript(webViews[boxIndex], boxIndex);
                 webViews[boxIndex].loadUrl(url);
             }
         } catch (Exception e) {
@@ -1103,6 +1172,10 @@ public class MainActivity extends AppCompatActivity {
     private void reloadAllWebViews() {
         for (int i = 0; i < 4; i++) {
             if (boxEnabled[i] && webViews[i] != null) {
+                // Se estiver em fullscreen, sai do fullscreen antes de recarregar
+                if (boxInFullscreen[i]) {
+                    exitFullscreen(i);
+                }
                 webViews[i].reload();
             }
         }
@@ -1112,6 +1185,10 @@ public class MainActivity extends AppCompatActivity {
     private void clearAllWebViews() {
         for (int i = 0; i < 4; i++) {
             if (webViews[i] != null) {
+                // Se estiver em fullscreen, sai do fullscreen antes de limpar
+                if (boxInFullscreen[i]) {
+                    exitFullscreen(i);
+                }
                 webViews[i].loadUrl("about:blank");
             }
         }
@@ -1499,6 +1576,14 @@ public class MainActivity extends AppCompatActivity {
                         return true;
                     }
                     
+                    // Verificar se alguma box está em fullscreen
+                    for (int i = 0; i < 4; i++) {
+                        if (boxInFullscreen[i]) {
+                            exitFullscreen(i);
+                            return true;
+                        }
+                    }
+                    
                     if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
                         webViews[focusedBoxIndex].goBack();
                         return true;
@@ -1513,7 +1598,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                     return true;
                     
-                // Controles de scroll
                 case KeyEvent.KEYCODE_DPAD_UP:
                     if (!isSidebarVisible) {
                         scrollWebView(focusedBoxIndex, -100);
@@ -1559,6 +1643,14 @@ public class MainActivity extends AppCompatActivity {
         if (isSidebarVisible) {
             closeSidebar();
             return;
+        }
+        
+        // Verificar se alguma box está em fullscreen
+        for (int i = 0; i < 4; i++) {
+            if (boxInFullscreen[i]) {
+                exitFullscreen(i);
+                return;
+            }
         }
         
         if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
