@@ -111,6 +111,7 @@ public class MainActivity extends AppCompatActivity {
         loadFavoritesList();
         updateLayout();
         updateFocusedBoxIndicator();
+        createSoundButtons();
         updateSoundButtons();
         
         // Iniciar auto-reload monitoring
@@ -236,66 +237,47 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         }
-        
-        // Criar botões de som programaticamente se não existirem no layout
-        createSoundButtons();
     }
     
     private void createSoundButtons() {
-        // IDs dos layouts de controle que já devem existir no layout
-        int[] controlLayoutIds = {
-            R.id.controls1, R.id.controls2, R.id.controls3, R.id.controls4
-        };
-        
+        // Criar botões de som programaticamente
         for (int i = 0; i < 4; i++) {
-            LinearLayout controlsLayout = findViewById(controlLayoutIds[i]);
-            if (controlsLayout != null) {
-                // Criar botão de som
-                btnSound[i] = new ImageButton(this);
-                btnSound[i].setId(View.generateViewId());
-                
-                // Configurar layout
-                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-                params.setMargins(8, 0, 8, 0);
-                btnSound[i].setLayoutParams(params);
-                
-                // Configurar aparência
-                btnSound[i].setBackgroundResource(android.R.drawable.btn_default);
-                btnSound[i].setScaleType(ImageButton.ScaleType.CENTER);
-                btnSound[i].setPadding(16, 16, 16, 16);
-                
-                // Adicionar ao layout
-                controlsLayout.addView(btnSound[i]);
-                
-                // Configurar ícone inicial
-                updateSoundButtonIcon(i);
-                
-                // Configurar listener
-                final int boxIndex = i;
-                btnSound[i].setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        toggleSound(boxIndex);
-                    }
-                });
-            }
-        }
-    }
-    
-    private void updateSoundButtonIcon(int boxIndex) {
-        if (btnSound[boxIndex] != null) {
-            if (boxMuted[boxIndex]) {
-                // Ícone de mute (som desligado)
-                btnSound[boxIndex].setImageResource(android.R.drawable.ic_lock_silent_mode);
-                btnSound[boxIndex].setContentDescription("Ativar som Box " + (boxIndex + 1));
+            btnSound[i] = new ImageButton(this);
+            btnSound[i].setId(View.generateViewId());
+            
+            // Configurar layout
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            params.setMargins(8, 0, 8, 0);
+            btnSound[i].setLayoutParams(params);
+            
+            // Configurar aparência
+            btnSound[i].setBackgroundResource(android.R.drawable.btn_default);
+            btnSound[i].setScaleType(ImageButton.ScaleType.CENTER);
+            btnSound[i].setPadding(16, 16, 16, 16);
+            
+            // Encontrar o layout onde adicionar o botão
+            // Vamos adicionar próximo ao botão de refresh correspondente
+            if (btnRefresh[i] != null && btnRefresh[i].getParent() instanceof LinearLayout) {
+                LinearLayout parentLayout = (LinearLayout) btnRefresh[i].getParent();
+                // Adicionar após o botão de refresh
+                int refreshIndex = parentLayout.indexOfChild(btnRefresh[i]);
+                parentLayout.addView(btnSound[i], refreshIndex + 1);
             } else {
-                // Ícone de som (som ligado)
-                btnSound[boxIndex].setImageResource(android.R.drawable.ic_btn_speak_now);
-                btnSound[boxIndex].setContentDescription("Desativar som Box " + (boxIndex + 1));
+                // Se não encontrar, adicionar ao bottomControls
+                bottomControls.addView(btnSound[i]);
             }
+            
+            // Configurar listener
+            final int boxIndex = i;
+            btnSound[i].setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    toggleSound(boxIndex);
+                }
+            });
         }
     }
     
@@ -537,14 +519,24 @@ public class MainActivity extends AppCompatActivity {
     
     private void updateSoundButtons() {
         for (int i = 0; i < 4; i++) {
-            updateSoundButtonIcon(i);
+            if (btnSound[i] != null) {
+                if (boxMuted[i]) {
+                    // Ícone de mute (som desligado)
+                    btnSound[i].setImageResource(android.R.drawable.ic_lock_silent_mode);
+                    btnSound[i].setContentDescription("Ativar som Box " + (i + 1));
+                } else {
+                    // Ícone de som (som ligado)
+                    btnSound[i].setImageResource(android.R.drawable.ic_btn_speak_now);
+                    btnSound[i].setContentDescription("Desativar som Box " + (i + 1));
+                }
+            }
         }
     }
     
     private void toggleSound(int boxIndex) {
         boxMuted[boxIndex] = !boxMuted[boxIndex];
         applySoundState(boxIndex);
-        updateSoundButtonIcon(boxIndex);
+        updateSoundButtons();
         
         String status = boxMuted[boxIndex] ? "mutada" : "com som";
         Toast.makeText(this, "Box " + (boxIndex + 1) + " " + status, Toast.LENGTH_SHORT).show();
