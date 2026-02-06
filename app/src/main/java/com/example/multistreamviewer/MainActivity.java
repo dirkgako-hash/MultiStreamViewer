@@ -88,79 +88,8 @@ public class MainActivity extends AppCompatActivity {
     private View[] fullscreenViews = new View[4];
     private WebChromeClient.CustomViewCallback[] fullscreenCallbacks = new WebChromeClient.CustomViewCallback[4];
     
-    // Rastrear se precisa restaurar fullscreen após reload - USANDO SEU CONCEITO
+    // Rastrear se precisa restaurar fullscreen após reload
     private boolean[] shouldRestoreFullscreen = new boolean[4];
-    
-    // Script JavaScript para restaurar fullscreen - USANDO SEU CONCEITO
-    private String restoreFullscreenScript = 
-        "javascript:(function() {" +
-        "    function tryFullscreen() {" +
-        "        // 1. Tentar encontrar botões comuns de fullscreen por classe ou título" +
-        "        var fsSelectors = [" +
-        "            '.vjs-fullscreen-control', '.ytp-fullscreen-button', " +
-        "            '.fullscreen-button', '[title*=\"Fullscreen\"]', " +
-        "            '.plyr__control--fullscreen', '.vjs-icon-fullscreen-enter'," +
-        "            '[class*=\"fullscreen\"]', '[id*=\"fullscreen\"]'," +
-        "            '[aria-label*=\"fullscreen\"]', '[title*=\"tela cheia\"]'," +
-        "            'button[class*=\"fs\"]'" +
-        "        ];" +
-        "        " +
-        "        for (var selector of fsSelectors) {" +
-        "            var btn = document.querySelector(selector);" +
-        "            if (btn) {" +
-        "                btn.click();" +
-        "                console.log('Fullscreen botão clicado: ' + selector);" +
-        "                return true;" +
-        "            }" +
-        "        }" +
-        "" +
-        "        // 2. Tentar encontrar botão de play primeiro (alguns players precisam)" +
-        "        var playSelectors = [" +
-        "            '.ytp-play-button', '.vjs-play-control', " +
-        "            '.play-button', '[title*=\"Play\"]', " +
-        "            '[aria-label*=\"Play\"]', '[class*=\"play\"]'" +
-        "        ];" +
-        "        " +
-        "        for (var selector of playSelectors) {" +
-        "            var btn = document.querySelector(selector);" +
-        "            if (btn) {" +
-        "                btn.click();" +
-        "                console.log('Play botão clicado: ' + selector);" +
-        "                // Depois de play, tentar fullscreen novamente" +
-        "                setTimeout(tryFullscreen, 500);" +
-        "                return true;" +
-        "            }" +
-        "        }" +
-        "" +
-        "        // 3. Se não achar botão, tenta forçar o elemento de vídeo" +
-        "        var video = document.querySelector('video');" +
-        "        if (video) {" +
-        "            if (video.requestFullscreen) {" +
-        "                video.requestFullscreen().catch(e => console.log('Fullscreen API error:', e));" +
-        "                return true;" +
-        "            } else if (video.webkitRequestFullscreen) {" +
-        "                video.webkitRequestFullscreen();" +
-        "                return true;" +
-        "            } else if (video.msRequestFullscreen) {" +
-        "                video.msRequestFullscreen();" +
-        "                return true;" +
-        "            }" +
-        "        }" +
-        "        return false;" +
-        "    }" +
-        "" +
-        "    // Tenta imediatamente e depois de alguns segundos (para carregar o player)" +
-        "    if (!tryFullscreen()) {" +
-        "        var attempts = 0;" +
-        "        var interval = setInterval(function() {" +
-        "            attempts++;" +
-        "            if (tryFullscreen() || attempts > 10) {" +
-        "                clearInterval(interval);" +
-        "                console.log('Fullscreen attempts: ' + attempts);" +
-        "            }" +
-        "        }, 1000);" +
-        "    }" +
-        "})()";
 
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
@@ -431,7 +360,7 @@ public class MainActivity extends AppCompatActivity {
     private void reloadWebView(int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
-            // USANDO SEU CONCEITO: Guarda se estava em fullscreen antes do reload
+            // Guarda se estava em fullscreen antes do reload
             shouldRestoreFullscreen[boxIndex] = boxInFullscreen[boxIndex];
             
             // Se estiver em fullscreen, sai do fullscreen antes de recarregar
@@ -630,22 +559,24 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onPageFinished(WebView view, String url) {
-                // JavaScript SIMPLES - apenas muta os vídeos no carregamento inicial
+                // 1. Injeta script de MUTE inicial
                 injectInitialMuteScript(view);
                 
+                // 2. Aplica zoom
                 applyZoom(boxIndex);
                 
+                // 3. Bloqueador de ads
                 if (cbBlockAds != null && cbBlockAds.isChecked()) {
                     injectAdBlocker(view);
                 }
                 
-                // USANDO SEU CONCEITO: Restaurar Fullscreen se necessário
+                // 4. Restaurar Fullscreen se necessário
                 if (shouldRestoreFullscreen[boxIndex]) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                        view.evaluateJavascript(restoreFullscreenScript, null);
-                    } else {
-                        view.loadUrl(restoreFullscreenScript);
-                    }
+                    // Espera um pouco para o player carregar
+                    new Handler().postDelayed(() -> {
+                        tryRestoreFullscreen(view, boxIndex);
+                    }, 2000); // 2 segundos
+                    
                     shouldRestoreFullscreen[boxIndex] = false; // Resetar após tentar
                     Log.d(TAG, "Tentando restaurar fullscreen na Box " + (boxIndex + 1));
                 }
@@ -724,35 +655,166 @@ public class MainActivity extends AppCompatActivity {
     private void injectInitialMuteScript(WebView webView) {
         String initialMuteJS = 
             "javascript:(function() {" +
-            "   // Muta apenas uma vez quando a página carrega" +
-            "   var videos = document.getElementsByTagName('video');" +
-            "   for(var i = 0; i < videos.length; i++) {" +
+            "   console.log('Injecting initial mute script...');" +
+            "   " +
+            "   // Função para mutar todos os elementos de mídia" +
+            "   function muteAllMedia() {" +
             "       try {" +
-            "           videos[i].muted = true;" +  // Apenas no início
-            "           videos[i].playsInline = true;" +
-            "           videos[i].webkitPlaysInline = true;" +
-            "           " +
-            "           // Tenta play automático" +
-            "           if(videos[i].paused && !videos[i].ended) {" +
-            "               videos[i].play().catch(function(e) {" +
-            "                   console.log('Auto-play initial: ' + e);" +
-            "               });" +
+            "           // Muta todos os vídeos" +
+            "           var videos = document.getElementsByTagName('video');" +
+            "           console.log('Found ' + videos.length + ' videos');" +
+            "           for(var i = 0; i < videos.length; i++) {" +
+            "               try {" +
+            "                   videos[i].muted = true;" +
+            "                   videos[i].volume = 0;" +
+            "                   videos[i].playsInline = true;" +
+            "                   videos[i].webkitPlaysInline = true;" +
+            "                   " +
+            "                   // Tenta play automático" +
+            "                   if(videos[i].paused && !videos[i].ended) {" +
+            "                       videos[i].play().catch(function(e) {" +
+            "                           console.log('Auto-play failed: ' + e.message);" +
+            "                       });" +
+            "                   }" +
+            "                   console.log('Muted video ' + i);" +
+            "               } catch(e) {" +
+            "                   console.log('Error muting video ' + i + ': ' + e.message);" +
+            "               }" +
             "           }" +
-            "       } catch(e) {}" +
+            "           " +
+            "           // Muta todos os áudios" +
+            "           var audios = document.getElementsByTagName('audio');" +
+            "           console.log('Found ' + audios.length + ' audios');" +
+            "           for(var i = 0; i < audios.length; i++) {" +
+            "               try {" +
+            "                   audios[i].muted = true;" +
+            "                   audios[i].volume = 0;" +
+            "                   console.log('Muted audio ' + i);" +
+            "               } catch(e) {" +
+            "                   console.log('Error muting audio ' + i + ': ' + e.message);" +
+            "               }" +
+            "           }" +
+            "       } catch(e) {" +
+            "           console.log('Error in muteAllMedia: ' + e.message);" +
+            "       }" +
             "   }" +
             "   " +
-            "   var audios = document.getElementsByTagName('audio');" +
-            "   for(var i = 0; i < audios.length; i++) {" +
-            "       try {" +
-            "           audios[i].muted = true;" +
-            "       } catch(e) {}" +
-            "   }" +
+            "   // Executa imediatamente" +
+            "   muteAllMedia();" +
+            "   " +
+            "   // Executa novamente após 1 segundo (para vídeos que carregam depois)" +
+            "   setTimeout(muteAllMedia, 1000);" +
+            "   " +
+            "   // Executa novamente após 3 segundos" +
+            "   setTimeout(muteAllMedia, 3000);" +
+            "   " +
+            "   console.log('Mute script executed successfully');" +
             "})()";
         
+        // Executa o script
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             webView.evaluateJavascript(initialMuteJS, null);
         } else {
             webView.loadUrl(initialMuteJS);
+        }
+        
+        // Também executa uma versão mais simples via loadUrl para garantir
+        webView.loadUrl("javascript:(function(){" +
+            "console.log('Simple mute script executing...');" +
+            "var v=document.getElementsByTagName('video');" +
+            "for(var i=0;i<v.length;i++){" +
+            "   try{v[i].muted=true;v[i].volume=0;console.log('Video '+i+' muted');}catch(e){}" +
+            "}" +
+            "var a=document.getElementsByTagName('audio');" +
+            "for(var i=0;i<a.length;i++){" +
+            "   try{a[i].muted=true;a[i].volume=0;console.log('Audio '+i+' muted');}catch(e){}" +
+            "}" +
+            "console.log('Simple mute script done');" +
+            "})()");
+    }
+    
+    private void tryRestoreFullscreen(WebView webView, int boxIndex) {
+        String restoreFullscreenJS = 
+            "javascript:(function() {" +
+            "   console.log('Trying to restore fullscreen...');" +
+            "   " +
+            "   function tryFullscreen() {" +
+            "       // 1. Tentar encontrar botões comuns de fullscreen por classe ou título" +
+            "       var fsSelectors = [" +
+            "           '.vjs-fullscreen-control', '.ytp-fullscreen-button', " +
+            "           '.fullscreen-button', '[title*=\"Fullscreen\"]', " +
+            "           '.plyr__control--fullscreen', '.vjs-icon-fullscreen-enter'," +
+            "           '[class*=\"fullscreen\"]', '[id*=\"fullscreen\"]'," +
+            "           '[aria-label*=\"fullscreen\"]', '[title*=\"tela cheia\"]'," +
+            "           'button[class*=\"fs\"]'" +
+            "       ];" +
+            "       " +
+            "       for (var selector of fsSelectors) {" +
+            "           var btn = document.querySelector(selector);" +
+            "           if (btn) {" +
+            "               console.log('Found fullscreen button: ' + selector);" +
+            "               btn.click();" +
+            "               return true;" +
+            "           }" +
+            "       }" +
+            "" +
+            "       // 2. Tentar encontrar botão de play primeiro (alguns players precisam)" +
+            "       var playSelectors = [" +
+            "           '.ytp-play-button', '.vjs-play-control', " +
+            "           '.play-button', '[title*=\"Play\"]', " +
+            "           '[aria-label*=\"Play\"]', '[class*=\"play\"]'" +
+            "       ];" +
+            "       " +
+            "       for (var selector of playSelectors) {" +
+            "           var btn = document.querySelector(selector);" +
+            "           if (btn) {" +
+            "               console.log('Found play button: ' + selector);" +
+            "               btn.click();" +
+            "               // Depois de play, tentar fullscreen novamente" +
+            "               setTimeout(tryFullscreen, 500);" +
+            "               return true;" +
+            "           }" +
+            "       }" +
+            "" +
+            "       // 3. Se não achar botão, tenta forçar o elemento de vídeo" +
+            "       var video = document.querySelector('video');" +
+            "       if (video) {" +
+            "           console.log('Found video element, trying requestFullscreen...');" +
+            "           if (video.requestFullscreen) {" +
+            "               video.requestFullscreen().catch(e => console.log('Fullscreen API error:', e));" +
+            "               return true;" +
+            "           } else if (video.webkitRequestFullscreen) {" +
+            "               video.webkitRequestFullscreen();" +
+            "               return true;" +
+            "           } else if (video.msRequestFullscreen) {" +
+            "               video.msRequestFullscreen();" +
+            "               return true;" +
+            "           }" +
+            "       }" +
+            "       console.log('No fullscreen method found');" +
+            "       return false;" +
+            "   }" +
+            "" +
+            "   // Tenta imediatamente e depois de alguns segundos (para carregar o player)" +
+            "   if (!tryFullscreen()) {" +
+            "       var attempts = 0;" +
+            "       var interval = setInterval(function() {" +
+            "           attempts++;" +
+            "           console.log('Fullscreen attempt ' + attempts);" +
+            "           if (tryFullscreen() || attempts > 10) {" +
+            "               clearInterval(interval);" +
+            "               console.log('Fullscreen attempts finished: ' + attempts);" +
+            "           }" +
+            "       }, 1000);" +
+            "   } else {" +
+            "       console.log('Fullscreen attempted immediately');" +
+            "   }" +
+            "})()";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(restoreFullscreenJS, null);
+        } else {
+            webView.loadUrl(restoreFullscreenJS);
         }
     }
     
@@ -969,13 +1031,13 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
             
-            // Botão Refresh - USANDO SEU CONCEITO
+            // Botão Refresh
             if (btnRefresh[i] != null) {
                 btnRefresh[i].setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
                         if (webViews[boxIndex] != null) {
-                            // USANDO SEU CONCEITO: Guarda se estava em fullscreen antes do reload
+                            // Guarda se estava em fullscreen antes do reload
                             shouldRestoreFullscreen[boxIndex] = boxInFullscreen[boxIndex];
                             
                             // Se estiver em fullscreen, sai do fullscreen antes de recarregar
@@ -1227,7 +1289,7 @@ public class MainActivity extends AppCompatActivity {
     private void reloadAllWebViews() {
         for (int i = 0; i < 4; i++) {
             if (boxEnabled[i] && webViews[i] != null) {
-                // USANDO SEU CONCEITO: Guarda se estava em fullscreen
+                // Guarda se estava em fullscreen
                 shouldRestoreFullscreen[i] = boxInFullscreen[i];
                 
                 // Se estiver em fullscreen, sai do fullscreen antes de recarregar
