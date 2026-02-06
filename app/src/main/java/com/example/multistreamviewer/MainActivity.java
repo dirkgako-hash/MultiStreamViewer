@@ -59,7 +59,7 @@ public class MainActivity extends AppCompatActivity {
     private Button[] btnPrevious = new Button[4];
     private Button[] btnNext = new Button[4];
     private Button[] btnLoadUrl = new Button[4];
-    private Button[] btnFullscreen = new Button[4]; // NOVO: Botões de Fullscreen
+    
     private CheckBox[] checkBoxes = new CheckBox[4];
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
     private EditText[] urlInputs = new EditText[4];
@@ -197,11 +197,7 @@ public class MainActivity extends AppCompatActivity {
         btnLoadUrl[2] = findViewById(R.id.btnLoadUrl3);
         btnLoadUrl[3] = findViewById(R.id.btnLoadUrl4);
         
-        // Inicializar botões Fullscreen (adicione estes IDs no seu layout XML)
-        btnFullscreen[0] = findViewById(R.id.btnFullscreen1);
-        btnFullscreen[1] = findViewById(R.id.btnFullscreen2);
-        btnFullscreen[2] = findViewById(R.id.btnFullscreen3);
-        btnFullscreen[3] = findViewById(R.id.btnFullscreen4);
+
         
         // Inicializar checkboxes de configuração web
         cbAllowScripts = findViewById(R.id.cbAllowScripts);
@@ -1243,15 +1239,7 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
             
-            // Botão Fullscreen
-            if (btnFullscreen[i] != null) {
-                btnFullscreen[i].setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        forceFullscreenManual(boxIndex);
-                    }
-                });
-            }
+
             
             // Checkbox para ativar/desativar box
             if (checkBoxes[i] != null) {
