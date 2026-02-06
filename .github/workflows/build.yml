@@ -1,14 +1,12 @@
-name: Android Build and Release
+name: Android Build Release
 
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
-  build:
+  build-release:
     runs-on: ubuntu-latest
     
     steps:
@@ -29,9 +27,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y imagemagick
       
-      - name: Fix Android Icons
+      - name: Generate Android Icons
         run: |
-          echo "Corrigindo ícones Android..."
+          echo "Generating Android icons..."
           mkdir -p app/src/main/res/mipmap-hdpi
           mkdir -p app/src/main/res/mipmap-mdpi
           mkdir -p app/src/main/res/mipmap-xhdpi
@@ -39,7 +37,7 @@ jobs:
           mkdir -p app/src/main/res/mipmap-xxxhdpi
           
           if command -v convert &> /dev/null; then
-            echo "Usando ImageMagick para criar ícones..."
+            echo "Using ImageMagick to create icons..."
             for density in hdpi mdpi xhdpi xxhdpi xxxhdpi; do
               case $density in
                 mdpi) size="48" ;;
@@ -52,7 +50,7 @@ jobs:
               cp "app/src/main/res/mipmap-$density/ic_launcher.png" "app/src/main/res/mipmap-$density/ic_launcher_round.png"
             done
           else
-            echo "ImageMagick não disponível, criando placeholders..."
+            echo "ImageMagick not available, creating placeholders..."
             for density in hdpi mdpi xhdpi xxhdpi xxxhdpi; do
               echo -n "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" | base64 -d > "app/src/main/res/mipmap-$density/ic_launcher.png"
               cp "app/src/main/res/mipmap-$density/ic_launcher.png" "app/src/main/res/mipmap-$density/ic_launcher_round.png"
@@ -62,24 +60,9 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
       
-      - name: Create Debug Keystore
-        run: |
-          echo "Criando debug.keystore..."
-          keytool -genkeypair \
-            -keystore debug.keystore \
-            -alias androiddebugkey \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass android \
-            -keypass android \
-            -dname "CN=Android Debug, O=Android, C=US" \
-            -noprompt
-          echo "✅ Debug keystore criado!"
-      
       - name: Create Release Keystore
         run: |
-          echo "Criando keystore para release..."
+          echo "Creating release keystore..."
           keytool -genkeypair \
             -keystore multistreamviewer.jks \
             -alias key0 \
@@ -96,54 +79,40 @@ jobs:
           echo "keyAlias=key0" >> keystore.properties
           echo "storeFile=../multistreamviewer.jks" >> keystore.properties
           
-          echo "✅ Release keystore e properties criados!"
-          echo "Conteúdo de keystore.properties:"
+          echo "✓ Release keystore and properties created!"
+          echo "keystore.properties content:"
           cat keystore.properties
       
-      - name: Verify Files
+      - name: Verify Keystore Files
         run: |
-          echo "=== Verificando arquivos criados ==="
-          ls -la multistreamviewer.jks keystore.properties debug.keystore || echo "Alguns arquivos não encontrados"
+          echo "=== Verifying created files ==="
+          ls -la multistreamviewer.jks keystore.properties
           echo ""
-          echo "=== Conteúdo de keystore.properties ==="
-          cat keystore.properties || echo "keystore.properties não encontrado"
-      
-      - name: Build Debug APK
-        run: |
-          echo "Construindo APK de debug..."
-          ./gradlew assembleDebug
-          echo "✅ Debug APK construído!"
+          echo "=== keystore.properties content ==="
+          cat keystore.properties
       
       - name: Build Release APK
         run: |
-          echo "Construindo APK de release..."
+          echo "Building Release APK..."
           ./gradlew assembleRelease --stacktrace
-          echo "✅ Release APK construído!"
+          echo "✓ Release APK built successfully!"
       
-      - name: Verify APKs
+      - name: Verify Release APK
         run: |
-          echo "=== APKs Gerados ==="
-          find app/build -name "*.apk" -type f | xargs -I {} sh -c 'echo "{} - $(du -h {} | cut -f1)"'
+          echo "=== Generated Release APK ==="
+          find app/build -name "*release*.apk" -type f | xargs -I {} sh -c 'echo "{} - $(du -h {} | cut -f1)"'
           
           echo ""
-          echo "=== Verificando assinatura ==="
-          for apk in app/build/outputs/apk/*/*.apk; do
-            echo "Verificando $apk..."
-            apksigner verify --verbose "$apk" 2>/dev/null || jarsigner -verify -verbose "$apk" 2>/dev/null || echo "⚠️  Não foi possível verificar assinatura de $apk"
+          echo "=== Verifying signature ==="
+          for apk in app/build/outputs/apk/release/*.apk; do
+            echo "Verifying $apk..."
+            apksigner verify --verbose "$apk" 2>/dev/null || jarsigner -verify -verbose "$apk" 2>/dev/null || echo "⚠️ Could not verify signature for $apk"
           done
       
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: MultiStreamViewer-Debug
-          path: app/build/outputs/apk/debug/
-          if-no-files-found: error
-          retention-days: 7
-        
-      - name: Upload Release APK
+      - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MultiStreamViewer-Release
           path: app/build/outputs/apk/release/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
