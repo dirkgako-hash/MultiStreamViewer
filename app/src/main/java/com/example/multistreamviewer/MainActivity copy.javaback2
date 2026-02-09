@@ -741,72 +741,87 @@ public class MainActivity extends AppCompatActivity {
         });
     }
     
-private void injectInitialMuteScript(WebView webView) {
-    String initialMuteJS =
-        "javascript:(function(){" +
-        "  try{" +
-        "    function muteIfNew(){" +
-        "      var videos = document.getElementsByTagName('video');" +
-        "      for(var i=0;i<videos.length;i++){" +
-        "        (function(v){" +
-        "          try{" +
-        "            var state = v.dataset.autoMuted;" +
-        "            if (state === undefined) {" +
-        "              v.muted = true; v.volume = 0; v.dataset.autoMuted = '1';" +
-        "              var watcher = function(){" +
-        "                try{" +
-        "                  if (!v.muted || v.volume > 0) { v.dataset.autoMuted = '0'; v.removeEventListener('volumechange', watcher); }" +
-        "                }catch(e){}" +
-        "              };" +
-        "              v.addEventListener('volumechange', watcher);" +
-        "            } else if (state === '1') {" +
-        "              v.muted = true; v.volume = 0;" +
-        "            }" +
-        "          }catch(e){}" +
-        "        })(videos[i]);" +
-        "      }" +
-        "      var audios = document.getElementsByTagName('audio');" +
-        "      for(var j=0;j<audios.length;j++){" +
-        "        (function(a){" +
-        "          try{" +
-        "            var stateA = a.dataset.autoMuted;" +
-        "            if (stateA === undefined) {" +
-        "              a.muted = true; a.volume = 0; a.dataset.autoMuted = '1';" +
-        "              var watcherA = function(){" +
-        "                try{" +
-        "                  if (!a.muted || a.volume > 0) { a.dataset.autoMuted = '0'; a.removeEventListener('volumechange', watcherA); }" +
-        "                }catch(e){}" +
-        "              };" +
-        "              a.addEventListener('volumechange', watcherA);" +
-        "            } else if (stateA === '1') {" +
-        "              a.muted = true; a.volume = 0;" +
-        "            }" +
-        "          }catch(e){}" +
-        "        })(audios[j]);" +
-        "      }" +
-        "    }" +
-        "    muteIfNew();" +
-        "    setTimeout(muteIfNew, 1000);" +
-        "    setTimeout(muteIfNew, 3000);" +
-        "  }catch(e){}" +
-        "})()";
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-        webView.evaluateJavascript(initialMuteJS, null);
-    } else {
-        webView.loadUrl(initialMuteJS);
+    private void injectInitialMuteScript(WebView webView) {
+        String initialMuteJS = 
+            "javascript:(function() {" +
+            "   console.log('Injecting initial mute script...');" +
+            "   " +
+            "   // Função para mutar todos os elementos de mídia" +
+            "   function muteAllMedia() {" +
+            "       try {" +
+            "           // Muta todos os vídeos" +
+            "           var videos = document.getElementsByTagName('video');" +
+            "           console.log('Found ' + videos.length + ' videos');" +
+            "           for(var i = 0; i < videos.length; i++) {" +
+            "               try {" +
+            "                   videos[i].muted = true;" +
+            "                   videos[i].volume = 0;" +
+            "                   videos[i].playsInline = true;" +
+            "                   videos[i].webkitPlaysInline = true;" +
+            "                   " +
+            "                   // Tenta play automático" +
+            "                   if(videos[i].paused && !videos[i].ended) {" +
+            "                       videos[i].play().catch(function(e) {" +
+            "                           console.log('Auto-play failed: ' + e.message);" +
+            "                       });" +
+            "                   }" +
+            "                   console.log('Muted video ' + i);" +
+            "               } catch(e) {" +
+            "                   console.log('Error muting video ' + i + ': ' + e.message);" +
+            "               }" +
+            "           }" +
+            "           " +
+            "           // Muta todos os áudios" +
+            "           var audios = document.getElementsByTagName('audio');" +
+            "           console.log('Found ' + audios.length + ' audios');" +
+            "           for(var i = 0; i < audios.length; i++) {" +
+            "               try {" +
+            "                   audios[i].muted = true;" +
+            "                   audios[i].volume = 0;" +
+            "                   console.log('Muted audio ' + i);" +
+            "               } catch(e) {" +
+            "                   console.log('Error muting audio ' + i + ': ' + e.message);" +
+            "               }" +
+            "           }" +
+            "       } catch(e) {" +
+            "           console.log('Error in muteAllMedia: ' + e.message);" +
+            "       }" +
+            "   }" +
+            "   " +
+            "   // Executa imediatamente" +
+            "   muteAllMedia();" +
+            "   " +
+            "   // Executa novamente após 1 segundo (para vídeos que carregam depois)" +
+            "   setTimeout(muteAllMedia, 1000);" +
+            "   " +
+            "   // Executa novamente após 3 segundos" +
+            "   setTimeout(muteAllMedia, 3000);" +
+            "   " +
+            "   console.log('Mute script executed successfully');" +
+            "})()";
+        
+        // Executa o script
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(initialMuteJS, null);
+        } else {
+            webView.loadUrl(initialMuteJS);
+        }
+        
+        // Também executa uma versão mais simples via loadUrl para garantir
+        webView.loadUrl("javascript:(function(){" +
+            "console.log('Simple mute script executing...');" +
+            "var v=document.getElementsByTagName('video');" +
+            "for(var i=0;i<v.length;i++){" +
+            "   try{v[i].muted=true;v[i].volume=0;console.log('Video '+i+' muted');}catch(e){}" +
+            "}" +
+            "var a=document.getElementsByTagName('audio');" +
+            "for(var i=0;i<a.length;i++){" +
+            "   try{a[i].muted=true;a[i].volume=0;console.log('Audio '+i+' muted');}catch(e){}" +
+            "}" +
+            "console.log('Simple mute script done');" +
+            "})()");
     }
-
-    // Fallback simples para garantir execução em páginas onde evaluateJavascript pode falhar
-    webView.loadUrl("javascript:(function(){" +
-        "var v=document.getElementsByTagName('video');for(var i=0;i<v.length;i++){try{if(v[i].dataset.autoMuted===undefined){v[i].muted=true;v[i].volume=0;v[i].dataset.autoMuted='1';}else if(v[i].dataset.autoMuted==='1'){v[i].muted=true;v[i].volume=0;}}catch(e){}};" +
-        "var a=document.getElementsByTagName('audio');for(var j=0;j<a.length;j++){try{if(a[j].dataset.autoMuted===undefined){a[j].muted=true;a[j].volume=0;a[j].dataset.autoMuted='1';}else if(a[j].dataset.autoMuted==='1'){a[j].muted=true;a[j].volume=0;}}catch(e){}}})();");
-}
     
-
-
-
-
     private void tryForceFullscreen(WebView webView, int boxIndex) {
         String forceFullscreenJS = 
             "javascript:(function() {" +
