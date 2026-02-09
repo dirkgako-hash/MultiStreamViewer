@@ -72,6 +72,11 @@ public class MainActivity extends AppCompatActivity {
     private ArrayList<String> favoritesList = new ArrayList<>();
     private SharedPreferences preferences;
     
+    // Fullscreen video support
+    private boolean[] boxInFullscreen = new boolean[4];
+    private View[] fullscreenViews = new View[4];
+    private WebChromeClient.CustomViewCallback[] fullscreenCallbacks = new WebChromeClient.CustomViewCallback[4];
+    
 
     
     private final List<String> adDomains = Arrays.asList(
@@ -416,8 +421,97 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         
-        // CONFIGURAR WEBCHROMECLIENT
-        webView.setWebChromeClient(new WebChromeClient());
+        // CONFIGURAR WEBCHROMECLIENT COM SUPORTE A FULLSCREEN
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onShowCustomView(View view, CustomViewCallback callback) {
+                Log.d(TAG, "Fullscreen on Box " + (boxIndex + 1));
+                
+                boxInFullscreen[boxIndex] = true;
+                fullscreenViews[boxIndex] = view;
+                fullscreenCallbacks[boxIndex] = callback;
+                
+                if (boxContainers[boxIndex].getChildCount() > 1) {
+                    boxContainers[boxIndex].removeViewAt(1);
+                }
+                
+                boxContainers[boxIndex].addView(view, 
+                    new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT));
+                
+                webView.setVisibility(View.GONE);
+                
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_FULLSCREEN |
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                );
+                
+                Toast.makeText(MainActivity.this, 
+                    "Box " + (boxIndex + 1) + " fullscreen", 
+                    Toast.LENGTH_SHORT).show();
+            }
+            
+            @Override
+            public void onHideCustomView() {
+                if (fullscreenViews[boxIndex] == null) return;
+                
+                Log.d(TAG, "Exiting fullscreen Box " + (boxIndex + 1));
+                
+                if (boxContainers[boxIndex].indexOfChild(fullscreenViews[boxIndex]) != -1) {
+                    boxContainers[boxIndex].removeView(fullscreenViews[boxIndex]);
+                }
+                
+                webView.setVisibility(View.VISIBLE);
+                
+                if (fullscreenCallbacks[boxIndex] != null) {
+                    fullscreenCallbacks[boxIndex].onCustomViewHidden();
+                }
+                
+                fullscreenViews[boxIndex] = null;
+                fullscreenCallbacks[boxIndex] = null;
+                boxInFullscreen[boxIndex] = false;
+                
+                if (!isAnyBoxInFullscreen()) {
+                    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                }
+            }
+        });
+    }
+
+    private boolean isAnyBoxInFullscreen() {
+        for (int i = 0; i < 4; i++) {
+            if (boxInFullscreen[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    private void exitFullscreen(int boxIndex) {
+        if (boxInFullscreen[boxIndex] && fullscreenViews[boxIndex] != null) {
+            if (boxContainers[boxIndex].indexOfChild(fullscreenViews[boxIndex]) != -1) {
+                boxContainers[boxIndex].removeView(fullscreenViews[boxIndex]);
+            }
+            
+            if (webViews[boxIndex] != null) {
+                webViews[boxIndex].setVisibility(View.VISIBLE);
+            }
+            
+            if (fullscreenCallbacks[boxIndex] != null) {
+                fullscreenCallbacks[boxIndex].onCustomViewHidden();
+            }
+            
+            fullscreenViews[boxIndex] = null;
+            fullscreenCallbacks[boxIndex] = null;
+            boxInFullscreen[boxIndex] = false;
+            
+            if (!isAnyBoxInFullscreen()) {
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            }
+        }
     }
 
     private void applyZoom(int boxIndex) {
@@ -1208,6 +1302,14 @@ public class MainActivity extends AppCompatActivity {
                         return true;
                     }
                     
+                    // Check if any box is in fullscreen
+                    for (int i = 0; i < 4; i++) {
+                        if (boxInFullscreen[i]) {
+                            exitFullscreen(i);
+                            return true;
+                        }
+                    }
+                    
                     if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
                         webViews[focusedBoxIndex].goBack();
                         return true;
@@ -1267,6 +1369,14 @@ public class MainActivity extends AppCompatActivity {
         if (isSidebarVisible) {
             closeSidebar();
             return;
+        }
+        
+        // Check if any box is in fullscreen
+        for (int i = 0; i < 4; i++) {
+            if (boxInFullscreen[i]) {
+                exitFullscreen(i);
+                return;
+            }
         }
         
         if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
