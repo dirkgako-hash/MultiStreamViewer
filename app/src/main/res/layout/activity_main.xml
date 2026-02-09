@@ -74,18 +74,6 @@
                 android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
-            <!-- CHECKBOX AUTO RELOAD "A" - MARCADO POR PADRÃO -->
-            <CheckBox
-                android:id="@+id/cbAutoReload1"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="A"
-                android:textColor="@color/text_blue"
-                android:textSize="9sp"
-                android:checked="true"
-                android:focusable="true"
-                android:focusableInTouchMode="true" />
-            
             <Button
                 android:id="@+id/btnZoomIn1"
                 android:layout_width="26dp"
@@ -164,18 +152,6 @@
                 android:text="R"
                 android:textColor="@color/text_white"
                 android:textSize="10sp" />
-            
-            <!-- CHECKBOX AUTO RELOAD "A" - MARCADO POR PADRÃO -->
-            <CheckBox
-                android:id="@+id/cbAutoReload2"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="A"
-                android:textColor="@color/text_purple"
-                android:textSize="9sp"
-                android:checked="true"
-                android:focusable="true"
-                android:focusableInTouchMode="true" />
             
             <Button
                 android:id="@+id/btnZoomIn2"
@@ -256,18 +232,6 @@
                 android:textColor="@color/text_white"
                 android:textSize="10sp" />
             
-            <!-- CHECKBOX AUTO RELOAD "A" - MARCADO POR PADRÃO -->
-            <CheckBox
-                android:id="@+id/cbAutoReload3"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="A"
-                android:textColor="@color/text_blue"
-                android:textSize="9sp"
-                android:checked="true"
-                android:focusable="true"
-                android:focusableInTouchMode="true" />
-            
             <Button
                 android:id="@+id/btnZoomIn3"
                 android:layout_width="26dp"
@@ -345,18 +309,6 @@
                 android:text="R"
                 android:textColor="@color/text_white"
                 android:textSize="10sp" />
-            
-            <!-- CHECKBOX AUTO RELOAD "A" - MARCADO POR PADRÃO -->
-            <CheckBox
-                android:id="@+id/cbAutoReload4"
-                android:layout_width="wrap_content"
- android:layout_height="wrap_content"
-                android:text="A"
-                android:textColor="@color/text_purple"
-                android:textSize="9sp"
-                android:checked="true"
-                android:focusable="true"
-                android:focusableInTouchMode="true" />
             
             <Button
                 android:id="@+id/btnZoomIn4"

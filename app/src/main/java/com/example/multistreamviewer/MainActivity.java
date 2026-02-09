@@ -53,7 +53,6 @@ public class MainActivity extends AppCompatActivity {
     private Button btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
     private Button[] btnRefresh = new Button[4];
-    private CheckBox[] cbAutoReload = new CheckBox[4];
     private Button[] btnZoomIn = new Button[4];
     private Button[] btnZoomOut = new Button[4];
     private Button[] btnPrevious = new Button[4];
@@ -66,7 +65,6 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvFocusedBox;
     
     private boolean[] boxEnabled = {true, true, true, true};
-    private boolean[] autoReloadEnabled = {true, true, true, true};
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
     private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -74,14 +72,7 @@ public class MainActivity extends AppCompatActivity {
     private ArrayList<String> favoritesList = new ArrayList<>();
     private SharedPreferences preferences;
     
-    private Handler autoReloadHandler = new Handler();
-    private Runnable autoReloadRunnable;
-    private final long AUTO_RELOAD_INTERVAL = 10000;
-    
-    // Handlers para mute persistente
-    private Handler[] muteHandlers = new Handler[4];
-    private Runnable[] muteRunnables = new Runnable[4];
-    private final long MUTE_CHECK_INTERVAL = 2000;
+
     
     private final List<String> adDomains = Arrays.asList(
         "doubleclick.net", "googleadservices.com", "googlesyndication.com"
@@ -89,13 +80,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MultiStreamViewer";
     
-    // Rastrear estado de fullscreen para cada box
-    private boolean[] boxInFullscreen = new boolean[4];
-    private View[] fullscreenViews = new View[4];
-    private WebChromeClient.CustomViewCallback[] fullscreenCallbacks = new WebChromeClient.CustomViewCallback[4];
-    
-    // Rastrear se precisa restaurar fullscreen após reload
-    private boolean[] shouldRestoreFullscreen = new boolean[4];
+
 
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
@@ -107,13 +92,6 @@ public class MainActivity extends AppCompatActivity {
         
         preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
         
-        // Configurar fullscreen
-        getWindow().getDecorView().setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_FULLSCREEN |
-            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-        );
-        
         initViews();
         initWebViews();
         initEventListeners();
@@ -122,12 +100,6 @@ public class MainActivity extends AppCompatActivity {
         loadFavoritesList();
         updateLayout();
         updateFocusedBoxIndicator();
-        
-        // Iniciar auto-reload monitoring
-        startAutoReloadMonitoring();
-        
-        // Iniciar mute persistente monitoring
-        startMuteMonitoring();
         
         if (!hasSavedState()) {
             new Handler().postDelayed(this::loadInitialURLs, 1000);
@@ -165,11 +137,6 @@ public class MainActivity extends AppCompatActivity {
         btnRefresh[2] = findViewById(R.id.btnRefresh3);
         btnRefresh[3] = findViewById(R.id.btnRefresh4);
         
-        // Inicializar checkboxes auto-reload
-        cbAutoReload[0] = findViewById(R.id.cbAutoReload1);
-        cbAutoReload[1] = findViewById(R.id.cbAutoReload2);
-        cbAutoReload[2] = findViewById(R.id.cbAutoReload3);
-        cbAutoReload[3] = findViewById(R.id.cbAutoReload4);
         
         btnZoomIn[0] = findViewById(R.id.btnZoomIn1);
         btnZoomIn[1] = findViewById(R.id.btnZoomIn2);
@@ -250,210 +217,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
             }
-        }
-    }
-    
-    private void startAutoReloadMonitoring() {
-        autoReloadRunnable = new Runnable() {
-            @Override
-            public void run() {
-                for (int i = 0; i < 4; i++) {
-                    if (boxEnabled[i] && autoReloadEnabled[i] && webViews[i] != null) {
-                        checkVideoStatus(i);
-                    }
-                }
-                autoReloadHandler.postDelayed(this, AUTO_RELOAD_INTERVAL);
-            }
-        };
-        autoReloadHandler.postDelayed(autoReloadRunnable, AUTO_RELOAD_INTERVAL);
-    }
-    
-    private void startMuteMonitoring() {
-        for (int i = 0; i < 4; i++) {
-            final int boxIndex = i;
-            muteHandlers[i] = new Handler();
-            muteRunnables[i] = new Runnable() {
-                @Override
-                public void run() {
-                    if (boxEnabled[boxIndex] && webViews[boxIndex] != null) {
-                        applyPersistentMute(boxIndex);
-                    }
-                    muteHandlers[boxIndex].postDelayed(this, MUTE_CHECK_INTERVAL);
-                }
-            };
-            muteHandlers[i].postDelayed(muteRunnables[i], MUTE_CHECK_INTERVAL);
-        }
-    }
-    
-    private void applyPersistentMute(int boxIndex) {
-        WebView webView = webViews[boxIndex];
-        if (webView != null) {
-            String persistentMuteJS = 
-                "javascript:(function() {" +
-                "   try {" +
-                "       var videos = document.getElementsByTagName('video');" +
-                "       for(var i = 0; i < videos.length; i++) {" +
-                "           var video = videos[i];" +
-                "           // Força mute mesmo se o usuário tentou desmutar" +
-                "           video.muted = true;" +
-                "           video.volume = 0;" +
-                "           " +
-                "           // Remove event listeners que poderiam alterar o mute" +
-                "           if (video._muteListenerAdded) continue;" +
-                "           " +
-                "           // Intercepta tentativas de desmute" +
-                "           video.addEventListener('volumechange', function(e) {" +
-                "               if (this.volume > 0) {" +
-                "                   this.volume = 0;" +
-                "               }" +
-                "               if (!this.muted) {" +
-                "                   this.muted = true;" +
-                "               }" +
-                "           });" +
-                "           " +
-                "           video.addEventListener('play', function(e) {" +
-                "               this.muted = true;" +
-                "               this.volume = 0;" +
-                "           });" +
-                "           " +
-                "           video._muteListenerAdded = true;" +
-                "       }" +
-                "       " +
-                "       var audios = document.getElementsByTagName('audio');" +
-                "       for(var i = 0; i < audios.length; i++) {" +
-                "           var audio = audios[i];" +
-                "           audio.muted = true;" +
-                "           audio.volume = 0;" +
-                "       }" +
-                "   } catch(e) {" +
-                "       // Silenciosamente continua" +
-                "   }" +
-                "})()";
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                webView.evaluateJavascript(persistentMuteJS, null);
-            } else {
-                webView.loadUrl(persistentMuteJS);
-            }
-        }
-    }
-    
-    private void checkVideoStatus(final int boxIndex) {
-        WebView webView = webViews[boxIndex];
-        if (webView != null) {
-            String checkVideoJS = 
-                "try {" +
-                "   var videos = document.getElementsByTagName('video');" +
-                "   if (videos.length === 0) return 'novideo';" +
-                "   " +
-                "   for(var i = 0; i < videos.length; i++) {" +
-                "       var video = videos[i];" +
-                "       if(video.paused && !video.ended) {" +
-                "           return 'paused';" +
-                "       }" +
-                "       if(video.error) {" +
-                "           return 'error';" +
-                "       }" +
-                "   }" +
-                "   return 'playing';" +
-                "} catch(e) { return 'error'; }";
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                webView.evaluateJavascript(checkVideoJS, value -> {
-                    try {
-                        String status = value.replace("\"", "");
-                        runOnUiThread(() -> {
-                            if ("paused".equals(status) || "error".equals(status)) {
-                                handleStuckVideo(boxIndex);
-                            }
-                        });
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error checking video status", e);
-                    }
-                });
-            }
-        }
-    }
-    
-    private void handleStuckVideo(int boxIndex) {
-        WebView webView = webViews[boxIndex];
-        if (webView != null) {
-            // Tenta forçar play sem alterar o estado de mute
-            String forcePlayJS = 
-                "try {" +
-                "   var videos = document.getElementsByTagName('video');" +
-                "   for(var i = 0; i < videos.length; i++) {" +
-                "       var video = videos[i];" +
-                "       if(video.paused && !video.ended) {" +
-                "           video.play().catch(function(e) {" +
-                "               console.log('Auto-play failed: ' + e);" +
-                "           });" +
-                "       }" +
-                "   }" +
-                "} catch(e) {}";
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                webView.evaluateJavascript(forcePlayJS, null);
-            }
-            
-            // Aplica mute persistente também
-            applyPersistentMute(boxIndex);
-            
-            // Espera 2 segundos e verifica novamente
-            new Handler().postDelayed(() -> {
-                checkVideoStatusAfterAttempt(boxIndex);
-            }, 2000);
-        }
-    }
-    
-    private void checkVideoStatusAfterAttempt(final int boxIndex) {
-        WebView webView = webViews[boxIndex];
-        if (webView != null) {
-            String checkVideoJS = 
-                "try {" +
-                "   var videos = document.getElementsByTagName('video');" +
-                "   if (videos.length === 0) return 'novideo';" +
-                "   " +
-                "   for(var i = 0; i < videos.length; i++) {" +
-                "       var video = videos[i];" +
-                "       if(video.paused && !video.ended) {" +
-                "           return 'stillpaused';" +
-                "       }" +
-                "   }" +
-                "   return 'playing';" +
-                "} catch(e) { return 'error'; }";
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                webView.evaluateJavascript(checkVideoJS, value -> {
-                    try {
-                        String status = value.replace("\"", "");
-                        runOnUiThread(() -> {
-                            if ("stillpaused".equals(status) || "error".equals(status)) {
-                                // Se ainda pausado, recarrega a página
-                                reloadWebView(boxIndex);
-                            }
-                        });
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error checking video status after attempt", e);
-                    }
-                });
-            }
-        }
-    }
-    
-    private void reloadWebView(int boxIndex) {
-        WebView webView = webViews[boxIndex];
-        if (webView != null) {
-            // Guarda se estava em fullscreen antes do reload
-            shouldRestoreFullscreen[boxIndex] = boxInFullscreen[boxIndex];
-            
-            // Se estiver em fullscreen, sai do fullscreen antes de recarregar
-            if (boxInFullscreen[boxIndex]) {
-                exitFullscreen(boxIndex);
-            }
-            
-            webView.reload();
-            Toast.makeText(this, "Box " + (boxIndex + 1) + " recarregada", Toast.LENGTH_SHORT).show();
         }
     }
     
@@ -643,385 +406,20 @@ public class MainActivity extends AppCompatActivity {
             
             @Override
             public void onPageFinished(WebView view, String url) {
-                // 1. Injeta script de MUTE inicial
-                injectInitialMuteScript(view);
-                
-                // 2. Aplica mute persistente imediatamente
-                applyPersistentMute(boxIndex);
-                
-                // 3. Aplica zoom
+                // Apply zoom
                 applyZoom(boxIndex);
                 
-                // 4. Bloqueador de ads
+                // Ad blocking
                 if (cbBlockAds != null && cbBlockAds.isChecked()) {
                     injectAdBlocker(view);
-                }
-                
-                // 5. Restaurar Fullscreen se necessário
-                if (shouldRestoreFullscreen[boxIndex]) {
-                    // Espera um pouco para o player carregar
-                    new Handler().postDelayed(() -> {
-                        tryForceFullscreen(view, boxIndex);
-                    }, 3000); // Aumentei para 3 segundos
-                    
-                    // Marca como tentado, mas mantém a flag se não conseguir
-                    Log.d(TAG, "Tentando restaurar fullscreen na Box " + (boxIndex + 1));
                 }
             }
         });
         
         // CONFIGURAR WEBCHROMECLIENT
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public void onShowCustomView(View view, CustomViewCallback callback) {
-                Log.d(TAG, "DEBUG: Fullscreen na Box " + (boxIndex + 1));
-                
-                fullscreenViews[boxIndex] = view;
-                fullscreenCallbacks[boxIndex] = callback;
-                boxInFullscreen[boxIndex] = true;
-                shouldRestoreFullscreen[boxIndex] = false; // Resetar pois agora está em fullscreen
-                
-                if (boxContainers[boxIndex].getChildCount() > 1) {
-                    boxContainers[boxIndex].removeViewAt(1);
-                }
-                
-                boxContainers[boxIndex].addView(view, 
-                    new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT));
-                
-                webView.setVisibility(View.GONE);
-                
-                getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-                getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_FULLSCREEN |
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                );
-                
-                runOnUiThread(() -> {
-                    Toast.makeText(MainActivity.this, 
-                        "Box " + (boxIndex + 1) + " em fullscreen", 
-                        Toast.LENGTH_SHORT).show();
-                });
-            }
-            
-            @Override
-            public void onHideCustomView() {
-                if (fullscreenViews[boxIndex] == null) return;
-                
-                Log.d(TAG, "DEBUG: Saindo do fullscreen na Box " + (boxIndex + 1));
-                
-                if (boxContainers[boxIndex].indexOfChild(fullscreenViews[boxIndex]) != -1) {
-                    boxContainers[boxIndex].removeView(fullscreenViews[boxIndex]);
-                }
-                
-                webView.setVisibility(View.VISIBLE);
-                
-                if (fullscreenCallbacks[boxIndex] != null) {
-                    fullscreenCallbacks[boxIndex].onCustomViewHidden();
-                }
-                
-                fullscreenViews[boxIndex] = null;
-                fullscreenCallbacks[boxIndex] = null;
-                boxInFullscreen[boxIndex] = false;
-                shouldRestoreFullscreen[boxIndex] = false; // Resetar pois saiu do fullscreen
-                
-                if (!isAnyBoxInFullscreen()) {
-                    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-                }
-            }
-            
-            @Override
-            public void onProgressChanged(WebView view, int newProgress) {
-                if (newProgress == 100) {
-                    Log.d(TAG, "DEBUG: Box " + (boxIndex + 1) + " carregada 100%");
-                }
-            }
-        });
-    }
-    
-private void injectInitialMuteScript(WebView webView) {
-    String initialMuteJS =
-        "javascript:(function(){" +
-        "  try{" +
-        "    function muteIfNew(){" +
-        "      var videos = document.getElementsByTagName('video');" +
-        "      for(var i=0;i<videos.length;i++){" +
-        "        (function(v){" +
-        "          try{" +
-        "            var state = v.dataset.autoMuted;" +
-        "            if (state === undefined) {" +
-        "              v.muted = true; v.volume = 0; v.dataset.autoMuted = '1';" +
-        "              var watcher = function(){" +
-        "                try{" +
-        "                  if (!v.muted || v.volume > 0) { v.dataset.autoMuted = '0'; v.removeEventListener('volumechange', watcher); }" +
-        "                }catch(e){}" +
-        "              };" +
-        "              v.addEventListener('volumechange', watcher);" +
-        "            } else if (state === '1') {" +
-        "              v.muted = true; v.volume = 0;" +
-        "            }" +
-        "          }catch(e){}" +
-        "        })(videos[i]);" +
-        "      }" +
-        "      var audios = document.getElementsByTagName('audio');" +
-        "      for(var j=0;j<audios.length;j++){" +
-        "        (function(a){" +
-        "          try{" +
-        "            var stateA = a.dataset.autoMuted;" +
-        "            if (stateA === undefined) {" +
-        "              a.muted = true; a.volume = 0; a.dataset.autoMuted = '1';" +
-        "              var watcherA = function(){" +
-        "                try{" +
-        "                  if (!a.muted || a.volume > 0) { a.dataset.autoMuted = '0'; a.removeEventListener('volumechange', watcherA); }" +
-        "                }catch(e){}" +
-        "              };" +
-        "              a.addEventListener('volumechange', watcherA);" +
-        "            } else if (stateA === '1') {" +
-        "              a.muted = true; a.volume = 0;" +
-        "            }" +
-        "          }catch(e){}" +
-        "        })(audios[j]);" +
-        "      }" +
-        "    }" +
-        "    muteIfNew();" +
-        "    setTimeout(muteIfNew, 1000);" +
-        "    setTimeout(muteIfNew, 3000);" +
-        "  }catch(e){}" +
-        "})()";
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-        webView.evaluateJavascript(initialMuteJS, null);
-    } else {
-        webView.loadUrl(initialMuteJS);
+        webView.setWebChromeClient(new WebChromeClient());
     }
 
-    // Fallback simples para garantir execução em páginas onde evaluateJavascript pode falhar
-    webView.loadUrl("javascript:(function(){" +
-        "var v=document.getElementsByTagName('video');for(var i=0;i<v.length;i++){try{if(v[i].dataset.autoMuted===undefined){v[i].muted=true;v[i].volume=0;v[i].dataset.autoMuted='1';}else if(v[i].dataset.autoMuted==='1'){v[i].muted=true;v[i].volume=0;}}catch(e){}};" +
-        "var a=document.getElementsByTagName('audio');for(var j=0;j<a.length;j++){try{if(a[j].dataset.autoMuted===undefined){a[j].muted=true;a[j].volume=0;a[j].dataset.autoMuted='1';}else if(a[j].dataset.autoMuted==='1'){a[j].muted=true;a[j].volume=0;}}catch(e){}}})();");
-}
-    
-
-
-
-
-    private void tryForceFullscreen(WebView webView, int boxIndex) {
-        String forceFullscreenJS = 
-            "javascript:(function() {" +
-            "   var attempts = 0;" +
-            "   var maxAttempts = 15;" +
-            "   var isFullscreenActive = false;" +
-            "" +
-            "   function isVideoInFullscreen() {" +
-            "       return document.fullscreenElement || " +
-            "              document.webkitFullscreenElement || " +
-            "              document.mozFullScreenElement || " +
-            "              document.msFullscreenElement;" +
-            "   }" +
-            "" +
-            "   function forceNativeFullscreen() {" +
-            "       if (isVideoInFullscreen()) {" +
-            "           console.log('Já está em fullscreen');" +
-            "           return true;" +
-            "       }" +
-            "       " +
-            "       var videoSelectors = [" +
-            "           '#video', " +
-            "           'video'," +
-            "           '.video-player'," +
-            "           '.player video'," +
-            "           '.vjs-tech'," +
-            "           'iframe[src*=\"youtube\"]'," +
-            "           'iframe[src*=\"twitch\"]'," +
-            "           '[class*=\"video\"]'," +
-            "           '[id*=\"player\"]'" +
-            "       ];" +
-            "       " +
-            "       var videoElement = null;" +
-            "       " +
-            "       for (var i = 0; i < videoSelectors.length; i++) {" +
-            "           var element = document.querySelector(videoSelectors[i]);" +
-            "           if (element) {" +
-            "               videoElement = element;" +
-            "               console.log('Vídeo encontrado com seletor: ' + videoSelectors[i]);" +
-            "               break;" +
-            "           }" +
-            "       }" +
-            "       " +
-            "       if (!videoElement && document.querySelectorAll('video').length > 0) {" +
-            "           videoElement = document.querySelectorAll('video')[0];" +
-            "           console.log('Usando primeiro vídeo encontrado');" +
-            "       }" +
-            "       " +
-            "       if (videoElement) {" +
-            "           console.log('Tentando forçar fullscreen...');" +
-            "           " +
-            "           var methods = [" +
-            "               function() { " +
-            "                   if (videoElement.webkitEnterFullscreen) {" +
-            "                       videoElement.webkitEnterFullscreen();" +
-            "                       return true;" +
-            "                   }" +
-            "                   return false;" +
-            "               }," +
-            "               function() { " +
-            "                   if (videoElement.requestFullscreen) {" +
-            "                       videoElement.requestFullscreen();" +
-            "                       return true;" +
-            "                   }" +
-            "                   return false;" +
-            "               }," +
-            "               function() { " +
-            "                   if (videoElement.webkitRequestFullscreen) {" +
-            "                       videoElement.webkitRequestFullscreen();" +
-            "                       return true;" +
-            "                   }" +
-            "                   return false;" +
-            "               }," +
-            "               function() { " +
-            "                   if (videoElement.mozRequestFullScreen) {" +
-            "                       videoElement.mozRequestFullScreen();" +
-            "                       return true;" +
-            "                   }" +
-            "                   return false;" +
-            "               }," +
-            "               function() { " +
-            "                   if (videoElement.msRequestFullscreen) {" +
-            "                       videoElement.msRequestFullscreen();" +
-            "                       return true;" +
-            "                   }" +
-            "                   return false;" +
-            "               }" +
-            "           ];" +
-            "           " +
-            "           for (var j = 0; j < methods.length; j++) {" +
-            "               try {" +
-            "                   if (methods[j]()) {" +
-            "                       console.log('Método ' + j + ' funcionou!');" +
-            "                       return true;" +
-            "                   }" +
-            "               } catch (e) {" +
-            "                   console.log('Erro no método ' + j + ': ' + e.message);" +
-            "               }" +
-            "           }" +
-            "           " +
-            "           console.log('Tentando encontrar botões de fullscreen...');" +
-            "           var fullscreenButtons = [" +
-            "               '.ytp-fullscreen-button'," +
-            "               '.vjs-fullscreen-control'," +
-            "               '.fullscreen-button'," +
-            "               '[title*=\"Fullscreen\"]'," +
-            "               '[aria-label*=\"Fullscreen\"]'," +
-            "               '[class*=\"fullscreen\"]'," +
-            "               '[id*=\"fullscreen\"]'" +
-            "           ];" +
-            "           " +
-            "           for (var k = 0; k < fullscreenButtons.length; k++) {" +
-            "               try {" +
-            "                   var button = document.querySelector(fullscreenButtons[k]);" +
-            "                   if (button) {" +
-            "                       console.log('Clicando no botão: ' + fullscreenButtons[k]);" +
-            "                       button.click();" +
-            "                       return true;" +
-            "                   }" +
-            "               } catch (e) {" +
-            "                   console.log('Erro ao clicar no botão: ' + e.message);" +
-            "               }" +
-            "           }" +
-            "       } else {" +
-            "           console.log('Nenhum elemento de vídeo encontrado');" +
-            "       }" +
-            "       " +
-            "       return false;" +
-            "   }" +
-            "" +
-            "   function checkAndForce() {" +
-            "       attempts++;" +
-            "       console.log('Tentativa ' + attempts + ' de ' + maxAttempts);" +
-            "       " +
-            "       if (forceNativeFullscreen()) {" +
-            "           isFullscreenActive = true;" +
-            "           console.log('Fullscreen ativado com sucesso!');" +
-            "           return true;" +
-            "       }" +
-            "       " +
-            "       if (attempts >= maxAttempts) {" +
-            "           console.log('Máximo de tentativas alcançado');" +
-            "           return false;" +
-            "       }" +
-            "       " +
-            "       return false;" +
-            "   }" +
-            "" +
-            "   if (!checkAndForce()) {" +
-            "       var interval = setInterval(function() {" +
-            "           if (checkAndForce() || attempts >= maxAttempts) {" +
-            "               clearInterval(interval);" +
-            "               if (!isFullscreenActive) {" +
-            "                   console.log('Não foi possível ativar o fullscreen');" +
-            "               }" +
-            "           }" +
-            "       }, 1500);" +
-            "   }" +
-            "})()";
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.evaluateJavascript(forceFullscreenJS, null);
-        } else {
-            webView.loadUrl(forceFullscreenJS);
-        }
-        
-        // Se não funcionar com JavaScript, tenta novamente após mais tempo
-        if (shouldRestoreFullscreen[boxIndex]) {
-            new Handler().postDelayed(() -> {
-                if (shouldRestoreFullscreen[boxIndex]) {
-                    Log.d(TAG, "Tentativa adicional de fullscreen para Box " + (boxIndex + 1));
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                        webView.evaluateJavascript(forceFullscreenJS, null);
-                    } else {
-                        webView.loadUrl(forceFullscreenJS);
-                    }
-                }
-            }, 5000);
-        }
-    }
-    
-    private boolean isAnyBoxInFullscreen() {
-        for (int i = 0; i < 4; i++) {
-            if (boxInFullscreen[i]) {
-                return true;
-            }
-        }
-        return false;
-    }
-    
-    private void exitFullscreen(int boxIndex) {
-        if (boxInFullscreen[boxIndex] && fullscreenViews[boxIndex] != null) {
-            if (boxContainers[boxIndex].indexOfChild(fullscreenViews[boxIndex]) != -1) {
-                boxContainers[boxIndex].removeView(fullscreenViews[boxIndex]);
-            }
-            
-            if (webViews[boxIndex] != null) {
-                webViews[boxIndex].setVisibility(View.VISIBLE);
-            }
-            
-            if (fullscreenCallbacks[boxIndex] != null) {
-                fullscreenCallbacks[boxIndex].onCustomViewHidden();
-            }
-            
-            fullscreenViews[boxIndex] = null;
-            fullscreenCallbacks[boxIndex] = null;
-            boxInFullscreen[boxIndex] = false;
-            shouldRestoreFullscreen[boxIndex] = false;
-            
-            if (!isAnyBoxInFullscreen()) {
-                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            }
-        }
-    }
-    
     private void applyZoom(int boxIndex) {
         WebView webView = webViews[boxIndex];
         if (webView != null) {
@@ -1208,14 +606,6 @@ private void injectInitialMuteScript(WebView webView) {
                     @Override
                     public void onClick(View v) {
                         if (webViews[boxIndex] != null) {
-                            // Guarda se estava em fullscreen antes do reload
-                            shouldRestoreFullscreen[boxIndex] = boxInFullscreen[boxIndex];
-                            
-                            // Se estiver em fullscreen, sai do fullscreen antes de recarregar
-                            if (boxInFullscreen[boxIndex]) {
-                                exitFullscreen(boxIndex);
-                            }
-                            
                             webViews[boxIndex].reload();
                             Toast.makeText(MainActivity.this, 
                                 "Box " + (boxIndex + 1) + " recarregada", Toast.LENGTH_SHORT).show();
@@ -1224,8 +614,6 @@ private void injectInitialMuteScript(WebView webView) {
                 });
             }
             
-
-            
             // Checkbox para ativar/desativar box
             if (checkBoxes[i] != null) {
                 checkBoxes[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -1233,20 +621,6 @@ private void injectInitialMuteScript(WebView webView) {
                     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                         boxEnabled[boxIndex] = isChecked;
                         updateLayout();
-                    }
-                });
-            }
-            
-            // Checkbox Auto Reload
-            if (cbAutoReload[i] != null) {
-                cbAutoReload[i].setChecked(true);
-                cbAutoReload[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-                    @Override
-                    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                        autoReloadEnabled[boxIndex] = isChecked;
-                        Toast.makeText(MainActivity.this, 
-                            "Box " + (boxIndex + 1) + " auto-reload: " + (isChecked ? "ON" : "OFF"), 
-                            Toast.LENGTH_SHORT).show();
                     }
                 });
             }
@@ -1326,20 +700,6 @@ private void injectInitialMuteScript(WebView webView) {
         }
     }
     
-    private void forceFullscreenManual(int boxIndex) {
-        WebView webView = webViews[boxIndex];
-        if (webView != null) {
-            // Marca que queremos fullscreen
-            shouldRestoreFullscreen[boxIndex] = true;
-            
-            // Executa o script de força fullscreen
-            tryForceFullscreen(webView, boxIndex);
-            
-            Toast.makeText(this, "Forçando fullscreen na Box " + (boxIndex + 1), 
-                Toast.LENGTH_SHORT).show();
-        }
-    }
-    
     private void updateLayout() {
         int activeBoxes = 0;
         for (boolean enabled : boxEnabled) {
@@ -1404,18 +764,15 @@ private void injectInitialMuteScript(WebView webView) {
                     boxContainers[i].setVisibility(View.VISIBLE);
                     gridLayout.addView(boxContainers[i], params);
                     
-                    // Garantir que o WebView está visível se não estiver em fullscreen
-                    if (!boxInFullscreen[i] && webViews[i] != null) {
+                    // Garantir que o WebView está visível
+                    if (webViews[i] != null) {
                         webViews[i].setVisibility(View.VISIBLE);
                     }
                 }
                 position++;
             } else {
-                // Box desativada: sai do fullscreen se estiver
+                // Box desativada: remover da view
                 if (boxContainers[i] != null) {
-                    if (boxInFullscreen[i]) {
-                        exitFullscreen(i);
-                    }
                     boxContainers[i].setVisibility(View.GONE);
                 }
             }
@@ -1459,12 +816,6 @@ private void injectInitialMuteScript(WebView webView) {
                 url = "https://" + url;
             }
             if (webViews[boxIndex] != null) {
-                // Se estiver em fullscreen, sai do fullscreen antes de carregar nova URL
-                if (boxInFullscreen[boxIndex]) {
-                    exitFullscreen(boxIndex);
-                }
-                // Reseta a flag de restore fullscreen para nova URL
-                shouldRestoreFullscreen[boxIndex] = false;
                 webViews[boxIndex].loadUrl(url);
             }
         } catch (Exception e) {
@@ -1476,14 +827,6 @@ private void injectInitialMuteScript(WebView webView) {
     private void reloadAllWebViews() {
         for (int i = 0; i < 4; i++) {
             if (boxEnabled[i] && webViews[i] != null) {
-                // Guarda se estava em fullscreen
-                shouldRestoreFullscreen[i] = boxInFullscreen[i];
-                
-                // Se estiver em fullscreen, sai do fullscreen antes de recarregar
-                if (boxInFullscreen[i]) {
-                    exitFullscreen(i);
-                }
-                
                 webViews[i].reload();
             }
         }
@@ -1493,11 +836,6 @@ private void injectInitialMuteScript(WebView webView) {
     private void clearAllWebViews() {
         for (int i = 0; i < 4; i++) {
             if (webViews[i] != null) {
-                // Se estiver em fullscreen, sai do fullscreen antes de limpar
-                if (boxInFullscreen[i]) {
-                    exitFullscreen(i);
-                }
-                shouldRestoreFullscreen[i] = false;
                 webViews[i].loadUrl("about:blank");
             }
         }
@@ -1522,16 +860,11 @@ private void injectInitialMuteScript(WebView webView) {
             
             for (int i = 0; i < 4; i++) {
                 editor.putBoolean("box_enabled_" + i, boxEnabled[i]);
-                editor.putBoolean("auto_reload_" + i, autoReloadEnabled[i]);
             }
             
+            // Salvar zoom levels
             for (int i = 0; i < 4; i++) {
                 editor.putFloat("zoom_level_" + i, zoomLevels[i]);
-            }
-            
-            // Salvar estado de fullscreen
-            for (int i = 0; i < 4; i++) {
-                editor.putBoolean("box_fullscreen_" + i, boxInFullscreen[i]);
             }
             
             if (cbAllowScripts != null) editor.putBoolean("allow_scripts", cbAllowScripts.isChecked());
@@ -1578,18 +911,6 @@ private void injectInitialMuteScript(WebView webView) {
                 boxEnabled[i] = savedState;
                 if (checkBoxes[i] != null) {
                     checkBoxes[i].setChecked(savedState);
-                }
-                
-                boolean savedAutoReload = preferences.getBoolean("auto_reload_" + i, true);
-                autoReloadEnabled[i] = savedAutoReload;
-                if (cbAutoReload[i] != null) {
-                    cbAutoReload[i].setChecked(savedAutoReload);
-                }
-                
-                // Carregar estado de fullscreen
-                boolean savedFullscreen = preferences.getBoolean("box_fullscreen_" + i, false);
-                if (savedFullscreen && boxEnabled[i]) {
-                    shouldRestoreFullscreen[i] = true;
                 }
             }
             
@@ -1853,15 +1174,6 @@ private void injectInitialMuteScript(WebView webView) {
     protected void onPause() {
         super.onPause();
         saveCurrentState();
-        if (autoReloadHandler != null && autoReloadRunnable != null) {
-            autoReloadHandler.removeCallbacks(autoReloadRunnable);
-        }
-        // Parar mute monitoring
-        for (int i = 0; i < 4; i++) {
-            if (muteHandlers[i] != null && muteRunnables[i] != null) {
-                muteHandlers[i].removeCallbacks(muteRunnables[i]);
-            }
-        }
     }
     
     @Override
@@ -1871,29 +1183,11 @@ private void injectInitialMuteScript(WebView webView) {
         if (btnMenu != null) {
             btnMenu.requestFocus();
         }
-        if (autoReloadHandler != null && autoReloadRunnable != null) {
-            autoReloadHandler.postDelayed(autoReloadRunnable, AUTO_RELOAD_INTERVAL);
-        }
-        // Retomar mute monitoring
-        for (int i = 0; i < 4; i++) {
-            if (muteHandlers[i] != null && muteRunnables[i] != null) {
-                muteHandlers[i].postDelayed(muteRunnables[i], MUTE_CHECK_INTERVAL);
-            }
-        }
     }
     
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (autoReloadHandler != null && autoReloadRunnable != null) {
-            autoReloadHandler.removeCallbacks(autoReloadRunnable);
-        }
-        // Parar mute monitoring
-        for (int i = 0; i < 4; i++) {
-            if (muteHandlers[i] != null && muteRunnables[i] != null) {
-                muteHandlers[i].removeCallbacks(muteRunnables[i]);
-            }
-        }
         for (WebView webView : webViews) {
             if (webView != null) {
                 webView.stopLoading();
@@ -1912,14 +1206,6 @@ private void injectInitialMuteScript(WebView webView) {
                     if (isSidebarVisible) {
                         closeSidebar();
                         return true;
-                    }
-                    
-                    // Verificar se alguma box está em fullscreen
-                    for (int i = 0; i < 4; i++) {
-                        if (boxInFullscreen[i]) {
-                            exitFullscreen(i);
-                            return true;
-                        }
                     }
                     
                     if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
@@ -1981,14 +1267,6 @@ private void injectInitialMuteScript(WebView webView) {
         if (isSidebarVisible) {
             closeSidebar();
             return;
-        }
-        
-        // Verificar se alguma box está em fullscreen
-        for (int i = 0; i < 4; i++) {
-            if (boxInFullscreen[i]) {
-                exitFullscreen(i);
-                return;
-            }
         }
         
         if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
