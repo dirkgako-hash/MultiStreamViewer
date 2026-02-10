@@ -421,7 +421,7 @@
                     android:layout_weight="1"
                     android:text="CONFIG"
                     android:textColor="@color/text_white"
-                    android:textSize="11sp"
+                    android:textSize="8sp"
                     android:textStyle="bold" />
 
                 <Button
@@ -433,7 +433,7 @@
                     android:focusableInTouchMode="true"
                     android:text="✕"
                     android:textColor="@color/text_white"
-                    android:textSize="12sp" />
+                    android:textSize="8sp" />
             </LinearLayout>
 
 
@@ -446,7 +446,7 @@
                 <Button
                     android:id="@+id/btnSaveState"
                     android:layout_width="0dp"
-                    android:layout_height="26dp"
+                    android:layout_height="25dp"
                     android:layout_weight="1"
                     android:background="@color/button_green"
                     android:focusable="true"
@@ -458,7 +458,7 @@
                 <Button
                     android:id="@+id/btnLoadState"
                     android:layout_width="0dp"
-                    android:layout_height="26dp"
+                    android:layout_height="25dp"
                     android:layout_weight="1"
                     android:layout_marginStart="3dp"
                     android:background="@color/button_green"
@@ -478,7 +478,7 @@
                 <Button
                     android:id="@+id/btnSaveFavorites"
                     android:layout_width="0dp"
-                    android:layout_height="26dp"
+                    android:layout_height="25dp"
                     android:layout_weight="1"
                     android:background="@color/button_orange"
                     android:focusable="true"
@@ -490,7 +490,7 @@
                 <Button
                     android:id="@+id/btnLoadFavorites"
                     android:layout_width="0dp"
-                    android:layout_height="26dp"
+                    android:layout_height="25dp"
                     android:layout_weight="1"
                     android:layout_marginStart="3dp"
                     android:background="@color/button_orange"
@@ -585,15 +585,7 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- URLs -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="URLs (GO para carregar)"
-                android:textColor="@color/text_white"
-                android:textSize="9sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="4dp" />
+
 
             <!-- URL 1 com botão - COMPACTO -->
             <LinearLayout
@@ -605,7 +597,7 @@
                 <EditText
                     android:id="@+id/urlInput1"
                     android:layout_width="0dp"
-                    android:layout_height="30dp"
+                    android:layout_height="25dp"
                     android:layout_weight="1"
                     android:background="@color/background_darker"
                     android:focusable="true"
@@ -616,21 +608,21 @@
                     android:padding="6dp"
                     android:text="https://dzritv.com/sport/football/"
                     android:textColor="@color/text_white"
-                    android:textSize="10sp"
+                    android:textSize="8sp"
                     android:singleLine="true"
                     android:maxLines="1" />
                 
                 <Button
                     android:id="@+id/btnLoadUrl1"
                     android:layout_width="40dp"
-                    android:layout_height="30dp"
+                    android:layout_height="25dp"
                     android:layout_marginStart="3dp"
                     android:background="@color/button_blue"
                     android:focusable="true"
                     android:focusableInTouchMode="true"
                     android:text="GO"
                     android:textColor="@color/text_white"
-                    android:textSize="10sp" />
+                    android:textSize="8sp" />
             </LinearLayout>
 
             <!-- URL 2 com botão -->
@@ -643,7 +635,7 @@
                 <EditText
                     android:id="@+id/urlInput2"
                     android:layout_width="0dp"
-                    android:layout_height="20dp"
+                    android:layout_height="25dp"
                     android:layout_weight="1"
                     android:background="@color/background_darker"
                     android:focusable="true"
@@ -654,21 +646,21 @@
                     android:padding="6dp"
                     android:text="https://dzritv.com/sport/football/"
                     android:textColor="@color/text_white"
-                    android:textSize="10sp"
+                    android:textSize="8sp"
                     android:singleLine="true"
                     android:maxLines="1" />
                 
                 <Button
                     android:id="@+id/btnLoadUrl2"
                     android:layout_width="40dp"
-                    android:layout_height="20dp"
+                    android:layout_height="25dp"
                     android:layout_marginStart="3dp"
                     android:background="@color/button_purple"
                     android:focusable="true"
                     android:focusableInTouchMode="true"
                     android:text="GO"
                     android:textColor="@color/text_white"
-                    android:textSize="10sp" />
+                    android:textSize="8sp" />
             </LinearLayout>
 
             <!-- URL 3 com botão -->
@@ -681,7 +673,7 @@
                 <EditText
                     android:id="@+id/urlInput3"
                     android:layout_width="0dp"
-                    android:layout_height="20dp"
+                    android:layout_height="25dp"
                     android:layout_weight="1"
                     android:background="@color/background_darker"
                     android:focusable="true"
@@ -692,21 +684,21 @@
                     android:padding="6dp"
                     android:text="https://dzritv.com/sport/football/"
                     android:textColor="@color/text_white"
-                    android:textSize="10sp"
+                    android:textSize="8sp"
                     android:singleLine="true"
                     android:maxLines="1" />
                 
                 <Button
                     android:id="@+id/btnLoadUrl3"
                     android:layout_width="40dp"
-                    android:layout_height="20dp"
+                    android:layout_height="25dp"
                     android:layout_marginStart="3dp"
                     android:background="@color/button_blue"
                     android:focusable="true"
                     android:focusableInTouchMode="true"
                     android:text="GO"
                     android:textColor="@color/text_white"
-                    android:textSize="10sp" />
+                    android:textSize="8sp" />
             </LinearLayout>
 
             <!-- URL 4 com botão -->
@@ -719,7 +711,7 @@
                 <EditText
                     android:id="@+id/urlInput4"
                     android:layout_width="0dp"
-                    android:layout_height="20dp"
+                    android:layout_height="25dp"
                     android:layout_weight="1"
                     android:background="@color/background_darker"
                     android:focusable="true"
@@ -730,21 +722,21 @@
                     android:padding="6dp"
                     android:text="https://dzritv.com/sport/football/"
                     android:textColor="@color/text_white"
-                    android:textSize="10sp"
+                    android:textSize="8sp"
                     android:singleLine="true"
                     android:maxLines="1" />
                 
                 <Button
                     android:id="@+id/btnLoadUrl4"
                     android:layout_width="40dp"
-                    android:layout_height="20dp"
+                    android:layout_height="25dp"
                     android:layout_marginStart="3dp"
                     android:background="@color/button_purple"
                     android:focusable="true"
                     android:focusableInTouchMode="true"
                     android:text="GO"
                     android:textColor="@color/text_white"
-                    android:textSize="10sp" />
+                    android:textSize="8sp" />
             </LinearLayout>
 
             <!-- Botões de ação TODOS NA MESMA LINHA -->
@@ -757,19 +749,19 @@
                 <Button
                     android:id="@+id/btnLoadAll"
                     android:layout_width="0dp"
-                    android:layout_height="26dp"
+                    android:layout_height="25dp"
                     android:layout_weight="1"
                     android:background="@color/button_blue"
                     android:focusable="true"
                     android:focusableInTouchMode="true"
                     android:text="LOAD"
                     android:textColor="@color/text_white"
-                    android:textSize="9sp" />
+                    android:textSize="8sp" />
                 
                 <Button
                     android:id="@+id/btnReloadAll"
                     android:layout_width="0dp"
-                    android:layout_height="26dp"
+                    android:layout_height="25dp"
                     android:layout_weight="1"
                     android:layout_marginStart="3dp"
                     android:background="@color/button_purple"
@@ -777,12 +769,12 @@
                     android:focusableInTouchMode="true"
                     android:text="RELOAD"
                     android:textColor="@color/text_white"
-                    android:textSize="9sp" />
+                    android:textSize="8sp" />
                 
                 <Button
                     android:id="@+id/btnClearAll"
                     android:layout_width="0dp"
-                    android:layout_height="26dp"
+                    android:layout_height="25dp"
                     android:layout_weight="1"
                     android:layout_marginStart="3dp"
                     android:background="@color/button_red"
@@ -790,7 +782,7 @@
                     android:focusableInTouchMode="true"
                     android:text="CLEAR"
                     android:textColor="@color/text_white"
- android:textSize="9sp" />
+                    android:textSize="8sp" />
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>
