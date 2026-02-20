@@ -60,11 +60,13 @@ public class MainActivity extends AppCompatActivity {
     private Button[] btnLoadUrl = new Button[4];
     
     private CheckBox[] checkBoxes = new CheckBox[4];
+    private CheckBox[] checkBoxesKeepActive = new CheckBox[4];
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
     private EditText[] urlInputs = new EditText[4];
     private TextView tvFocusedBox;
     
     private boolean[] boxEnabled = {true, true, true, true};
+    private boolean[] boxKeepActive = {false, false, false, false};
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
     private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -135,6 +137,12 @@ public class MainActivity extends AppCompatActivity {
         checkBoxes[1] = findViewById(R.id.checkBox2);
         checkBoxes[2] = findViewById(R.id.checkBox3);
         checkBoxes[3] = findViewById(R.id.checkBox4);
+        
+        // Inicializar CheckBoxes Keep Active
+        checkBoxesKeepActive[0] = findViewById(R.id.checkBoxKeepActive1);
+        checkBoxesKeepActive[1] = findViewById(R.id.checkBoxKeepActive2);
+        checkBoxesKeepActive[2] = findViewById(R.id.checkBoxKeepActive3);
+        checkBoxesKeepActive[3] = findViewById(R.id.checkBoxKeepActive4);
         
         // Inicializar botões Refresh
         btnRefresh[0] = findViewById(R.id.btnRefresh1);
@@ -719,6 +727,17 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
             
+            // Checkbox para manter webview ativa mesmo quando não visível
+            if (checkBoxesKeepActive[i] != null) {
+                checkBoxesKeepActive[i].setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                    @Override
+                    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                        boxKeepActive[boxIndex] = isChecked;
+                        updateLayout();
+                    }
+                });
+            }
+            
             // Botão Zoom In
             if (btnZoomIn[i] != null) {
                 btnZoomIn[i].setOnClickListener(new View.OnClickListener() {
@@ -836,36 +855,47 @@ public class MainActivity extends AppCompatActivity {
         
         int position = 0;
         for (int i = 0; i < 4; i++) {
-            if (boxEnabled[i]) {
-                // Box ativa: NÃO sai do fullscreen
-                GridLayout.Spec rowSpec = GridLayout.spec(position / cols, 1f);
-                GridLayout.Spec colSpec = GridLayout.spec(position % cols, 1f);
-                
-                GridLayout.LayoutParams params = new GridLayout.LayoutParams(rowSpec, colSpec);
-                params.width = 0;
-                params.height = 0;
-                
-                if (activeBoxes == 1) {
-                    params.setMargins(0, 0, 0, 0);
-                } else if (activeBoxes == 2) {
-                    params.setMargins(2, 2, 2, 2);
-                } else {
-                    params.setMargins(1, 1, 1, 1);
-                }
-                
-                if (boxContainers[i] != null) {
-                    // Box ativa: mantém o estado atual (fullscreen ou não)
-                    boxContainers[i].setVisibility(View.VISIBLE);
-                    gridLayout.addView(boxContainers[i], params);
+            if (boxEnabled[i] || boxKeepActive[i]) {
+                // Box visível OU box mantém-se ativa (mesmo se não visível)
+                if (boxEnabled[i]) {
+                    // Box ativa: adiciona ao grid para exibição
+                    GridLayout.Spec rowSpec = GridLayout.spec(position / cols, 1f);
+                    GridLayout.Spec colSpec = GridLayout.spec(position % cols, 1f);
                     
-                    // Garantir que o WebView está visível
-                    if (webViews[i] != null) {
-                        webViews[i].setVisibility(View.VISIBLE);
+                    GridLayout.LayoutParams params = new GridLayout.LayoutParams(rowSpec, colSpec);
+                    params.width = 0;
+                    params.height = 0;
+                    
+                    if (activeBoxes == 1) {
+                        params.setMargins(0, 0, 0, 0);
+                    } else if (activeBoxes == 2) {
+                        params.setMargins(2, 2, 2, 2);
+                    } else {
+                        params.setMargins(1, 1, 1, 1);
+                    }
+                    
+                    if (boxContainers[i] != null) {
+                        boxContainers[i].setVisibility(View.VISIBLE);
+                        gridLayout.addView(boxContainers[i], params);
+                        
+                        if (webViews[i] != null) {
+                            webViews[i].setVisibility(View.VISIBLE);
+                        }
+                    }
+                    position++;
+                } else if (boxKeepActive[i]) {
+                    // Box mantém-se ativa mas não é exibida
+                    // Manter o container invisível mas ativo para que a webview continue carregando
+                    if (boxContainers[i] != null) {
+                        boxContainers[i].setVisibility(View.INVISIBLE);
+                        
+                        if (webViews[i] != null) {
+                            webViews[i].setVisibility(View.INVISIBLE);
+                        }
                     }
                 }
-                position++;
             } else {
-                // Box desativada: remover da view
+                // Box desativada e sem Keep Active: remover da view
                 if (boxContainers[i] != null) {
                     boxContainers[i].setVisibility(View.GONE);
                 }
@@ -877,7 +907,7 @@ public class MainActivity extends AppCompatActivity {
     
     private void loadAllURLs() {
         for (int i = 0; i < 4; i++) {
-            if (boxEnabled[i]) {
+            if (boxEnabled[i] || boxKeepActive[i]) {
                 String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
                 if (url.isEmpty()) {
                     url = getDefaultUrl(i);
@@ -893,14 +923,16 @@ public class MainActivity extends AppCompatActivity {
     
     private void loadInitialURLs() {
         for (int i = 0; i < 4; i++) {
-            String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
-            if (url.isEmpty()) {
-                url = getDefaultUrl(i);
-                if (urlInputs[i] != null) {
-                    urlInputs[i].setText(url);
+            if (boxEnabled[i] || boxKeepActive[i]) {
+                String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
+                if (url.isEmpty()) {
+                    url = getDefaultUrl(i);
+                    if (urlInputs[i] != null) {
+                        urlInputs[i].setText(url);
+                    }
                 }
+                loadURL(i, url);
             }
-            loadURL(i, url);
         }
     }
     
@@ -956,6 +988,11 @@ public class MainActivity extends AppCompatActivity {
                 editor.putBoolean("box_enabled_" + i, boxEnabled[i]);
             }
             
+            // Salvar estado Keep Active
+            for (int i = 0; i < 4; i++) {
+                editor.putBoolean("box_keep_active_" + i, boxKeepActive[i]);
+            }
+            
             // Salvar zoom levels
             for (int i = 0; i < 4; i++) {
                 editor.putFloat("zoom_level_" + i, zoomLevels[i]);
@@ -978,6 +1015,25 @@ public class MainActivity extends AppCompatActivity {
     
     private void loadSavedState(boolean silent) {
         try {
+            // Carregar estados primeiro (boxEnabled e boxKeepActive) antes de carregar URLs
+            for (int i = 0; i < 4; i++) {
+                boolean savedState = preferences.getBoolean("box_enabled_" + i, true);
+                boxEnabled[i] = savedState;
+                if (checkBoxes[i] != null) {
+                    checkBoxes[i].setChecked(savedState);
+                }
+            }
+            
+            // Carregar estado Keep Active
+            for (int i = 0; i < 4; i++) {
+                boolean savedKeepActive = preferences.getBoolean("box_keep_active_" + i, false);
+                boxKeepActive[i] = savedKeepActive;
+                if (checkBoxesKeepActive[i] != null) {
+                    checkBoxesKeepActive[i].setChecked(savedKeepActive);
+                }
+            }
+            
+            // Agora carregar as URLs considerando boxEnabled e boxKeepActive
             boolean hasSavedUrls = false;
             for (int i = 0; i < 4; i++) {
                 String savedUrl = preferences.getString("url_" + i, "");
@@ -986,7 +1042,7 @@ public class MainActivity extends AppCompatActivity {
                     if (urlInputs[i] != null) {
                         urlInputs[i].setText(savedUrl);
                     }
-                    if (boxEnabled[i] && webViews[i] != null) {
+                    if ((boxEnabled[i] || boxKeepActive[i]) && webViews[i] != null) {
                         loadURL(i, savedUrl);
                     }
                 }
@@ -997,14 +1053,6 @@ public class MainActivity extends AppCompatActivity {
                     if (urlInputs[i] != null) {
                         urlInputs[i].setText(getDefaultUrl(i));
                     }
-                }
-            }
-            
-            for (int i = 0; i < 4; i++) {
-                boolean savedState = preferences.getBoolean("box_enabled_" + i, true);
-                boxEnabled[i] = savedState;
-                if (checkBoxes[i] != null) {
-                    checkBoxes[i].setChecked(savedState);
                 }
             }
             
