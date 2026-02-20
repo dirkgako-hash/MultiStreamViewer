@@ -42,7 +42,7 @@
             android:focusableInTouchMode="true"
             android:text="☰"
             android:textColor="@color/text_white"
-            android:textSize="10sp" />
+            android:textSize="8sp" />
 
         <!-- CONTROLES BOX 1 - AZUL -->
         <LinearLayout
@@ -57,7 +57,7 @@
                 android:layout_height="wrap_content"
                 android:text="1"
                 android:textColor="@color/text_blue"
-                android:textSize="10sp"
+                android:textSize="8sp"
                 android:checked="true"
                 android:focusable="true"
                 android:focusableInTouchMode="true" />
@@ -68,7 +68,7 @@
                 android:layout_height="wrap_content"
                 android:text="K"
                 android:textColor="@color/text_blue"
-                android:textSize="9sp"
+                android:textSize="8sp"
                 android:checked="false"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
@@ -76,7 +76,7 @@
             
             <Button
                 android:id="@+id/btnRefresh1"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="2dp"
                 android:background="@color/button_blue_dark"
@@ -84,11 +84,11 @@
                 android:focusableInTouchMode="true"
                 android:text="R"
                 android:textColor="@color/text_white"
-                android:textSize="10sp" />
+                android:textSize="8sp" />
             
             <Button
                 android:id="@+id/btnZoomIn1"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_blue"
@@ -96,11 +96,11 @@
                 android:focusableInTouchMode="true"
                 android:text="Z+"
                 android:textColor="@color/text_white"
-                android:textSize="9sp" />
+                android:textSize="8sp" />
             
             <Button
                 android:id="@+id/btnZoomOut1"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_blue"
@@ -108,11 +108,11 @@
                 android:focusableInTouchMode="true"
                 android:text="Z-"
                 android:textColor="@color/text_white"
-                android:textSize="9sp" />
+                android:textSize="8sp" />
             
             <Button
                 android:id="@+id/btnPrevious1"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_blue_dark"
@@ -120,11 +120,11 @@
                 android:focusableInTouchMode="true"
                 android:text="◀"
                 android:textColor="@color/text_white"
-                android:textSize="10sp" />
+                android:textSize="8sp" />
             
             <Button
                 android:id="@+id/btnNext1"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_blue_dark"
@@ -132,7 +132,7 @@
                 android:focusableInTouchMode="true"
                 android:text="▶"
                 android:textColor="@color/text_white"
-                android:textSize="10sp" />
+                android:textSize="8sp" />
         </LinearLayout>
 
         <!-- CONTROLES BOX 2 - ROXO -->
@@ -148,7 +148,7 @@
                 android:layout_height="wrap_content"
                 android:text="2"
                 android:textColor="@color/text_purple"
-                android:textSize="10sp"
+                android:textSize="8sp"          
                 android:checked="true"
                 android:focusable="true"
                 android:focusableInTouchMode="true" />
@@ -167,7 +167,7 @@
             
             <Button
                 android:id="@+id/btnRefresh2"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="2dp"
                 android:background="@color/button_purple_dark"
@@ -175,11 +175,11 @@
                 android:focusableInTouchMode="true"
                 android:text="R"
                 android:textColor="@color/text_white"
-                android:textSize="10sp" />
+                android:textSize="8sp" />
             
             <Button
                 android:id="@+id/btnZoomIn2"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_purple"
@@ -191,7 +191,7 @@
             
             <Button
                 android:id="@+id/btnZoomOut2"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_purple"
@@ -203,7 +203,7 @@
             
             <Button
                 android:id="@+id/btnPrevious2"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_purple_dark"
@@ -211,11 +211,11 @@
                 android:focusableInTouchMode="true"
                 android:text="◀"
                 android:textColor="@color/text_white"
-                android:textSize="10sp" />
+                android:textSize="8sp" />
             
             <Button
                 android:id="@+id/btnNext2"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_purple_dark"
@@ -223,7 +223,7 @@
                 android:focusableInTouchMode="true"
                 android:text="▶"
                 android:textColor="@color/text_white"
-                android:textSize="10sp" />
+                android:textSize="8sp" />
         </LinearLayout>
 
         <!-- CONTROLES BOX 3 - AZUL -->
@@ -239,7 +239,7 @@
                 android:layout_height="wrap_content"
                 android:text="3"
                 android:textColor="@color/text_blue"
-                android:textSize="10sp"
+                android:textSize="8sp"
                 android:checked="true"
                 android:focusable="true"
                 android:focusableInTouchMode="true" />
@@ -258,7 +258,7 @@
             
             <Button
                 android:id="@+id/btnRefresh3"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="2dp"
                 android:background="@color/button_blue_dark"
@@ -266,12 +266,12 @@
                 android:focusableInTouchMode="true"
                 android:text="R"
                 android:textColor="@color/text_white"
-                android:textSize="10sp" />
+                android:textSize="8sp" />
             
 
             <Button
                 android:id="@+id/btnZoomIn3"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_blue"
@@ -283,7 +283,7 @@
             
             <Button
                 android:id="@+id/btnZoomOut3"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_blue"
@@ -295,7 +295,7 @@
             
             <Button
                 android:id="@+id/btnPrevious3"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_blue_dark"
@@ -303,11 +303,11 @@
                 android:focusableInTouchMode="true"
                 android:text="◀"
                 android:textColor="@color/text_white"
-                android:textSize="10sp" />
+                android:textSize="8sp" />
             
             <Button
                 android:id="@+id/btnNext3"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_blue_dark"
@@ -315,7 +315,7 @@
                 android:focusableInTouchMode="true"
                 android:text="▶"
                 android:textColor="@color/text_white"
-                android:textSize="10sp" />
+                android:textSize="8sp" />
         </LinearLayout>
 
         <!-- CONTROLES BOX 4 - ROXO -->
@@ -330,7 +330,7 @@
                 android:layout_height="wrap_content"
                 android:text="4"
                 android:textColor="@color/text_purple"
-                android:textSize="10sp"
+                android:textSize="8sp"
                 android:checked="true"
                 android:focusable="true"
                 android:focusableInTouchMode="true" />
@@ -349,7 +349,7 @@
             
             <Button
                 android:id="@+id/btnRefresh4"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="2dp"
                 android:background="@color/button_purple_dark"
@@ -357,11 +357,11 @@
                 android:focusableInTouchMode="true"
                 android:text="R"
                 android:textColor="@color/text_white"
-                android:textSize="10sp" />
+                android:textSize="8sp" />
             
             <Button
                 android:id="@+id/btnZoomIn4"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_purple"
@@ -373,7 +373,7 @@
             
             <Button
                 android:id="@+id/btnZoomOut4"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_purple"
@@ -385,7 +385,7 @@
             
             <Button
                 android:id="@+id/btnPrevious4"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_purple_dark"
@@ -393,11 +393,11 @@
                 android:focusableInTouchMode="true"
                 android:text="◀"
                 android:textColor="@color/text_white"
-                android:textSize="10sp" />
+                android:textSize="8sp" />
             
             <Button
                 android:id="@+id/btnNext4"
-                android:layout_width="26dp"
+                android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginStart="1dp"
                 android:background="@color/button_purple_dark"
@@ -405,7 +405,7 @@
                 android:focusableInTouchMode="true"
                 android:text="▶"
                 android:textColor="@color/text_white"
-                android:textSize="10sp" />
+                android:textSize="8sp" />
         </LinearLayout>
 
         <!-- Espaço flexível -->
@@ -421,7 +421,7 @@
             android:layout_height="wrap_content"
             android:text="Foco: 1"
             android:textColor="@color/text_orange"
-            android:textSize="10sp"
+            android:textSize="8sp"
             android:layout_marginStart="4dp"
             android:focusable="false" />
     </LinearLayout>
