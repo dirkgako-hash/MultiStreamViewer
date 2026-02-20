@@ -62,6 +62,18 @@
                 android:focusable="true"
                 android:focusableInTouchMode="true" />
             
+            <CheckBox
+                android:id="@+id/checkBoxKeepActive1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="K"
+                android:textColor="@color/text_blue"
+                android:textSize="9sp"
+                android:checked="false"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:layout_marginStart="2dp" />
+            
             <Button
                 android:id="@+id/btnRefresh1"
                 android:layout_width="26dp"
@@ -140,6 +152,18 @@
                 android:checked="true"
                 android:focusable="true"
                 android:focusableInTouchMode="true" />
+            
+            <CheckBox
+                android:id="@+id/checkBoxKeepActive2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="K"
+                android:textColor="@color/text_purple"
+                android:textSize="9sp"
+                android:checked="false"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:layout_marginStart="2dp" />
             
             <Button
                 android:id="@+id/btnRefresh2"
@@ -220,6 +244,18 @@
                 android:focusable="true"
                 android:focusableInTouchMode="true" />
             
+            <CheckBox
+                android:id="@+id/checkBoxKeepActive3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="K"
+                android:textColor="@color/text_blue"
+                android:textSize="9sp"
+                android:checked="false"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:layout_marginStart="2dp" />
+            
             <Button
                 android:id="@+id/btnRefresh3"
                 android:layout_width="26dp"
@@ -298,6 +334,18 @@
                 android:checked="true"
                 android:focusable="true"
                 android:focusableInTouchMode="true" />
+            
+            <CheckBox
+                android:id="@+id/checkBoxKeepActive4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="K"
+                android:textColor="@color/text_purple"
+                android:textSize="9sp"
+                android:checked="false"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:layout_marginStart="2dp" />
             
             <Button
                 android:id="@+id/btnRefresh4"
