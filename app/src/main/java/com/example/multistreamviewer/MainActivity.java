@@ -71,6 +71,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean isSidebarVisible = false;
     private int focusedBoxIndex = 0;
     private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
+    private int currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
     
     private ArrayList<String> favoritesList = new ArrayList<>();
     private SharedPreferences preferences;
@@ -92,6 +93,7 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
@@ -99,6 +101,9 @@ public class MainActivity extends AppCompatActivity {
         detectDeviceTypeAndSetOrientation();
         
         setContentView(R.layout.activity_main);
+        
+        // Inicializar a orientacao rastreada
+        currentOrientation = getResources().getConfiguration().orientation;
         
         preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
         
@@ -931,12 +936,19 @@ public class MainActivity extends AppCompatActivity {
         
         int rows, cols;
         
-        // Verificar orientação atual
-        int currentOrientation = getResources().getConfiguration().orientation;
-        boolean isPortrait = currentOrientation == Configuration.ORIENTATION_PORTRAIT;
+        // Usar a orientação rastreada (ou obter da configuração se não foi rastreada)
+        int orientation = currentOrientation;
+        if (orientation == 0) {
+            // Se não foi inicializada, obter da configuração
+            orientation = getResources().getConfiguration().orientation;
+        }
+        
+        boolean isPortrait = orientation == Configuration.ORIENTATION_PORTRAIT;
+        
+        Log.d(TAG, "updateLayout - Boxes ativos: " + activeBoxes + ", Portrait: " + isPortrait);
         
         if (isPortrait) {
-            // PORTRAIT: prioridade vertical (coluna única para 2-3 boxes)
+            // PORTRAIT: prioridade vertical (coluna unica para 2-3 boxes)
             switch (activeBoxes) {
                 case 1:
                     rows = 1; cols = 1;
@@ -955,7 +967,7 @@ public class MainActivity extends AppCompatActivity {
                     break;
             }
         } else {
-            // LANDSCAPE: prioridade horizontal (linha única para 2-3 boxes)
+            // LANDSCAPE: prioridade horizontal (linha unica para 2-3 boxes)
             switch (activeBoxes) {
                 case 1:
                     rows = 1; cols = 1;
@@ -1370,18 +1382,27 @@ public class MainActivity extends AppCompatActivity {
      * Alterna a orientação entre portrait e landscape
      */
     private void toggleOrientation() {
-        int currentOrientation = getResources().getConfiguration().orientation;
+        int requestedOrientation;
         
         if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+            // Está em landscape, mudar para portrait
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+            currentOrientation = Configuration.ORIENTATION_PORTRAIT;
             Toast.makeText(this, "📱 Portrait", Toast.LENGTH_SHORT).show();
         } else {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            // Está em portrait, mudar para landscape
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+            currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
             Toast.makeText(this, "📺 Landscape", Toast.LENGTH_SHORT).show();
         }
         
-        // Atualizar layout quando a orientação mudar
-        new Handler().postDelayed(this::updateLayout, 300);
+        // Forçar a orientação solicitada
+        setRequestedOrientation(requestedOrientation);
+        
+        Log.d(TAG, "Toggle orientacao para: " + (requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
+        
+        // Atualizar layout imediatamente
+        updateLayout();
     }
     
     private void showLoadFavoritesDialog() {
@@ -1448,10 +1469,23 @@ public class MainActivity extends AppCompatActivity {
     }
     
     @Override
+    @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        // Atualizar layout quando a orientação muda
-        updateLayout();
+        
+        // Atualizar a orientacao rastreada
+        currentOrientation = newConfig.orientation;
+        
+        Log.d(TAG, "onConfigurationChanged - Orientacao agora: " + 
+            (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
+        
+        // Atualizar o layout com a nova orientacao
+        new Handler(getMainLooper()).post(new Runnable() {
+            @Override
+            public void run() {
+                updateLayout();
+            }
+        });
     }
     
     @Override
