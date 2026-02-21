@@ -1316,24 +1316,12 @@ public class MainActivity extends AppCompatActivity {
         input.setBackgroundResource(android.R.drawable.edit_text);
         input.setCursorVisible(true);
         input.setSelectAllOnFocus(true);
-    /**
-     * Alterna a orientação entre portrait e landscape
-     */
-    private void toggleOrientation() {
-        int currentOrientation = getResources().getConfiguration().orientation;
         
-        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-            Toast.makeText(this, "📱 Portrait", Toast.LENGTH_SHORT).show();
-        } else {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-            Toast.makeText(this, "📺 Landscape", Toast.LENGTH_SHORT).show();
-        }
-    }
-    
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);uilder.setPositiveButton("GUARDAR", new DialogInterface.OnClickListener() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Guardar Favorito");
+        builder.setView(input);
+        
+        builder.setPositiveButton("GUARDAR", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 String favoriteName = input.getText().toString().trim();
@@ -1350,6 +1338,21 @@ public class MainActivity extends AppCompatActivity {
         
         input.requestFocus();
         input.selectAll();
+    }
+    
+    /**
+     * Alterna a orientação entre portrait e landscape
+     */
+    private void toggleOrientation() {
+        int currentOrientation = getResources().getConfiguration().orientation;
+        
+        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+            Toast.makeText(this, "📱 Portrait", Toast.LENGTH_SHORT).show();
+        } else {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            Toast.makeText(this, "📺 Landscape", Toast.LENGTH_SHORT).show();
+        }
     }
     
     private void showLoadFavoritesDialog() {
