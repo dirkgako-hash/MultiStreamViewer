@@ -931,22 +931,48 @@ public class MainActivity extends AppCompatActivity {
         
         int rows, cols;
         
-        switch (activeBoxes) {
-            case 1:
-                rows = 1; cols = 1;
-                break;
-            case 2:
-                rows = 1; cols = 2;
-                break;
-            case 3:
-                rows = 1; cols = 3;
-                break;
-            case 4:
-                rows = 2; cols = 2;
-                break;
-            default:
-                rows = 1; cols = 1;
-                break;
+        // Verificar orientação atual
+        int currentOrientation = getResources().getConfiguration().orientation;
+        boolean isPortrait = currentOrientation == Configuration.ORIENTATION_PORTRAIT;
+        
+        if (isPortrait) {
+            // PORTRAIT: prioridade vertical (coluna única para 2-3 boxes)
+            switch (activeBoxes) {
+                case 1:
+                    rows = 1; cols = 1;
+                    break;
+                case 2:
+                    rows = 2; cols = 1;  // 2 linhas x 1 coluna
+                    break;
+                case 3:
+                    rows = 3; cols = 1;  // 3 linhas x 1 coluna
+                    break;
+                case 4:
+                    rows = 2; cols = 2;  // 2 linhas x 2 colunas
+                    break;
+                default:
+                    rows = 1; cols = 1;
+                    break;
+            }
+        } else {
+            // LANDSCAPE: prioridade horizontal (linha única para 2-3 boxes)
+            switch (activeBoxes) {
+                case 1:
+                    rows = 1; cols = 1;
+                    break;
+                case 2:
+                    rows = 1; cols = 2;  // 1 linha x 2 colunas
+                    break;
+                case 3:
+                    rows = 1; cols = 3;  // 1 linha x 3 colunas
+                    break;
+                case 4:
+                    rows = 2; cols = 2;  // 2 linhas x 2 colunas
+                    break;
+                default:
+                    rows = 1; cols = 1;
+                    break;
+            }
         }
         
         gridLayout.removeAllViews();
@@ -1353,6 +1379,9 @@ public class MainActivity extends AppCompatActivity {
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
             Toast.makeText(this, "📺 Landscape", Toast.LENGTH_SHORT).show();
         }
+        
+        // Atualizar layout quando a orientação mudar
+        new Handler().postDelayed(this::updateLayout, 300);
     }
     
     private void showLoadFavoritesDialog() {
@@ -1421,9 +1450,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        if (newConfig.orientation != Configuration.ORIENTATION_LANDSCAPE) {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-        }
+        // Atualizar layout quando a orientação muda
         updateLayout();
     }
     
