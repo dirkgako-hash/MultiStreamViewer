@@ -93,7 +93,6 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
-    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
@@ -580,6 +579,14 @@ public class MainActivity extends AppCompatActivity {
                 
                 if (!isAnyBoxInFullscreen()) {
                     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                    
+                    // Atualizar layout quando sair de fullscreen para reorganizar boxes
+                    new Handler(getMainLooper()).post(new Runnable() {
+                        @Override
+                        public void run() {
+                            updateLayout();
+                        }
+                    });
                 }
             }
         });
@@ -614,6 +621,14 @@ public class MainActivity extends AppCompatActivity {
             
             if (!isAnyBoxInFullscreen()) {
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                
+                // Agora que saiu de fullscreen, atualizar layout para a orientacao atual
+                new Handler(getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        updateLayout();
+                    }
+                });
             }
         }
     }
@@ -919,6 +934,12 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void updateLayout() {
+        // Se algum box está em fullscreen, não fazer update do layout
+        if (isAnyBoxInFullscreen()) {
+            Log.d(TAG, "Box em fullscreen detectado, ignorando updateLayout");
+            return;
+        }
+        
         int activeBoxes = 0;
         for (boolean enabled : boxEnabled) {
             if (enabled) activeBoxes++;
@@ -1469,7 +1490,6 @@ public class MainActivity extends AppCompatActivity {
     }
     
     @Override
-    @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         
@@ -1479,13 +1499,24 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "onConfigurationChanged - Orientacao agora: " + 
             (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
         
-        // Atualizar o layout com a nova orientacao
-        new Handler(getMainLooper()).post(new Runnable() {
-            @Override
-            public void run() {
-                updateLayout();
-            }
-        });
+        // Se há fullscreen ativo, preservar o estado dele
+        if (isAnyBoxInFullscreen()) {
+            Log.d(TAG, "Fullscreen detectado durante mudança de orientação - preservando estado");
+            // Apenas atualizar o sistema UI se necessário
+            getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_FULLSCREEN |
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            );
+        } else {
+            // Atualizar o layout com a nova orientacao apenas se não está em fullscreen
+            new Handler(getMainLooper()).post(new Runnable() {
+                @Override
+                public void run() {
+                    updateLayout();
+                }
+            });
+        }
     }
     
     @Override
