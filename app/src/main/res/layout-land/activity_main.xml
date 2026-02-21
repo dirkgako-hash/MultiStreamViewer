@@ -36,13 +36,41 @@
             android:id="@+id/btnMenu"
             android:layout_width="30dp"
             android:layout_height="20dp"
-            android:layout_marginEnd="8dp"
+            android:layout_marginEnd="2dp"
             android:background="@color/button_blue"
             android:focusable="true"
             android:focusableInTouchMode="true"
             android:text="☰"
             android:textColor="@color/text_white"
             android:textSize="8sp" />
+
+        <!-- Toggle Orientação -->
+        <Button
+            android:id="@+id/btnToggleOrientation"
+            android:layout_width="30dp"
+            android:layout_height="20dp"
+            android:layout_marginEnd="6dp"
+            android:background="@color/button_green"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:text="⟷"
+            android:textColor="@color/text_white"
+            android:textSize="8sp" />
+
+        <!-- HorizontalScrollView para controles -->
+        <HorizontalScrollView
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:scrollbars="none"
+            android:overScrollMode="never">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingEnd="4dp">
 
         <!-- CONTROLES BOX 1 - AZUL -->
         <LinearLayout
@@ -424,6 +452,8 @@
             android:textSize="8sp"
             android:layout_marginStart="4dp"
             android:focusable="false" />
+            </LinearLayout>
+        </HorizontalScrollView>
     </LinearLayout>
 
     <!-- SIDEBAR COMPACTO SEM SCROLLBAR -->
@@ -645,7 +675,7 @@
                 <EditText
                     android:id="@+id/urlInput1"
                     android:layout_width="0dp"
-                    android:layout_height="25dp"
+                    android:layout_height="20dp"
                     android:layout_weight="1"
                     android:background="@color/background_darker"
                     android:focusable="true"
@@ -663,7 +693,7 @@
                 <Button
                     android:id="@+id/btnLoadUrl1"
                     android:layout_width="40dp"
-                    android:layout_height="25dp"
+                    android:layout_height="20dp"
                     android:layout_marginStart="3dp"
                     android:background="@color/button_blue"
                     android:focusable="true"
@@ -683,7 +713,7 @@
                 <EditText
                     android:id="@+id/urlInput2"
                     android:layout_width="0dp"
-                    android:layout_height="25dp"
+                    android:layout_height="20dp"
                     android:layout_weight="1"
                     android:background="@color/background_darker"
                     android:focusable="true"
@@ -701,7 +731,7 @@
                 <Button
                     android:id="@+id/btnLoadUrl2"
                     android:layout_width="40dp"
-                    android:layout_height="25dp"
+                    android:layout_height="20dp"
                     android:layout_marginStart="3dp"
                     android:background="@color/button_purple"
                     android:focusable="true"
@@ -721,7 +751,7 @@
                 <EditText
                     android:id="@+id/urlInput3"
                     android:layout_width="0dp"
-                    android:layout_height="25dp"
+                    android:layout_height="20dp"
                     android:layout_weight="1"
                     android:background="@color/background_darker"
                     android:focusable="true"
@@ -739,7 +769,7 @@
                 <Button
                     android:id="@+id/btnLoadUrl3"
                     android:layout_width="40dp"
-                    android:layout_height="25dp"
+                    android:layout_height="20dp"
                     android:layout_marginStart="3dp"
                     android:background="@color/button_blue"
                     android:focusable="true"
@@ -759,7 +789,7 @@
                 <EditText
                     android:id="@+id/urlInput4"
                     android:layout_width="0dp"
-                    android:layout_height="25dp"
+                    android:layout_height="20dp"
                     android:layout_weight="1"
                     android:background="@color/background_darker"
                     android:focusable="true"
@@ -777,7 +807,7 @@
                 <Button
                     android:id="@+id/btnLoadUrl4"
                     android:layout_width="40dp"
-                    android:layout_height="25dp"
+                    android:layout_height="20dp"
                     android:layout_marginStart="3dp"
                     android:background="@color/button_purple"
                     android:focusable="true"
@@ -797,7 +827,7 @@
                 <Button
                     android:id="@+id/btnLoadAll"
                     android:layout_width="0dp"
-                    android:layout_height="25dp"
+                    android:layout_height="20dp"
                     android:layout_weight="1"
                     android:background="@color/button_blue"
                     android:focusable="true"
@@ -809,7 +839,7 @@
                 <Button
                     android:id="@+id/btnReloadAll"
                     android:layout_width="0dp"
-                    android:layout_height="25dp"
+                    android:layout_height="20dp"
                     android:layout_weight="1"
                     android:layout_marginStart="3dp"
                     android:background="@color/button_purple"
@@ -822,7 +852,7 @@
                 <Button
                     android:id="@+id/btnClearAll"
                     android:layout_width="0dp"
-                    android:layout_height="25dp"
+                    android:layout_height="20dp"
                     android:layout_weight="1"
                     android:layout_marginStart="3dp"
                     android:background="@color/button_red"

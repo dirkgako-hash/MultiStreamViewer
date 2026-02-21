@@ -52,6 +52,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnMenu;
     private Button btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
+    private Button btnToggleOrientation;
     private Button[] btnRefresh = new Button[4];
     private Button[] btnZoomIn = new Button[4];
     private Button[] btnZoomOut = new Button[4];
@@ -94,7 +95,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+        // Detectar tipo de dispositivo e definir orientação automática
+        detectDeviceTypeAndSetOrientation();
+        
         setContentView(R.layout.activity_main);
         
         preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
@@ -113,6 +116,93 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     
+    /**
+     * Detecta o tipo de dispositivo e define a orientação automaticamente
+     * Fire Stick/Tablet: Landscape
+     * Celular normal: Portrait
+     */
+    private void detectDeviceTypeAndSetOrientation() {
+        if (isFireTVorTablet()) {
+            // Fire Stick ou Tablet -> Landscape
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+        } else {
+            // Celular normal -> Portrait
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        }
+    }
+    
+    /**
+     * Verifica se é Fire TV, Fire Stick ou Tablet
+     */
+    private boolean isFireTVorTablet() {
+        // Verifica Fire TV/Stick
+        String model = Build.MODEL;
+        String device = Build.DEVICE;
+        String product = Build.PRODUCT;
+        
+        // Check for Fire TV devices
+        if (model != null && (model.contains("AFT") || model.contains("AFTA") || model.contains("AFTM"))) {
+            return true;
+        }
+        if (device != null && device.contains("mt")) {
+            return true;
+        }
+        if (product != null && product.contains("montoya")) {
+            return true;
+        }
+        
+        // Verifica se é Tablet pela densidade e tamanho de tela
+        android.util.DisplayMetrics displayMetrics = new android.util.DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+        
+        float widthInches = displayMetrics.widthPixels / displayMetrics.xdpi;
+        float heightInches = displayMetrics.heightPixels / displayMetrics.ydpi;
+        double screenDiagonal = Math.sqrt((widthInches * widthInches) + (heightInches * heightInches));
+        
+        // Considerar tablet se diagonal > 5 polegadas (normalmente > 6 para tablets)
+        return screenDiagonal >= 6.0;
+    }
+    
+    /**
+     * Limpa o cache do aplicativo quando fechado completamente
+     */
+    private void clearAppCache() {
+        try {
+            // Limpar cache do WebView
+            for (WebView webView : webViews) {
+                if (webView != null) {
+                    webView.clearCache(true);
+                    webView.clearHistory();
+                }
+            }
+            
+            // Limpar cache geral do app
+            if (getCacheDir() != null) {
+                deleteDir(getCacheDir());
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Erro ao limpar cache: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Método auxiliar para deletar diretório e seus conteúdos
+     */
+    private boolean deleteDir(java.io.File dir) {
+        if (dir.isDirectory()) {
+            String[] children = dir.list();
+            if (children != null) {
+                for (String child : children) {
+                    boolean success = deleteDir(new java.io.File(dir, child));
+                    if (!success) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return dir.delete();
+    }
+    
     private void initViews() {
         gridLayout = findViewById(R.id.gridLayout);
         bottomControls = findViewById(R.id.bottomControls);
@@ -121,6 +211,7 @@ public class MainActivity extends AppCompatActivity {
         tvFocusedBox = findViewById(R.id.tvFocusedBox);
         
         btnMenu = findViewById(R.id.btnMenu);
+        btnToggleOrientation = findViewById(R.id.btnToggleOrientation);
         
         btnCloseMenu = findViewById(R.id.btnCloseMenu);
         btnLoadAll = findViewById(R.id.btnLoadAll);
@@ -607,6 +698,15 @@ public class MainActivity extends AppCompatActivity {
                     } else {
                         openSidebar();
                     }
+                }
+            });
+        }
+        
+        if (btnToggleOrientation != null) {
+            btnToggleOrientation.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    toggleOrientation();
                 }
             });
         }
@@ -1216,12 +1316,24 @@ public class MainActivity extends AppCompatActivity {
         input.setBackgroundResource(android.R.drawable.edit_text);
         input.setCursorVisible(true);
         input.setSelectAllOnFocus(true);
+    /**
+     * Alterna a orientação entre portrait e landscape
+     */
+    private void toggleOrientation() {
+        int currentOrientation = getResources().getConfiguration().orientation;
         
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Guardar Favorito");
-        builder.setView(input);
-        
-        builder.setPositiveButton("GUARDAR", new DialogInterface.OnClickListener() {
+        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+            Toast.makeText(this, "📱 Portrait", Toast.LENGTH_SHORT).show();
+        } else {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            Toast.makeText(this, "📺 Landscape", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);uilder.setPositiveButton("GUARDAR", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 String favoriteName = input.getText().toString().trim();
@@ -1330,6 +1442,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // Limpar cache apenas quando app é completamente fechado
+        clearAppCache();
         for (WebView webView : webViews) {
             if (webView != null) {
                 webView.stopLoading();
