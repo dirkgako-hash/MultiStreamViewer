@@ -478,10 +478,11 @@ public class MainActivity extends AppCompatActivity {
         RelativeLayout.LayoutParams gridParams = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
         if (isBottomBarExpanded) {
             gridParams.addRule(RelativeLayout.ABOVE, R.id.expandedBottomBar);
-            gridParams.removeRule(RelativeLayout.ABOVE, R.id.bottomControls);
+            gridParams.removeRule(RelativeLayout.ABOVE);
+            gridParams.addRule(RelativeLayout.ABOVE, R.id.expandedBottomBar);
         } else {
+            gridParams.removeRule(RelativeLayout.ABOVE);
             gridParams.addRule(RelativeLayout.ABOVE, R.id.bottomControls);
-            gridParams.removeRule(RelativeLayout.ABOVE, R.id.expandedBottomBar);
         }
         gridLayout.setLayoutParams(gridParams);
     }
