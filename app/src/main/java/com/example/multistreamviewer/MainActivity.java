@@ -46,10 +46,12 @@ public class MainActivity extends AppCompatActivity {
     private WebView[] webViews = new WebView[4];
     private FrameLayout[] boxContainers = new FrameLayout[4];
     private LinearLayout bottomControls;
+    private LinearLayout expandedBottomBar;
     private FrameLayout sidebarContainer;
     private RelativeLayout mainLayout;
     
     private Button btnMenu;
+    private Button btnToggleBottomBar, btnToggleSidebar;
     private Button btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
     private Button btnToggleOrientation;
@@ -69,6 +71,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean[] boxEnabled = {true, true, true, true};
     private boolean[] boxKeepActive = {false, false, false, false};
     private boolean isSidebarVisible = false;
+    private boolean isBottomBarExpanded = false;
     private int focusedBoxIndex = 0;
     private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
     private int currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
@@ -112,6 +115,16 @@ public class MainActivity extends AppCompatActivity {
         
         loadSavedState(true);
         loadFavoritesList();
+        
+        // Confirmação visual de favoritos carregados
+        new Handler().postDelayed(() -> {
+            if (favoritesList.size() > 0) {
+                Toast.makeText(MainActivity.this, 
+                    "✅ " + favoritesList.size() + " Favoritos carregados!", 
+                    Toast.LENGTH_SHORT).show();
+            }
+        }, 1500);
+        
         updateLayout();
         updateFocusedBoxIndicator();
         
@@ -210,14 +223,16 @@ public class MainActivity extends AppCompatActivity {
     private void initViews() {
         gridLayout = findViewById(R.id.gridLayout);
         bottomControls = findViewById(R.id.bottomControls);
+        expandedBottomBar = findViewById(R.id.expandedBottomBar);
         sidebarContainer = findViewById(R.id.sidebarContainer);
         mainLayout = findViewById(R.id.main_layout);
         tvFocusedBox = findViewById(R.id.tvFocusedBox);
         
-        btnMenu = findViewById(R.id.btnMenu);
+        btnToggleBottomBar = findViewById(R.id.btnToggleBottomBar);
+        btnToggleSidebar = findViewById(R.id.btnToggleSidebar);
         btnToggleOrientation = findViewById(R.id.btnToggleOrientation);
-        
         btnCloseMenu = findViewById(R.id.btnCloseMenu);
+        
         btnLoadAll = findViewById(R.id.btnLoadAll);
         btnReloadAll = findViewById(R.id.btnReloadAll);
         btnClearAll = findViewById(R.id.btnClearAll);
@@ -357,20 +372,32 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void closeSidebar() {
-        sidebarContainer.setVisibility(View.GONE);
-        isSidebarVisible = false;
-        
-        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
-        params.width = RelativeLayout.LayoutParams.MATCH_PARENT;
-        params.removeRule(RelativeLayout.LEFT_OF);
-        gridLayout.setLayoutParams(params);
-        
-        hideKeyboard();
-        btnMenu.requestFocus();
+        android.animation.ObjectAnimator animator = android.animation.ObjectAnimator.ofFloat(
+                sidebarContainer, "alpha", 1f, 0f);
+        animator.setDuration(300);
+        animator.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator animation) {
+                sidebarContainer.setVisibility(View.GONE);
+                isSidebarVisible = false;
+                
+                RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
+                params.width = RelativeLayout.LayoutParams.MATCH_PARENT;
+                params.removeRule(RelativeLayout.LEFT_OF);
+                gridLayout.setLayoutParams(params);
+                
+                hideKeyboard();
+                if (btnToggleSidebar != null) {
+                    btnToggleSidebar.requestFocus();
+                }
+            }
+        });
+        animator.start();
     }
     
     private void openSidebar() {
         sidebarContainer.setVisibility(View.VISIBLE);
+        sidebarContainer.setAlpha(0f);
         isSidebarVisible = true;
         
         RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
@@ -378,7 +405,85 @@ public class MainActivity extends AppCompatActivity {
         params.addRule(RelativeLayout.LEFT_OF, R.id.sidebarContainer);
         gridLayout.setLayoutParams(params);
         
-        btnCloseMenu.requestFocus();
+        android.animation.ObjectAnimator animator = android.animation.ObjectAnimator.ofFloat(
+                sidebarContainer, "alpha", 0f, 1f);
+        animator.setDuration(300);
+        animator.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator animation) {
+                if (btnCloseMenu != null) {
+                    btnCloseMenu.requestFocus();
+                }
+            }
+        });
+        animator.start();
+    }
+
+    private void toggleBottomBar() {
+        if (isBottomBarExpanded) {
+            closeBottomBar();
+        } else {
+            openBottomBar();
+        }
+    }
+    
+    private void closeBottomBar() {
+        if (expandedBottomBar == null) return;
+        
+        android.animation.ObjectAnimator animator = android.animation.ObjectAnimator.ofFloat(
+                expandedBottomBar, "translationY", 0f, expandedBottomBar.getHeight());
+        animator.setDuration(300);
+        animator.setInterpolator(new android.view.animation.AccelerateInterpolator());
+        animator.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator animation) {
+                expandedBottomBar.setVisibility(View.GONE);
+                isBottomBarExpanded = false;
+                updateLayoutForBottomBar();
+                hideKeyboard();
+                if (btnToggleBottomBar != null) {
+                    btnToggleBottomBar.requestFocus();
+                }
+            }
+        });
+        animator.start();
+    }
+    
+    private void openBottomBar() {
+        if (expandedBottomBar == null) return;
+        
+        expandedBottomBar.setVisibility(View.VISIBLE);
+        expandedBottomBar.setTranslationY(expandedBottomBar.getHeight());
+        isBottomBarExpanded = true;
+        updateLayoutForBottomBar();
+        
+        android.animation.ObjectAnimator animator = android.animation.ObjectAnimator.ofFloat(
+                expandedBottomBar, "translationY", expandedBottomBar.getHeight(), 0f);
+        animator.setDuration(300);
+        animator.setInterpolator(new android.view.animation.DecelerateInterpolator());
+        animator.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator animation) {
+                if (btnCloseMenu != null) {
+                    btnCloseMenu.requestFocus();
+                }
+            }
+        });
+        animator.start();
+    }
+    
+    private void updateLayoutForBottomBar() {
+        if (gridLayout == null || bottomControls == null || expandedBottomBar == null) return;
+        
+        RelativeLayout.LayoutParams gridParams = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
+        if (isBottomBarExpanded) {
+            gridParams.addRule(RelativeLayout.ABOVE, R.id.expandedBottomBar);
+            gridParams.removeRule(RelativeLayout.ABOVE, R.id.bottomControls);
+        } else {
+            gridParams.addRule(RelativeLayout.ABOVE, R.id.bottomControls);
+            gridParams.removeRule(RelativeLayout.ABOVE, R.id.expandedBottomBar);
+        }
+        gridLayout.setLayoutParams(gridParams);
     }
     
     @SuppressLint("SetJavaScriptEnabled")
@@ -434,7 +539,9 @@ public class MainActivity extends AppCompatActivity {
         }
         
         updateLayout(); // Configurar layout inicial
-        btnMenu.requestFocus();
+        if (btnToggleSidebar != null) {
+            btnToggleSidebar.requestFocus();
+        }
     }
     
     private void updateFocusedBoxIndicator() {
@@ -709,8 +816,17 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void initEventListeners() {
-        if (btnMenu != null) {
-            btnMenu.setOnClickListener(new View.OnClickListener() {
+        if (btnToggleBottomBar != null) {
+            btnToggleBottomBar.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    toggleBottomBar();
+                }
+            });
+        }
+        
+        if (btnToggleSidebar != null) {
+            btnToggleSidebar.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     if (isSidebarVisible) {
@@ -735,7 +851,12 @@ public class MainActivity extends AppCompatActivity {
             btnCloseMenu.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    closeSidebar();
+                    if (isSidebarVisible) {
+                        closeSidebar();
+                    }
+                    if (isBottomBarExpanded) {
+                        closeBottomBar();
+                    }
                 }
             });
         }
@@ -1256,8 +1377,17 @@ public class MainActivity extends AppCompatActivity {
                 favoritesList.add(name);
             }
             
+            Log.d(TAG, "✅ Favoritos carregados com sucesso: " + favoritesList.size() + " itens");
+            if (favoritesList.size() > 0) {
+                StringBuilder sb = new StringBuilder("Favoritos: ");
+                for (String fav : favoritesList) {
+                    sb.append("[").append(fav).append("] ");
+                }
+                Log.d(TAG, sb.toString());
+            }
+            
         } catch (Exception e) {
-            Log.e(TAG, "Erro ao carregar lista de favoritos", e);
+            Log.e(TAG, "❌ Erro ao carregar lista de favoritos", e);
             favoritesList.clear();
         }
     }
@@ -1529,8 +1659,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         loadFavoritesList();
-        if (btnMenu != null) {
-            btnMenu.requestFocus();
+        if (btnToggleSidebar != null) {
+            btnToggleSidebar.requestFocus();
         }
     }
     
