@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.PowerManager;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
@@ -40,6 +41,29 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * ARCHITECTURE: WebView Lifecycle & Layout Strategy
+ * ================================================
+ *
+ * 1. WEBVIEW PERSISTENCE:
+ *    - The 4 WebViews are created ONCE in initWebViews() (called from onCreate)
+ *    - They are NEVER destroyed except when the entire Activity is destroyed (onDestroy)
+ *    - This preserves page state, scroll position, JavaScript context, etc.
+ *
+ * 2. LAYOUT FLEXIBILITY:
+ *    - updateLayout() ONLY modifies LayoutParams and setVisibility()
+ *    - It NEVER touches the WebView objects themselves
+ *    - GridLayout adds/removes FrameLayouts, not WebViews
+ *    - WebViews stay in memory with their full state
+ *
+ * 3. CONFIGURATION CHANGES:
+ *    - AndroidManifest.xml declares: android:configChanges="orientation|screenSize|..."
+ *    - This prevents Activity restart on rotation
+ *    - onConfigurationChanged() is called instead of onCreate()
+ *    - WebViews survive rotation with zero reinitialization
+ *
+ * BENEFIT: Seamless rotation, fast layout switching, no page reloads
+ */
 public class MainActivity extends AppCompatActivity {
 
     private GridLayout gridLayout;
@@ -97,10 +121,29 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MultiStreamViewer";
 
+    // WakeLock to prevent device sleep and app from going to background
+    private PowerManager.WakeLock wakeLock;
+
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Acquire WakeLock to prevent app from going to background
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        if (pm != null) {
+            wakeLock = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK, TAG + ":keep-alive");
+            wakeLock.setReferenceCounted(false);
+            wakeLock.acquire();
+            Log.d(TAG, "WakeLock acquired on onCreate");
+        }
+
+        // Keep window flags for foreground visibility
+        getWindow().addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+        );
 
         // IMPORTANT: inflate layout FIRST so views exist before any config change fires
         setContentView(R.layout.activity_main);
@@ -529,6 +572,11 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint("SetJavaScriptEnabled")
     private void initWebViews() {
+        // IMPORTANT: This method is called ONCE from onCreate()
+        // The 4 WebViews are created here and will persist until onDestroy()
+        // They are never destroyed, hidden, or recreated during rotation or layout changes
+        // This preserves page state, scroll position, JavaScript context, etc.
+
         for (int i = 0; i < 4; i++) {
             final int boxIndex = i;
 
@@ -979,6 +1027,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateLayout() {
+        // IMPORTANT: This method ONLY modifies layout and visibility
+        // It NEVER destroys, recreates, or reconstructs WebView objects
+        // WebViews are added/removed from their FrameLayout containers, but the WebView instances
+        // themselves persist with their full state (page, scroll, JavaScript context)
+        
         if (isAnyBoxInFullscreen()) {
             Log.d(TAG, "Box em fullscreen, ignorando updateLayout");
             return;
@@ -1476,6 +1529,19 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+
+        // Ensure WakeLock is held on resume
+        if (wakeLock != null && !wakeLock.isHeld()) {
+            wakeLock.acquire();
+            Log.d(TAG, "WakeLock re-acquired on onResume");
+        }
+
+        // Restore window flags
+        getWindow().addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+        );
+
         loadFavoritesList();
         if (btnToggleSidebar != null) btnToggleSidebar.requestFocus();
     }
@@ -1483,7 +1549,20 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+
+        // Release WakeLock when app is destroyed
+        if (wakeLock != null && wakeLock.isHeld()) {
+            try {
+                wakeLock.release();
+                Log.d(TAG, "WakeLock released on onDestroy");
+            } catch (RuntimeException e) {
+                Log.e(TAG, "Error releasing WakeLock", e);
+            }
+        }
+
         clearAppCache();
+
+        // WebViews are destroyed here (they were created once and only destroyed now)
         for (WebView webView : webViews) {
             if (webView != null) {
                 webView.stopLoading();
