@@ -111,7 +111,7 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isSidebarVisible    = false;
     private boolean isBottomBarExpanded = false;
-    private boolean isSyncingUI         = false;  // Flag para evitar loops quando sincronizando UI
+    private boolean isSyncingUI         = false;  // Flag para evitar disparar listeners durante sincronização
     private int     focusedBoxIndex     = 0;
     private float[] zoomLevels          = {1.0f, 1.0f, 1.0f, 1.0f};
     private int     currentOrientation  = Configuration.ORIENTATION_LANDSCAPE;
@@ -192,56 +192,28 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void toggleOrientation() {
-        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-            currentOrientation = Configuration.ORIENTATION_PORTRAIT;
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-            Toast.makeText(this, "📱 Portrait", Toast.LENGTH_SHORT).show();
-        } else {
-            currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-            Toast.makeText(this, "📺 Landscape", Toast.LENGTH_SHORT).show();
-        }
-        // updateLayout() called by onConfigurationChanged
-        // Estado das boxes (enabled/keepActive) é mantido automaticamente
+        int newOrientation = (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) 
+            ? Configuration.ORIENTATION_PORTRAIT 
+            : Configuration.ORIENTATION_LANDSCAPE;
+        
+        int screenOrientation = (newOrientation == Configuration.ORIENTATION_PORTRAIT)
+            ? ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            : ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+        
+        setRequestedOrientation(screenOrientation);
+        Toast.makeText(this, newOrientation == Configuration.ORIENTATION_PORTRAIT ? "📱 Portrait" : "📺 Landscape", Toast.LENGTH_SHORT).show();
+        // onConfigurationChanged() vai ser chamado automaticamente pelo Android
+        // Lá é que se atualiza currentOrientation e se chama updateLayout()
     }
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         currentOrientation = newConfig.orientation;
-        Log.d(TAG, "onConfigurationChanged → "
-            + (currentOrientation == Configuration.ORIENTATION_PORTRAIT
-               ? "PORTRAIT" : "LANDSCAPE")
-            + " | boxEnabled state will be preserved");
-        // post() so new dimensions are available.
-        // WebViews are NOT touched – videos keep playing.
-        // Estado das boxes mantém-se, apenas layout é recalculado.
-        gridLayout.post(() -> {
-            // Sincronizar checkboxes com estado actual (sem disparar listeners)
-            syncCheckboxesToState();
-            updateLayout();
-        });
-    }
-
-    /**
-     * Sincroniza os checkboxes com o estado actual de boxEnabled[] e boxKeepActive[].
-     * Isto é importante após onConfigurationChanged para que a UI reflita o estado.
-     * Usa isSyncingUI flag para evitar que os listeners actualizem os arrays novamente.
-     */
-    private void syncCheckboxesToState() {
-        isSyncingUI = true;  // Desabilitar listeners temporariamente
-        try {
-            for (int i = 0; i < 4; i++) {
-                if (checkBoxes[i] != null) {
-                    checkBoxes[i].setChecked(boxEnabled[i]);
-                }
-                if (checkBoxesKeepActive[i] != null) {
-                    checkBoxesKeepActive[i].setChecked(boxKeepActive[i]);
-                }
-            }
-        } finally {
-            isSyncingUI = false;  // Re-habilitar listeners
-        }
+        Log.d(TAG, "onConfigurationChanged → " + (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
+        // Mesmo padrão que clicar num checkbox:
+        // Mudança é processada, estado é actualizado, updateLayout() é chamado
+        gridLayout.post(this::updateLayout);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -583,18 +555,12 @@ public class MainActivity extends AppCompatActivity {
             if (btnNext[i]           != null) btnNext[i].setOnClickListener(v ->     { if (webViews[idx]!=null&&webViews[idx].canGoForward()) webViews[idx].goForward(); });
 
             if (checkBoxes[i] != null) checkBoxes[i].setOnCheckedChangeListener((b, checked) -> {
-                // Ignorar eventos durante sincronização de UI (após onConfigurationChanged)
-                if (!isSyncingUI) {
-                    boxEnabled[idx] = checked;
-                    updateLayout();   // only rebuilds grid – WebViews untouched
-                }
+                boxEnabled[idx] = checked;
+                updateLayout();   // only rebuilds grid – WebViews untouched
             });
             if (checkBoxesKeepActive[i] != null) checkBoxesKeepActive[i].setOnCheckedChangeListener((b, checked) -> {
-                // Ignorar eventos durante sincronização de UI
-                if (!isSyncingUI) {
-                    boxKeepActive[idx] = checked;
-                    updateLayout();
-                }
+                boxKeepActive[idx] = checked;
+                updateLayout();
             });
         }
 
@@ -673,7 +639,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadSavedState(boolean silent) {
         try {
-            isSyncingUI = true;  // Desabilitar listeners temporariamente
+            isSyncingUI = true;  // Desabilitar listeners durante carregamento
             for (int i=0;i<4;i++) {
                 boxEnabled[i]    = preferences.getBoolean("box_enabled_"+i, true);
                 boxKeepActive[i] = preferences.getBoolean("box_keep_active_"+i, true);
