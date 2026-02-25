@@ -650,11 +650,6 @@
                 finalUrl += (finalUrl.includes('?') ? '&' : '?') + 'autoplay=1';
             }
             
-            // Add mute parameter to avoid autoplay restrictions
-            if (!finalUrl.includes('mute=')) {
-                finalUrl += '&mute=1';
-            }
-            
             player.iframe.src = finalUrl;
             updateStatus(`Loading URL in Player ${playerIndex + 1}`, 'info');
         }
@@ -865,7 +860,7 @@
                 if (player.currentUrl) {
                     player.loading = true;
                     document.getElementById(`loading-${index}`).classList.add('loading');
-                    player.iframe.src = player.currentUrl + (player.currentUrl.includes('?') ? '&' : '?') + 'autoplay=1&mute=1';
+                    player.iframe.src = player.currentUrl + (player.currentUrl.includes('?') ? '&' : '?') + 'autoplay=1';
                 }
             });
         }
