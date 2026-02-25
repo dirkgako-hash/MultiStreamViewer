@@ -212,10 +212,12 @@ public class MainActivity extends AppCompatActivity {
         currentOrientation = newConfig.orientation;
         Log.d(TAG, "onConfigurationChanged → " + (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
         
-        // Apenas recalcular o layout do grid
-        // NÃO recarregar o layout XML para evitar destruir views e referências
-        // O Android já ajusta automaticamente o tamanho das views
-        gridLayout.post(this::updateLayout);
+        // Proteger contra nullPointerException se gridLayout não estiver pronto
+        if (gridLayout != null) {
+            gridLayout.post(this::updateLayout);
+        } else {
+            Log.e(TAG, "gridLayout is null during onConfigurationChanged!");
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
