@@ -1,32 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Cores principais -->
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
-    
-    <!-- Cores de fundo -->
-    <color name="background_dark">#1a1a1a</color>
-    <color name="background_darker">#333333</color>
-    <color name="background_black">#000000</color>
-    
-    <!-- Cores de botões - BOXES 1 e 3 -->
-    <color name="button_blue">#1e3c72</color>
-    <color name="button_blue_light">#2a4a8a</color>
-    <color name="button_blue_dark">#162e5a</color>
-    
-    <!-- Cores de botões - BOXES 2 e 4 -->
-    <color name="button_purple">#4a1e72</color>
-    <color name="button_purple_light">#5a2a8a</color>
-    <color name="button_purple_dark">#3a125a</color>
-    
-    <!-- Cores de botões gerais -->
-    <color name="button_green">#4CAF50</color>
-    <color name="button_orange">#FF9800</color>
-    <color name="button_red">#ff4444</color>
-    
-    <!-- Cores de texto -->
-    <color name="text_white">#FFFFFF</color>
-    <color name="text_orange">#FF9800</color>
-    <color name="text_blue">#2196F3</color>
-    <color name="text_purple">#9C27B0</color>
+    <!-- Backgrounds -->
+    <color name="background_black">#FF000000</color>
+    <color name="background_dark">#FF1A1A1A</color>
+    <color name="background_darker">#FF0D0D0D</color>
+
+    <!-- Buttons -->
+    <color name="button_blue">#FF1565C0</color>
+    <color name="button_blue_dark">#FF0D47A1</color>
+    <color name="button_purple">#FF6A1B9A</color>
+    <color name="button_purple_dark">#FF4A148C</color>
+    <color name="button_red">#FFC62828</color>
+    <color name="button_green">#FF2E7D32</color>
+    <color name="button_orange">#FFE65100</color>
+
+    <!-- Text -->
+    <color name="text_white">#FFFFFFFF</color>
+    <color name="text_blue">#FF64B5F6</color>
+    <color name="text_purple">#FFCE93D8</color>
+    <color name="text_orange">#FFFFB74D</color>
+    <color name="text_green">#FFA5D6A7</color>
 </resources>
