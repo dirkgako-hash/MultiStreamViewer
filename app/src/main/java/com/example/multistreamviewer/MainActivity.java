@@ -212,15 +212,9 @@ public class MainActivity extends AppCompatActivity {
         currentOrientation = newConfig.orientation;
         Log.d(TAG, "onConfigurationChanged → " + (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
         
-        // Recarregar o layout porque android:configChanges previne a recreação da Activity
-        // Mas o layout XML não é recarregado automaticamente
-        setContentView(R.layout.activity_main);
-        
-        // Reinicializar as views com o novo layout
-        initViews();
-        initEventListeners();
-        
-        // Recalcular grid com novo layout
+        // Apenas recalcular o layout do grid
+        // NÃO recarregar o layout XML para evitar destruir views e referências
+        // O Android já ajusta automaticamente o tamanho das views
         gridLayout.post(this::updateLayout);
     }
 
