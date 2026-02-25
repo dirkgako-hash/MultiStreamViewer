@@ -441,7 +441,6 @@ public class MainActivity extends AppCompatActivity {
      *  • Ao rodar o ecrã, o estado das boxes (enabled/keepActive) mantém-se intacto.
      *  • Ao abrir sidebar, a grid reajusta width mas estado das boxes NÃO muda.
      *  • KeepAlive é ativado por padrão (boxKeepActive[] inicializado com true).
-     *  • ADIÇÃO: Apenas actualiza LayoutParams em vez de removeAllViews/addView para evitar destruir estado do WebView.
      */
     private void updateLayout() {
         // Count boxes that will be shown in the grid
@@ -478,7 +477,6 @@ public class MainActivity extends AppCompatActivity {
 
         // post() → gridLayout dimensions are valid when the Runnable executes
         gridLayout.post(() -> {
-            // Obter dimensões actuais da grid
             int gridW = gridLayout.getWidth();
             int gridH = gridLayout.getHeight();
             if (gridW <= 0 || gridH <= 0) {
@@ -493,14 +491,12 @@ public class MainActivity extends AppCompatActivity {
             int cellW = Math.max(0, (gridW - margin * 2 * fCols) / fCols);
             int cellH = Math.max(0, (gridH - margin * 2 * fRows) / fRows);
 
-            // Verificar se a grid precisa ser COMPLETAMENTE reconstruída
-            // (i.e., número de views na grid mudou porque boxes foram ativadas/desativadas)
-            int currentChildCount = gridLayout.getChildCount();
-            int expectedChildCount = fCount;
-            boolean needsRebuild = (currentChildCount != expectedChildCount);
+            // Verificar se a grid REALMENTE precisa ser reconstruída
+            // Comparar número actual de children com o esperado
+            boolean needsRebuild = (gridLayout.getChildCount() != fCount);
 
             if (needsRebuild) {
-                // Apenas fazer removeAllViews() quando REALMENTE é necessário (mudança de boxes ativadas/desativadas)
+                // Rebuild: número de boxes ativas mudou (ex: checkbox desativado)
                 gridLayout.removeAllViews();
                 gridLayout.setRowCount(fRows);
                 gridLayout.setColumnCount(fCols);
@@ -512,7 +508,7 @@ public class MainActivity extends AppCompatActivity {
                     GridLayout.Spec rowSpec = GridLayout.spec(pos / fCols, 1, 1f);
                     GridLayout.Spec colSpec = GridLayout.spec(pos % fCols, 1, 1f);
                     GridLayout.LayoutParams p = new GridLayout.LayoutParams(rowSpec, colSpec);
-                    p.width  = cellW;
+                    p.width = cellW;
                     p.height = cellH;
                     p.setMargins(margin, margin, margin, margin);
                     gridLayout.addView(boxContainers[i], p);
@@ -520,33 +516,29 @@ public class MainActivity extends AppCompatActivity {
                 }
                 Log.d(TAG, "updateLayout REBUILD " + fCount + " boxes " + (portrait ? "portrait" : "landscape") + " [" + fCols + "×" + fRows + "]");
             } else {
-                // Apenas actualizar LayoutParams SEM fazer removeAllViews()
-                // Isto preserva o estado do WebView durante mudanças de orientação!
+                // Apenas reajustar: número de boxes é igual (ex: mudança de orientação)
+                // Manter as views onde estão e apenas actualizar row/col count
                 gridLayout.setRowCount(fRows);
                 gridLayout.setColumnCount(fCols);
 
+                // Actualizar LayoutParams de cada view já presente
                 int pos = 0;
-                for (int i = 0; i < 4; i++) {
-                    if (!boxEnabled[i] || boxContainers[i] == null) continue;
+                for (int i = 0; i < gridLayout.getChildCount(); i++) {
+                    View child = gridLayout.getChildAt(i);
+                    if (child == null) continue;
 
-                    GridLayout.LayoutParams p = (GridLayout.LayoutParams) boxContainers[i].getLayoutParams();
-                    if (p == null) {
-                        // Ainda não está na grid, skip
-                        pos++;
-                        continue;
+                    GridLayout.LayoutParams p = (GridLayout.LayoutParams) child.getLayoutParams();
+                    if (p != null) {
+                        p.rowSpec = GridLayout.spec(pos / fCols, 1, 1f);
+                        p.columnSpec = GridLayout.spec(pos % fCols, 1, 1f);
+                        p.width = cellW;
+                        p.height = cellH;
+                        p.setMargins(margin, margin, margin, margin);
+                        child.setLayoutParams(p);
                     }
-
-                    GridLayout.Spec rowSpec = GridLayout.spec(pos / fCols, 1, 1f);
-                    GridLayout.Spec colSpec = GridLayout.spec(pos % fCols, 1, 1f);
-                    p.rowSpec = rowSpec;
-                    p.columnSpec = colSpec;
-                    p.width = cellW;
-                    p.height = cellH;
-                    p.setMargins(margin, margin, margin, margin);
-                    boxContainers[i].setLayoutParams(p);
                     pos++;
                 }
-                Log.d(TAG, "updateLayout UPDATE " + fCount + " boxes " + (portrait ? "portrait" : "landscape") + " [" + fCols + "×" + fRows + "]");
+                Log.d(TAG, "updateLayout ADJUST " + fCount + " boxes " + (portrait ? "portrait" : "landscape") + " [" + fCols + "×" + fRows + "]");
             }
 
             gridLayout.requestLayout();
