@@ -107,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
     //  boxEnabled[i]    = false + boxKeepActive[i]=false → GONE
     //
     private boolean[] boxEnabled    = {true, true, true, true};
-    private boolean[] boxKeepActive = {false, false, false, false};
+    private boolean[] boxKeepActive = {true, true, true, true};
 
     private boolean isSidebarVisible    = false;
     private boolean isBottomBarExpanded = false;
@@ -201,6 +201,7 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "📺 Landscape", Toast.LENGTH_SHORT).show();
         }
         // updateLayout() called by onConfigurationChanged
+        // Estado das boxes (enabled/keepActive) é mantido automaticamente
     }
 
     @Override
@@ -209,9 +210,11 @@ public class MainActivity extends AppCompatActivity {
         currentOrientation = newConfig.orientation;
         Log.d(TAG, "onConfigurationChanged → "
             + (currentOrientation == Configuration.ORIENTATION_PORTRAIT
-               ? "PORTRAIT" : "LANDSCAPE"));
+               ? "PORTRAIT" : "LANDSCAPE")
+            + " | boxEnabled state preserved");
         // post() so new dimensions are available.
         // WebViews are NOT touched – videos keep playing.
+        // Estado das boxes mantém-se, apenas layout é recalculado.
         gridLayout.post(this::updateLayout);
     }
 
@@ -433,6 +436,13 @@ public class MainActivity extends AppCompatActivity {
      *  enabled=true             → VISIBLE, added to grid
      *  enabled=false keepActive → INVISIBLE, NOT in grid (WebView plays in bg)
      *  enabled=false !keepActive → GONE
+     *
+     * IMPORTANTE:
+     *  • NÃO há fullscreen automático. Com 1 box ativa, a grid usa layout 1×1.
+     *  • Quando o sidebar abre, o espaço é dividido: grid + sidebar no mesmo ecrã.
+     *  • Ao rodar o ecrã, o estado das boxes (enabled/keepActive) mantém-se intacto.
+     *  • Ao abrir sidebar, a grid reajusta width mas estado das boxes NÃO muda.
+     *  • KeepAlive é ativado por padrão (boxKeepActive[] inicializado com true).
      */
     private void updateLayout() {
         // Count boxes that will be shown in the grid
@@ -633,7 +643,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             for (int i=0;i<4;i++) {
                 boxEnabled[i]    = preferences.getBoolean("box_enabled_"+i, true);
-                boxKeepActive[i] = preferences.getBoolean("box_keep_active_"+i, false);
+                boxKeepActive[i] = preferences.getBoolean("box_keep_active_"+i, true);
                 zoomLevels[i]    = preferences.getFloat("zoom_level_"+i, 1.0f);
                 if (checkBoxes[i]           !=null) checkBoxes[i].setChecked(boxEnabled[i]);
                 if (checkBoxesKeepActive[i] !=null) checkBoxesKeepActive[i].setChecked(boxKeepActive[i]);
@@ -721,22 +731,39 @@ public class MainActivity extends AppCompatActivity {
         a.setDuration(250);
         a.addListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator an){
             sidebarContainer.setVisibility(View.GONE); isSidebarVisible=false;
-            RelativeLayout.LayoutParams p=(RelativeLayout.LayoutParams)gridLayout.getLayoutParams();
-            p.removeRule(RelativeLayout.LEFT_OF); gridLayout.setLayoutParams(p);
+            // Restaurar gridLayout para ocupar width total (sem sidebar)
+            adjustGridLayoutForSidebar(false);
             hideKeyboard(); if(btnToggleSidebar!=null)btnToggleSidebar.requestFocus();
         }}); a.start();
     }
 
     private void openSidebar() {
         sidebarContainer.setVisibility(View.VISIBLE); sidebarContainer.setAlpha(0f); isSidebarVisible=true;
-        RelativeLayout.LayoutParams p=(RelativeLayout.LayoutParams)gridLayout.getLayoutParams();
-        p.addRule(RelativeLayout.LEFT_OF, R.id.sidebarContainer); gridLayout.setLayoutParams(p);
+        // Reduzir gridLayout width para dar espaço ao sidebar
+        adjustGridLayoutForSidebar(true);
         android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(sidebarContainer,"alpha",0f,1f);
         a.setDuration(250);
         a.addListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator an){
             for(int i=0;i<4;i++) if(urlInputs[i]!=null&&urlInputsSidebar[i]!=null) urlInputsSidebar[i].setText(urlInputs[i].getText());
             if(btnCloseSidebar!=null)btnCloseSidebar.requestFocus();
         }}); a.start();
+    }
+
+    /**
+     * Ajusta a largura do gridLayout quando sidebar abre/fecha.
+     * O sidebar tem width 200dp, então gridLayout reduz para liberar espaço.
+     * O estado das boxes (enabled/keepActive) mantém-se inalterado.
+     * A grid divide o espaço disponível entre as boxes visíveis.
+     */
+    private void adjustGridLayoutForSidebar(boolean sidebarOpen) {
+        if(gridLayout==null) return;
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        int sidebarWidth = sidebarOpen ? (int)(200 * dm.density) : 0;
+        RelativeLayout.LayoutParams p = (RelativeLayout.LayoutParams)gridLayout.getLayoutParams();
+        p.rightMargin = sidebarWidth;
+        gridLayout.setLayoutParams(p);
+        // Recalcular layout imediatamente
+        gridLayout.post(this::updateLayout);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
