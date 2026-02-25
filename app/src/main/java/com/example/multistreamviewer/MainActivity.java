@@ -489,57 +489,29 @@ public class MainActivity extends AppCompatActivity {
             int cellW = Math.max(0, (gridW - margin * 2 * fCols) / fCols);
             int cellH = Math.max(0, (gridH - margin * 2 * fRows) / fRows);
 
-            // Verificar se a grid REALMENTE precisa ser reconstruída
-            // Comparar número actual de children com o esperado
-            boolean needsRebuild = (gridLayout.getChildCount() != fCount);
+            // Sempre fazer rebuild para evitar problemas com LayoutParams
+            gridLayout.removeAllViews();
+            gridLayout.setRowCount(fRows);
+            gridLayout.setColumnCount(fCols);
 
-            if (needsRebuild) {
-                // Rebuild: número de boxes ativas mudou (ex: checkbox desativado)
-                gridLayout.removeAllViews();
-                gridLayout.setRowCount(fRows);
-                gridLayout.setColumnCount(fCols);
+            int pos = 0;
+            for (int i = 0; i < 4; i++) {
+                if (!boxEnabled[i] || boxContainers[i] == null) continue;
 
-                int pos = 0;
-                for (int i = 0; i < 4; i++) {
-                    if (!boxEnabled[i] || boxContainers[i] == null) continue;
-
-                    GridLayout.Spec rowSpec = GridLayout.spec(pos / fCols, 1, 1f);
-                    GridLayout.Spec colSpec = GridLayout.spec(pos % fCols, 1, 1f);
-                    GridLayout.LayoutParams p = new GridLayout.LayoutParams(rowSpec, colSpec);
-                    p.width = cellW;
-                    p.height = cellH;
-                    p.setMargins(margin, margin, margin, margin);
-                    gridLayout.addView(boxContainers[i], p);
-                    pos++;
-                }
-                Log.d(TAG, "updateLayout REBUILD " + fCount + " boxes " + (portrait ? "portrait" : "landscape") + " [" + fCols + "×" + fRows + "]");
-            } else {
-                // Apenas reajustar: número de boxes é igual (ex: mudança de orientação)
-                // Manter as views onde estão e apenas actualizar row/col count
-                gridLayout.setRowCount(fRows);
-                gridLayout.setColumnCount(fCols);
-
-                // Actualizar LayoutParams de cada view já presente
-                int pos = 0;
-                for (int i = 0; i < gridLayout.getChildCount(); i++) {
-                    View child = gridLayout.getChildAt(i);
-                    if (child == null) continue;
-
-                    GridLayout.LayoutParams p = (GridLayout.LayoutParams) child.getLayoutParams();
-                    if (p != null) {
-                        p.rowSpec = GridLayout.spec(pos / fCols, 1, 1f);
-                        p.columnSpec = GridLayout.spec(pos % fCols, 1, 1f);
-                        p.width = cellW;
-                        p.height = cellH;
-                        p.setMargins(margin, margin, margin, margin);
-                        child.setLayoutParams(p);
-                    }
-                    pos++;
-                }
-                Log.d(TAG, "updateLayout ADJUST " + fCount + " boxes " + (portrait ? "portrait" : "landscape") + " [" + fCols + "×" + fRows + "]");
+                GridLayout.Spec rowSpec = GridLayout.spec(pos / fCols, 1, 1f);
+                GridLayout.Spec colSpec = GridLayout.spec(pos % fCols, 1, 1f);
+                GridLayout.LayoutParams p = new GridLayout.LayoutParams(rowSpec, colSpec);
+                p.width = cellW;
+                p.height = cellH;
+                p.setMargins(margin, margin, margin, margin);
+                gridLayout.addView(boxContainers[i], p);
+                pos++;
             }
 
             gridLayout.requestLayout();
+            Log.d(TAG, "updateLayout " + fCount + " boxes "
+                + (portrait ? "portrait" : "landscape")
+                + " [" + fCols + "×" + fRows + "] cell=" + cellW + "×" + cellH);
         });
     }
 
