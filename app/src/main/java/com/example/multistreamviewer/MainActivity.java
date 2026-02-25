@@ -315,8 +315,8 @@ public class MainActivity extends AppCompatActivity {
         int[] nxId  = {R.id.btnNext1,     R.id.btnNext2,     R.id.btnNext3,     R.id.btnNext4};
         int[] goId  = {R.id.btnLoadUrl1,  R.id.btnLoadUrl2,  R.id.btnLoadUrl3,  R.id.btnLoadUrl4};
         int[] ulId  = {R.id.urlInput1,    R.id.urlInput2,    R.id.urlInput3,    R.id.urlInput4};
-        int[] usbId = {R.id.urlInputSidebar1,  R.id.urlInputSidebar2,  R.id.urlInputSidebar3,  R.id.urlInputSidebar4};
-        int[] gsbId = {R.id.btnLoadUrlSidebar1, R.id.btnLoadUrlSidebar2, R.id.btnLoadUrlSidebar3, R.id.btnLoadUrlSidebar4};
+        int[] usbId = {R.id.urlInput1Sidebar,  R.id.urlInput2Sidebar,  R.id.urlInput3Sidebar,  R.id.urlInput4Sidebar};
+        int[] gsbId = {R.id.btnLoadUrl1Sidebar, R.id.btnLoadUrl2Sidebar, R.id.btnLoadUrl3Sidebar, R.id.btnLoadUrl4Sidebar};
 
         String def = "https://dzritv.com/sport/football/";
         for (int i = 0; i < 4; i++) {
