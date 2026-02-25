@@ -111,6 +111,7 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isSidebarVisible    = false;
     private boolean isBottomBarExpanded = false;
+    private boolean isSyncingUI         = false;  // Flag para evitar loops quando sincronizando UI
     private int     focusedBoxIndex     = 0;
     private float[] zoomLevels          = {1.0f, 1.0f, 1.0f, 1.0f};
     private int     currentOrientation  = Configuration.ORIENTATION_LANDSCAPE;
@@ -211,11 +212,36 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "onConfigurationChanged → "
             + (currentOrientation == Configuration.ORIENTATION_PORTRAIT
                ? "PORTRAIT" : "LANDSCAPE")
-            + " | boxEnabled state preserved");
+            + " | boxEnabled state will be preserved");
         // post() so new dimensions are available.
         // WebViews are NOT touched – videos keep playing.
         // Estado das boxes mantém-se, apenas layout é recalculado.
-        gridLayout.post(this::updateLayout);
+        gridLayout.post(() -> {
+            // Sincronizar checkboxes com estado actual (sem disparar listeners)
+            syncCheckboxesToState();
+            updateLayout();
+        });
+    }
+
+    /**
+     * Sincroniza os checkboxes com o estado actual de boxEnabled[] e boxKeepActive[].
+     * Isto é importante após onConfigurationChanged para que a UI reflita o estado.
+     * Usa isSyncingUI flag para evitar que os listeners actualizem os arrays novamente.
+     */
+    private void syncCheckboxesToState() {
+        isSyncingUI = true;  // Desabilitar listeners temporariamente
+        try {
+            for (int i = 0; i < 4; i++) {
+                if (checkBoxes[i] != null) {
+                    checkBoxes[i].setChecked(boxEnabled[i]);
+                }
+                if (checkBoxesKeepActive[i] != null) {
+                    checkBoxesKeepActive[i].setChecked(boxKeepActive[i]);
+                }
+            }
+        } finally {
+            isSyncingUI = false;  // Re-habilitar listeners
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -557,12 +583,18 @@ public class MainActivity extends AppCompatActivity {
             if (btnNext[i]           != null) btnNext[i].setOnClickListener(v ->     { if (webViews[idx]!=null&&webViews[idx].canGoForward()) webViews[idx].goForward(); });
 
             if (checkBoxes[i] != null) checkBoxes[i].setOnCheckedChangeListener((b, checked) -> {
-                boxEnabled[idx] = checked;
-                updateLayout();   // only rebuilds grid – WebViews untouched
+                // Ignorar eventos durante sincronização de UI (após onConfigurationChanged)
+                if (!isSyncingUI) {
+                    boxEnabled[idx] = checked;
+                    updateLayout();   // only rebuilds grid – WebViews untouched
+                }
             });
             if (checkBoxesKeepActive[i] != null) checkBoxesKeepActive[i].setOnCheckedChangeListener((b, checked) -> {
-                boxKeepActive[idx] = checked;
-                updateLayout();
+                // Ignorar eventos durante sincronização de UI
+                if (!isSyncingUI) {
+                    boxKeepActive[idx] = checked;
+                    updateLayout();
+                }
             });
         }
 
@@ -641,6 +673,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadSavedState(boolean silent) {
         try {
+            isSyncingUI = true;  // Desabilitar listeners temporariamente
             for (int i=0;i<4;i++) {
                 boxEnabled[i]    = preferences.getBoolean("box_enabled_"+i, true);
                 boxKeepActive[i] = preferences.getBoolean("box_keep_active_"+i, true);
@@ -667,6 +700,9 @@ public class MainActivity extends AppCompatActivity {
             if (cbBlockAds       !=null) cbBlockAds.setChecked(preferences.getBoolean("block_ads",false));
             if (!silent) Toast.makeText(this,"✅ Estado carregado!",Toast.LENGTH_SHORT).show();
         } catch (Exception e) { if (!silent) Toast.makeText(this,"❌ Erro ao carregar",Toast.LENGTH_SHORT).show(); }
+        finally {
+            isSyncingUI = false;  // Re-habilitar listeners
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
