@@ -957,7 +957,7 @@
                 android:layout_marginBottom="3dp">
                 
                 <EditText
-                    android:id="@+id/urlInput1"
+                    android:id="@+id/urlInput1Sidebar"
                     android:layout_width="0dp"
                     android:layout_height="20dp"
                     android:layout_weight="1"
@@ -975,7 +975,7 @@
                     android:maxLines="1" />
                 
                 <Button
-                    android:id="@+id/btnLoadUrl1"
+                    android:id="@+id/btnLoadUrl1Sidebar"
                     android:layout_width="40dp"
                     android:layout_height="20dp"
                     android:layout_marginStart="3dp"
@@ -995,7 +995,7 @@
                 android:layout_marginBottom="3dp">
                 
                 <EditText
-                    android:id="@+id/urlInput2"
+                    android:id="@+id/urlInput2Sidebar"
                     android:layout_width="0dp"
                     android:layout_height="20dp"
                     android:layout_weight="1"
@@ -1013,7 +1013,7 @@
                     android:maxLines="1" />
                 
                 <Button
-                    android:id="@+id/btnLoadUrl2"
+                    android:id="@+id/btnLoadUrl2Sidebar"
                     android:layout_width="40dp"
                     android:layout_height="20dp"
                     android:layout_marginStart="3dp"
@@ -1033,7 +1033,7 @@
                 android:layout_marginBottom="3dp">
                 
                 <EditText
-                    android:id="@+id/urlInput3"
+                    android:id="@+id/urlInput3Sidebar"
                     android:layout_width="0dp"
                     android:layout_height="20dp"
                     android:layout_weight="1"
@@ -1051,7 +1051,7 @@
                     android:maxLines="1" />
                 
                 <Button
-                    android:id="@+id/btnLoadUrl3"
+                    android:id="@+id/btnLoadUrl3Sidebar"
                     android:layout_width="40dp"
                     android:layout_height="20dp"
                     android:layout_marginStart="3dp"
@@ -1071,7 +1071,7 @@
                 android:layout_marginBottom="8dp">
                 
                 <EditText
-                    android:id="@+id/urlInput4"
+                    android:id="@+id/urlInput4Sidebar"
                     android:layout_width="0dp"
                     android:layout_height="20dp"
                     android:layout_weight="1"
@@ -1089,7 +1089,7 @@
                     android:maxLines="1" />
                 
                 <Button
-                    android:id="@+id/btnLoadUrl4"
+                    android:id="@+id/btnLoadUrl4Sidebar"
                     android:layout_width="40dp"
                     android:layout_height="20dp"
                     android:layout_marginStart="3dp"
