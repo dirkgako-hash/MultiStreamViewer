@@ -1,20 +1,19 @@
 package com.example.multistreamviewer;
 
 import android.annotation.SuppressLint;
-import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.PowerManager;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
-import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -22,7 +21,6 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.CheckBox;
-import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -42,1603 +40,797 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * ARCHITECTURE: WebView Lifecycle & Layout Strategy
- * ================================================
- *
- * 1. WEBVIEW PERSISTENCE:
- *    - The 4 WebViews are created ONCE in initWebViews() (called from onCreate)
- *    - They are NEVER destroyed except when the entire Activity is destroyed (onDestroy)
- *    - This preserves page state, scroll position, JavaScript context, etc.
- *
- * 2. LAYOUT FLEXIBILITY:
- *    - updateLayout() ONLY modifies LayoutParams and setVisibility()
- *    - It NEVER touches the WebView objects themselves
- *    - GridLayout adds/removes FrameLayouts, not WebViews
- *    - WebViews stay in memory with their full state
- *
- * 3. CONFIGURATION CHANGES:
- *    - AndroidManifest.xml declares: android:configChanges="orientation|screenSize|..."
- *    - This prevents Activity restart on rotation
- *    - onConfigurationChanged() is called instead of onCreate()
- *    - WebViews survive rotation with zero reinitialization
- *
- * BENEFIT: Seamless rotation, fast layout switching, no page reloads
+ * ╔══════════════════════════════════════════════════════════════════════╗
+ * ║  DESIGN PRINCIPLES                                                   ║
+ * ║                                                                      ║
+ * ║  RULE 1 – WebViews are created ONCE in onCreate and never destroyed  ║
+ * ║           or removed from their containers.  Video state is always   ║
+ * ║           preserved regardless of orientation changes or boxes being ║
+ * ║           shown/hidden.                                              ║
+ * ║                                                                      ║
+ * ║  RULE 2 – updateLayout() is the ONLY method that touches the grid.  ║
+ * ║           It only changes GridLayout LayoutParams + setVisibility(). ║
+ * ║           It never touches WebViews.                                 ║
+ * ║                                                                      ║
+ * ║  RULE 3 – "Fullbox" is NOT a special state. It simply means 1 box   ║
+ * ║           is enabled. The WebView always fills its container 100%    ║
+ * ║           (MATCH_PARENT × MATCH_PARENT).                             ║
+ * ║                                                                      ║
+ * ║  RULE 4 – AndroidManifest.xml MUST have on the <activity>:          ║
+ * ║           android:configChanges="orientation|screenSize|             ║
+ * ║               screenLayout|keyboardHidden|smallestScreenSize"        ║
+ * ║           This prevents Activity recreation on rotation.             ║
+ * ╚══════════════════════════════════════════════════════════════════════╝
  */
 public class MainActivity extends AppCompatActivity {
 
-    private GridLayout gridLayout;
-    private WebView[] webViews = new WebView[4];
-    private FrameLayout[] boxContainers = new FrameLayout[4];
-    private LinearLayout bottomControls;
-    private LinearLayout expandedBottomBar;
-    private FrameLayout sidebarContainer;
+    // ── Views ──────────────────────────────────────────────────────────────────
+    private GridLayout     gridLayout;
+    private FrameLayout[]  boxContainers = new FrameLayout[4];
+    private WebView[]      webViews      = new WebView[4];
+
+    private LinearLayout   bottomControls;
+    private LinearLayout   expandedBottomBar;
+    private FrameLayout    sidebarContainer;
     private RelativeLayout mainLayout;
+    private TextView       tvFocusedBox;
 
-    private Button btnMenu;
-    private Button btnToggleBottomBar, btnToggleSidebar;
-    private Button btnCloseMenu, btnCloseSidebar, btnLoadAll, btnReloadAll, btnClearAll;
+    private Button btnToggleBottomBar, btnToggleSidebar, btnToggleOrientation;
+    private Button btnCloseMenu, btnCloseSidebar;
+    private Button btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
-    private Button btnToggleOrientation;
-    private Button[] btnRefresh = new Button[4];
-    private Button[] btnZoomIn = new Button[4];
-    private Button[] btnZoomOut = new Button[4];
-    private Button[] btnPrevious = new Button[4];
-    private Button[] btnNext = new Button[4];
-    private Button[] btnLoadUrl = new Button[4];
 
-    // Sidebar-specific controls (unique IDs to avoid duplicate ID errors)
-    private EditText[] urlInputsSidebar = new EditText[4];
-    private Button[] btnLoadUrlSidebar = new Button[4];
+    // Per-box controls (bottom bar)
+    private Button[]   btnRefresh  = new Button[4];
+    private Button[]   btnZoomIn   = new Button[4];
+    private Button[]   btnZoomOut  = new Button[4];
+    private Button[]   btnPrevious = new Button[4];
+    private Button[]   btnNext     = new Button[4];
+    private Button[]   btnLoadUrl  = new Button[4];
+    private EditText[] urlInputs   = new EditText[4];
+    private CheckBox[] checkBoxes           = new CheckBox[4];
+    private CheckBox[] checkBoxesKeepActive = new CheckBox[4];
+
+    // Sidebar controls (unique IDs – no duplicate-ID build error)
+    private EditText[] urlInputsSidebar  = new EditText[4];
+    private Button[]   btnLoadUrlSidebar = new Button[4];
     private Button btnLoadAllSidebar, btnReloadAllSidebar, btnClearAllSidebar;
     private Button btnSaveStateSidebar, btnLoadStateSidebar;
     private Button btnSaveFavoritesSidebar, btnLoadFavoritesSidebar;
 
-    private CheckBox[] checkBoxes = new CheckBox[4];
-    private CheckBox[] checkBoxesKeepActive = new CheckBox[4];
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
-    private EditText[] urlInputs = new EditText[4];
-    private TextView tvFocusedBox;
 
-    private boolean[] boxEnabled = {true, true, true, true};
+    // ── State ──────────────────────────────────────────────────────────────────
+    //
+    //  boxEnabled[i]    = true  → container VISIBLE   (in grid)
+    //  boxEnabled[i]    = false + boxKeepActive[i]=true  → INVISIBLE (playing bg)
+    //  boxEnabled[i]    = false + boxKeepActive[i]=false → GONE
+    //
+    private boolean[] boxEnabled    = {true, true, true, true};
     private boolean[] boxKeepActive = {false, false, false, false};
-    private boolean isSidebarVisible = false;
+
+    private boolean isSidebarVisible    = false;
     private boolean isBottomBarExpanded = false;
-    private int focusedBoxIndex = 0;
-    private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
-    private int currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
+    private int     focusedBoxIndex     = 0;
+    private float[] zoomLevels          = {1.0f, 1.0f, 1.0f, 1.0f};
+    private int     currentOrientation  = Configuration.ORIENTATION_LANDSCAPE;
 
     private ArrayList<String> favoritesList = new ArrayList<>();
     private SharedPreferences preferences;
 
-    // Fullscreen video support
-    private boolean[] boxInFullscreen = new boolean[4];
-    private View[] fullscreenViews = new View[4];
-    private WebChromeClient.CustomViewCallback[] fullscreenCallbacks = new WebChromeClient.CustomViewCallback[4];
-
     private final List<String> adDomains = Arrays.asList(
-        "doubleclick.net", "googleadservices.com", "googlesyndication.com"
-    );
+        "doubleclick.net", "googleadservices.com", "googlesyndication.com");
 
-    private static final String TAG = "MultiStreamViewer";
+    private static final String TAG = "MSV";
 
-    // WakeLock to prevent device sleep and app from going to background
-    private PowerManager.WakeLock wakeLock;
+    // ══════════════════════════════════════════════════════════════════════════
+    //  LIFECYCLE
+    // ══════════════════════════════════════════════════════════════════════════
 
-    @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
+    @SuppressLint({"SetJavaScriptEnabled","ClickableViewAccessibility"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Acquire WakeLock to prevent app from going to background
-        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-        if (pm != null) {
-            wakeLock = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK, TAG + ":keep-alive");
-            wakeLock.setReferenceCounted(false);
-            wakeLock.acquire();
-            Log.d(TAG, "WakeLock acquired on onCreate");
-        }
-
-        // Keep window flags for foreground visibility
-        getWindow().addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
-            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
-            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
-        );
-
-        // IMPORTANT: inflate layout FIRST so views exist before any config change fires
+        // ① Inflate layout FIRST – views must exist before any orientation
+        //   change fires (setRequestedOrientation can trigger it immediately)
         setContentView(R.layout.activity_main);
 
-        // Read the real orientation after layout is inflated
+        // ② Read the real orientation AFTER layout inflation
         currentOrientation = getResources().getConfiguration().orientation;
 
-        // Request orientation AFTER setContentView (safe – views already exist)
-        detectDeviceTypeAndSetOrientation();
+        // ③ Request orientation AFTER setContentView (safe – views already exist)
+        applyDefaultOrientation();
 
         preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
 
         initViews();
-        initWebViews();
-        initEventListeners();
 
-        loadSavedState(true);
+        // ④ Create all 4 WebViews exactly once.
+        //   From this point on webViews[] are NEVER removed from boxContainers[].
+        //   updateLayout() only moves boxContainers[] in/out of gridLayout.
+        initWebViewsOnce();
+
+        initEventListeners();
+        loadSavedState(/*silent=*/true);
         loadFavoritesList();
 
         new Handler().postDelayed(() -> {
-            if (favoritesList.size() > 0) {
-                Toast.makeText(MainActivity.this,
-                    "✅ " + favoritesList.size() + " Favoritos carregados!",
-                    Toast.LENGTH_SHORT).show();
-            }
+            if (!favoritesList.isEmpty())
+                Toast.makeText(this, "✅ " + favoritesList.size() + " favoritos", Toast.LENGTH_SHORT).show();
         }, 1500);
 
-        updateLayout();
-        updateFocusedBoxIndicator();
-
-        if (!hasSavedState()) {
-            new Handler().postDelayed(this::loadInitialURLs, 1000);
-        }
+        // First layout pass – post() so gridLayout is measured
+        gridLayout.post(() -> {
+            updateLayout();
+            updateFocusedBoxIndicator();
+            if (!hasSavedState())
+                new Handler().postDelayed(this::loadInitialURLs, 500);
+        });
     }
 
-    private void detectDeviceTypeAndSetOrientation() {
-        if (isFireTVorTablet()) {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-        } else {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        }
-    }
+    // ── Device / orientation ─────────────────────────────────────────────────
 
     private boolean isFireTVorTablet() {
-        String model = Build.MODEL;
-        String device = Build.DEVICE;
-        String product = Build.PRODUCT;
-
-        if (model != null && (model.contains("AFT") || model.contains("AFTA") || model.contains("AFTM"))) {
-            return true;
-        }
-        if (device != null && device.contains("mt")) {
-            return true;
-        }
-        if (product != null && product.contains("montoya")) {
-            return true;
-        }
-
-        android.util.DisplayMetrics displayMetrics = new android.util.DisplayMetrics();
-        getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
-
-        float widthInches = displayMetrics.widthPixels / displayMetrics.xdpi;
-        float heightInches = displayMetrics.heightPixels / displayMetrics.ydpi;
-        double screenDiagonal = Math.sqrt((widthInches * widthInches) + (heightInches * heightInches));
-
-        return screenDiagonal >= 6.0;
+        try { if (getPackageManager().hasSystemFeature("amazon.hardware.fire_tv")) return true; }
+        catch (Exception ignored) {}
+        String model  = Build.MODEL  != null ? Build.MODEL.toUpperCase()  : "";
+        String device = Build.DEVICE != null ? Build.DEVICE.toUpperCase() : "";
+        if (model.startsWith("AFT") || device.contains("MONTOYA")) return true;
+        android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(dm);
+        double diag = Math.sqrt(Math.pow(dm.widthPixels / dm.xdpi, 2)
+                              + Math.pow(dm.heightPixels / dm.ydpi, 2));
+        return diag >= 6.0;
     }
 
-    private void clearAppCache() {
-        try {
-            for (WebView webView : webViews) {
-                if (webView != null) {
-                    webView.clearCache(true);
-                    webView.clearHistory();
-                }
-            }
-            if (getCacheDir() != null) {
-                deleteDir(getCacheDir());
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Erro ao limpar cache: " + e.getMessage());
-        }
+    private void applyDefaultOrientation() {
+        setRequestedOrientation(isFireTVorTablet()
+            ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
 
-    private boolean deleteDir(java.io.File dir) {
-        if (dir.isDirectory()) {
-            String[] children = dir.list();
-            if (children != null) {
-                for (String child : children) {
-                    boolean success = deleteDir(new java.io.File(dir, child));
-                    if (!success) {
-                        return false;
-                    }
-                }
-            }
+    private void toggleOrientation() {
+        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+            currentOrientation = Configuration.ORIENTATION_PORTRAIT;
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+            Toast.makeText(this, "📱 Portrait", Toast.LENGTH_SHORT).show();
+        } else {
+            currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            Toast.makeText(this, "📺 Landscape", Toast.LENGTH_SHORT).show();
         }
-        return dir.delete();
+        // updateLayout() called by onConfigurationChanged
     }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        currentOrientation = newConfig.orientation;
+        Log.d(TAG, "onConfigurationChanged → "
+            + (currentOrientation == Configuration.ORIENTATION_PORTRAIT
+               ? "PORTRAIT" : "LANDSCAPE"));
+        // post() so new dimensions are available.
+        // WebViews are NOT touched – videos keep playing.
+        gridLayout.post(this::updateLayout);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  INIT VIEWS
+    // ══════════════════════════════════════════════════════════════════════════
 
     private void initViews() {
-        gridLayout = findViewById(R.id.gridLayout);
-        bottomControls = findViewById(R.id.bottomControls);
+        gridLayout        = findViewById(R.id.gridLayout);
+        bottomControls    = findViewById(R.id.bottomControls);
         expandedBottomBar = findViewById(R.id.expandedBottomBar);
-        sidebarContainer = findViewById(R.id.sidebarContainer);
-        mainLayout = findViewById(R.id.main_layout);
-        tvFocusedBox = findViewById(R.id.tvFocusedBox);
+        sidebarContainer  = findViewById(R.id.sidebarContainer);
+        mainLayout        = findViewById(R.id.main_layout);
+        tvFocusedBox      = findViewById(R.id.tvFocusedBox);
 
-        btnToggleBottomBar = findViewById(R.id.btnToggleBottomBar);
-        btnToggleSidebar = findViewById(R.id.btnToggleSidebar);
+        btnToggleBottomBar   = findViewById(R.id.btnToggleBottomBar);
+        btnToggleSidebar     = findViewById(R.id.btnToggleSidebar);
         btnToggleOrientation = findViewById(R.id.btnToggleOrientation);
-        btnCloseMenu = findViewById(R.id.btnCloseMenu);
-        btnCloseSidebar = findViewById(R.id.btnCloseSidebar);
+        btnCloseMenu         = findViewById(R.id.btnCloseMenu);
+        btnCloseSidebar      = findViewById(R.id.btnCloseSidebar);
 
-        // Bottom bar controls
-        btnLoadAll = findViewById(R.id.btnLoadAll);
-        btnReloadAll = findViewById(R.id.btnReloadAll);
-        btnClearAll = findViewById(R.id.btnClearAll);
-        btnSaveState = findViewById(R.id.btnSaveState);
-        btnLoadState = findViewById(R.id.btnLoadState);
+        btnLoadAll       = findViewById(R.id.btnLoadAll);
+        btnReloadAll     = findViewById(R.id.btnReloadAll);
+        btnClearAll      = findViewById(R.id.btnClearAll);
+        btnSaveState     = findViewById(R.id.btnSaveState);
+        btnLoadState     = findViewById(R.id.btnLoadState);
         btnSaveFavorites = findViewById(R.id.btnSaveFavorites);
         btnLoadFavorites = findViewById(R.id.btnLoadFavorites);
 
-        // Sidebar controls (unique IDs)
-        btnSaveStateSidebar = findViewById(R.id.btnSaveStateSidebar);
-        btnLoadStateSidebar = findViewById(R.id.btnLoadStateSidebar);
+        btnSaveStateSidebar     = findViewById(R.id.btnSaveStateSidebar);
+        btnLoadStateSidebar     = findViewById(R.id.btnLoadStateSidebar);
         btnSaveFavoritesSidebar = findViewById(R.id.btnSaveFavoritesSidebar);
         btnLoadFavoritesSidebar = findViewById(R.id.btnLoadFavoritesSidebar);
-        btnLoadAllSidebar = findViewById(R.id.btnLoadAllSidebar);
-        btnReloadAllSidebar = findViewById(R.id.btnReloadAllSidebar);
-        btnClearAllSidebar = findViewById(R.id.btnClearAllSidebar);
+        btnLoadAllSidebar       = findViewById(R.id.btnLoadAllSidebar);
+        btnReloadAllSidebar     = findViewById(R.id.btnReloadAllSidebar);
+        btnClearAllSidebar      = findViewById(R.id.btnClearAllSidebar);
 
-        checkBoxes[0] = findViewById(R.id.checkBox1);
-        checkBoxes[1] = findViewById(R.id.checkBox2);
-        checkBoxes[2] = findViewById(R.id.checkBox3);
-        checkBoxes[3] = findViewById(R.id.checkBox4);
-
-        checkBoxesKeepActive[0] = findViewById(R.id.checkBoxKeepActive1);
-        checkBoxesKeepActive[1] = findViewById(R.id.checkBoxKeepActive2);
-        checkBoxesKeepActive[2] = findViewById(R.id.checkBoxKeepActive3);
-        checkBoxesKeepActive[3] = findViewById(R.id.checkBoxKeepActive4);
-
-        btnRefresh[0] = findViewById(R.id.btnRefresh1);
-        btnRefresh[1] = findViewById(R.id.btnRefresh2);
-        btnRefresh[2] = findViewById(R.id.btnRefresh3);
-        btnRefresh[3] = findViewById(R.id.btnRefresh4);
-
-        btnZoomIn[0] = findViewById(R.id.btnZoomIn1);
-        btnZoomIn[1] = findViewById(R.id.btnZoomIn2);
-        btnZoomIn[2] = findViewById(R.id.btnZoomIn3);
-        btnZoomIn[3] = findViewById(R.id.btnZoomIn4);
-
-        btnZoomOut[0] = findViewById(R.id.btnZoomOut1);
-        btnZoomOut[1] = findViewById(R.id.btnZoomOut2);
-        btnZoomOut[2] = findViewById(R.id.btnZoomOut3);
-        btnZoomOut[3] = findViewById(R.id.btnZoomOut4);
-
-        btnPrevious[0] = findViewById(R.id.btnPrevious1);
-        btnPrevious[1] = findViewById(R.id.btnPrevious2);
-        btnPrevious[2] = findViewById(R.id.btnPrevious3);
-        btnPrevious[3] = findViewById(R.id.btnPrevious4);
-
-        btnNext[0] = findViewById(R.id.btnNext1);
-        btnNext[1] = findViewById(R.id.btnNext2);
-        btnNext[2] = findViewById(R.id.btnNext3);
-        btnNext[3] = findViewById(R.id.btnNext4);
-
-        // Bottom bar URL inputs & GO buttons
-        btnLoadUrl[0] = findViewById(R.id.btnLoadUrl1);
-        btnLoadUrl[1] = findViewById(R.id.btnLoadUrl2);
-        btnLoadUrl[2] = findViewById(R.id.btnLoadUrl3);
-        btnLoadUrl[3] = findViewById(R.id.btnLoadUrl4);
-
-        urlInputs[0] = findViewById(R.id.urlInput1);
-        urlInputs[1] = findViewById(R.id.urlInput2);
-        urlInputs[2] = findViewById(R.id.urlInput3);
-        urlInputs[3] = findViewById(R.id.urlInput4);
-
-        // Sidebar URL inputs & GO buttons (unique IDs)
-        urlInputsSidebar[0] = findViewById(R.id.urlInputSidebar1);
-        urlInputsSidebar[1] = findViewById(R.id.urlInputSidebar2);
-        urlInputsSidebar[2] = findViewById(R.id.urlInputSidebar3);
-        urlInputsSidebar[3] = findViewById(R.id.urlInputSidebar4);
-
-        btnLoadUrlSidebar[0] = findViewById(R.id.btnLoadUrlSidebar1);
-        btnLoadUrlSidebar[1] = findViewById(R.id.btnLoadUrlSidebar2);
-        btnLoadUrlSidebar[2] = findViewById(R.id.btnLoadUrlSidebar3);
-        btnLoadUrlSidebar[3] = findViewById(R.id.btnLoadUrlSidebar4);
-
-        cbAllowScripts = findViewById(R.id.cbAllowScripts);
-        cbAllowForms = findViewById(R.id.cbAllowForms);
-        cbAllowPopups = findViewById(R.id.cbAllowPopups);
+        cbAllowScripts   = findViewById(R.id.cbAllowScripts);
+        cbAllowForms     = findViewById(R.id.cbAllowForms);
+        cbAllowPopups    = findViewById(R.id.cbAllowPopups);
         cbBlockRedirects = findViewById(R.id.cbBlockRedirects);
-        cbBlockAds = findViewById(R.id.cbBlockAds);
+        cbBlockAds       = findViewById(R.id.cbBlockAds);
 
-        // Configure bottom bar URL inputs
-        String defaultUrl = "https://dzritv.com/sport/football/";
-        for (EditText urlInput : urlInputs) {
-            if (urlInput != null) {
-                urlInput.setText(defaultUrl);
-                urlInput.setCursorVisible(true);
-                urlInput.setSelectAllOnFocus(true);
-                urlInput.setOnFocusChangeListener((v, hasFocus) -> {
-                    if (hasFocus) {
-                        EditText et = (EditText) v;
-                        et.selectAll();
-                        showKeyboard(et);
-                    }
-                });
-            }
-        }
+        int[] cbIds  = {R.id.checkBox1, R.id.checkBox2, R.id.checkBox3, R.id.checkBox4};
+        int[] kaIds  = {R.id.checkBoxKeepActive1, R.id.checkBoxKeepActive2,
+                        R.id.checkBoxKeepActive3, R.id.checkBoxKeepActive4};
+        int[] rfIds  = {R.id.btnRefresh1,  R.id.btnRefresh2,  R.id.btnRefresh3,  R.id.btnRefresh4};
+        int[] ziIds  = {R.id.btnZoomIn1,   R.id.btnZoomIn2,   R.id.btnZoomIn3,   R.id.btnZoomIn4};
+        int[] zoIds  = {R.id.btnZoomOut1,  R.id.btnZoomOut2,  R.id.btnZoomOut3,  R.id.btnZoomOut4};
+        int[] pvIds  = {R.id.btnPrevious1, R.id.btnPrevious2, R.id.btnPrevious3, R.id.btnPrevious4};
+        int[] nxIds  = {R.id.btnNext1,     R.id.btnNext2,     R.id.btnNext3,     R.id.btnNext4};
+        int[] goIds  = {R.id.btnLoadUrl1,  R.id.btnLoadUrl2,  R.id.btnLoadUrl3,  R.id.btnLoadUrl4};
+        int[] ulIds  = {R.id.urlInput1,    R.id.urlInput2,    R.id.urlInput3,    R.id.urlInput4};
+        int[] usbIds = {R.id.urlInputSidebar1, R.id.urlInputSidebar2,
+                        R.id.urlInputSidebar3, R.id.urlInputSidebar4};
+        int[] gsbIds = {R.id.btnLoadUrlSidebar1, R.id.btnLoadUrlSidebar2,
+                        R.id.btnLoadUrlSidebar3, R.id.btnLoadUrlSidebar4};
 
-        // Configure sidebar URL inputs (mirror bottom bar inputs)
+        String def = "https://dzritv.com/sport/football/";
         for (int i = 0; i < 4; i++) {
-            if (urlInputsSidebar[i] != null) {
-                urlInputsSidebar[i].setText(defaultUrl);
-                urlInputsSidebar[i].setCursorVisible(true);
-                urlInputsSidebar[i].setSelectAllOnFocus(true);
-                urlInputsSidebar[i].setOnFocusChangeListener((v, hasFocus) -> {
-                    if (hasFocus) {
-                        EditText et = (EditText) v;
-                        et.selectAll();
-                        showKeyboard(et);
-                    }
-                });
-            }
-        }
-
-        // IME action listeners for bottom bar inputs
-        for (int i = 0; i < 4; i++) {
-            final int boxIndex = i;
-            if (urlInputs[i] != null) {
-                urlInputs[i].setOnEditorActionListener((v, actionId, event) -> {
-                    if (actionId == EditorInfo.IME_ACTION_DONE) {
-                        String url = urlInputs[boxIndex].getText().toString().trim();
-                        if (!url.isEmpty()) {
-                            syncUrlToSidebar(boxIndex, url);
-                            loadURL(boxIndex, url);
-                            hideKeyboard();
-                        }
-                        return true;
-                    }
-                    return false;
-                });
-            }
-            // IME action listeners for sidebar inputs
-            if (urlInputsSidebar[i] != null) {
-                urlInputsSidebar[i].setOnEditorActionListener((v, actionId, event) -> {
-                    if (actionId == EditorInfo.IME_ACTION_DONE) {
-                        String url = urlInputsSidebar[boxIndex].getText().toString().trim();
-                        if (!url.isEmpty()) {
-                            syncUrlToBottomBar(boxIndex, url);
-                            loadURL(boxIndex, url);
-                            hideKeyboard();
-                        }
-                        return true;
-                    }
-                    return false;
-                });
-            }
+            checkBoxes[i]           = findViewById(cbIds[i]);
+            checkBoxesKeepActive[i] = findViewById(kaIds[i]);
+            btnRefresh[i]           = findViewById(rfIds[i]);
+            btnZoomIn[i]            = findViewById(ziIds[i]);
+            btnZoomOut[i]           = findViewById(zoIds[i]);
+            btnPrevious[i]          = findViewById(pvIds[i]);
+            btnNext[i]              = findViewById(nxIds[i]);
+            btnLoadUrl[i]           = findViewById(goIds[i]);
+            urlInputs[i]            = findViewById(ulIds[i]);
+            urlInputsSidebar[i]     = findViewById(usbIds[i]);
+            btnLoadUrlSidebar[i]    = findViewById(gsbIds[i]);
+            setupUrlInput(urlInputs[i],        def, i, false);
+            setupUrlInput(urlInputsSidebar[i], def, i, true);
         }
     }
 
-    /**
-     * Sync a URL typed in the bottom bar to the matching sidebar input.
-     */
-    private void syncUrlToSidebar(int boxIndex, String url) {
-        if (urlInputsSidebar[boxIndex] != null) {
-            urlInputsSidebar[boxIndex].setText(url);
-        }
-    }
-
-    /**
-     * Sync a URL typed in the sidebar to the matching bottom bar input.
-     */
-    private void syncUrlToBottomBar(int boxIndex, String url) {
-        if (urlInputs[boxIndex] != null) {
-            urlInputs[boxIndex].setText(url);
-        }
-    }
-
-    private void showKeyboard(View view) {
-        view.postDelayed(() -> {
-            android.view.inputmethod.InputMethodManager imm =
-                (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-            if (imm != null) {
-                imm.showSoftInput(view, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
-            }
-        }, 100);
-    }
-
-    private void hideKeyboard() {
-        View view = this.getCurrentFocus();
-        if (view != null) {
-            android.view.inputmethod.InputMethodManager imm =
-                (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-            if (imm != null) {
-                imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
-            }
-        }
-    }
-
-    public void closeSidebarFromOverlay(View view) {
-        closeSidebar();
-    }
-
-    private void closeSidebar() {
-        android.animation.ObjectAnimator animator = android.animation.ObjectAnimator.ofFloat(
-                sidebarContainer, "alpha", 1f, 0f);
-        animator.setDuration(300);
-        animator.addListener(new android.animation.AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(android.animation.Animator animation) {
-                sidebarContainer.setVisibility(View.GONE);
-                isSidebarVisible = false;
-
-                RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
-                params.width = RelativeLayout.LayoutParams.MATCH_PARENT;
-                params.removeRule(RelativeLayout.LEFT_OF);
-                gridLayout.setLayoutParams(params);
-
-                hideKeyboard();
-                if (btnToggleSidebar != null) {
-                    btnToggleSidebar.requestFocus();
+    private void setupUrlInput(EditText et, String def, final int idx, final boolean sidebar) {
+        if (et == null) return;
+        et.setText(def);
+        et.setCursorVisible(true);
+        et.setSelectAllOnFocus(true);
+        et.setOnFocusChangeListener((v, focus) -> { if (focus) { et.selectAll(); showKeyboard(et); } });
+        et.setOnEditorActionListener((v, actionId, ev) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                String url = et.getText().toString().trim();
+                if (!url.isEmpty()) {
+                    if (sidebar) syncToBottomBar(idx, url); else syncToSidebar(idx, url);
+                    loadURL(idx, url);
+                    hideKeyboard();
                 }
+                return true;
             }
+            return false;
         });
-        animator.start();
     }
 
-    private void openSidebar() {
-        sidebarContainer.setVisibility(View.VISIBLE);
-        sidebarContainer.setAlpha(0f);
-        isSidebarVisible = true;
+    private void syncToSidebar(int i, String url)   { if (urlInputsSidebar[i] != null) urlInputsSidebar[i].setText(url); }
+    private void syncToBottomBar(int i, String url) { if (urlInputs[i]        != null) urlInputs[i].setText(url); }
 
-        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
-        params.width = RelativeLayout.LayoutParams.MATCH_PARENT;
-        params.addRule(RelativeLayout.LEFT_OF, R.id.sidebarContainer);
-        gridLayout.setLayoutParams(params);
-
-        android.animation.ObjectAnimator animator = android.animation.ObjectAnimator.ofFloat(
-                sidebarContainer, "alpha", 0f, 1f);
-        animator.setDuration(300);
-        animator.addListener(new android.animation.AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(android.animation.Animator animation) {
-                // Sync current URLs to sidebar when opening
-                for (int i = 0; i < 4; i++) {
-                    if (urlInputs[i] != null && urlInputsSidebar[i] != null) {
-                        urlInputsSidebar[i].setText(urlInputs[i].getText());
-                    }
-                }
-                if (btnCloseSidebar != null) {
-                    btnCloseSidebar.requestFocus();
-                }
-            }
-        });
-        animator.start();
-    }
-
-    private void toggleBottomBar() {
-        if (isBottomBarExpanded) {
-            closeBottomBar();
-        } else {
-            openBottomBar();
-        }
-    }
-
-    private void closeBottomBar() {
-        if (expandedBottomBar == null) return;
-
-        android.animation.ObjectAnimator animator = android.animation.ObjectAnimator.ofFloat(
-                expandedBottomBar, "translationY", 0f, expandedBottomBar.getHeight());
-        animator.setDuration(300);
-        animator.setInterpolator(new android.view.animation.AccelerateInterpolator());
-        animator.addListener(new android.animation.AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(android.animation.Animator animation) {
-                expandedBottomBar.setVisibility(View.GONE);
-                isBottomBarExpanded = false;
-                updateLayoutForBottomBar();
-                hideKeyboard();
-                if (btnToggleBottomBar != null) {
-                    btnToggleBottomBar.requestFocus();
-                }
-            }
-        });
-        animator.start();
-    }
-
-    private void openBottomBar() {
-        if (expandedBottomBar == null) return;
-
-        expandedBottomBar.setVisibility(View.VISIBLE);
-        expandedBottomBar.setTranslationY(expandedBottomBar.getHeight());
-        isBottomBarExpanded = true;
-        updateLayoutForBottomBar();
-
-        android.animation.ObjectAnimator animator = android.animation.ObjectAnimator.ofFloat(
-                expandedBottomBar, "translationY", expandedBottomBar.getHeight(), 0f);
-        animator.setDuration(300);
-        animator.setInterpolator(new android.view.animation.DecelerateInterpolator());
-        animator.addListener(new android.animation.AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(android.animation.Animator animation) {
-                if (btnCloseMenu != null) {
-                    btnCloseMenu.requestFocus();
-                }
-            }
-        });
-        animator.start();
-    }
-
-    private void updateLayoutForBottomBar() {
-        if (gridLayout == null || bottomControls == null || expandedBottomBar == null) return;
-
-        RelativeLayout.LayoutParams gridParams = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
-        if (isBottomBarExpanded) {
-            gridParams.removeRule(RelativeLayout.ABOVE);
-            gridParams.addRule(RelativeLayout.ABOVE, R.id.expandedBottomBar);
-        } else {
-            gridParams.removeRule(RelativeLayout.ABOVE);
-            gridParams.addRule(RelativeLayout.ABOVE, R.id.bottomControls);
-        }
-        gridLayout.setLayoutParams(gridParams);
-    }
+    // ══════════════════════════════════════════════════════════════════════════
+    //  INIT WEBVIEWS  –  called exactly ONCE from onCreate
+    // ══════════════════════════════════════════════════════════════════════════
 
     @SuppressLint("SetJavaScriptEnabled")
-    private void initWebViews() {
-        // IMPORTANT: This method is called ONCE from onCreate()
-        // The 4 WebViews are created here and will persist until onDestroy()
-        // They are never destroyed, hidden, or recreated during rotation or layout changes
-        // This preserves page state, scroll position, JavaScript context, etc.
-
+    private void initWebViewsOnce() {
         for (int i = 0; i < 4; i++) {
-            final int boxIndex = i;
+            final int idx = i;
 
+            // Container
             boxContainers[i] = new FrameLayout(this);
             boxContainers[i].setId(View.generateViewId());
             boxContainers[i].setBackgroundColor(Color.BLACK);
             boxContainers[i].setFocusable(true);
             boxContainers[i].setFocusableInTouchMode(true);
-
             boxContainers[i].setOnFocusChangeListener((v, hasFocus) -> {
                 if (hasFocus && !isSidebarVisible) {
-                    focusedBoxIndex = boxIndex;
+                    focusedBoxIndex = idx;
                     updateFocusedBoxIndicator();
-                    setBoxFocusBorder(boxIndex, true);
+                    setFocusBorder(idx, true);
                 } else if (!hasFocus) {
-                    setBoxFocusBorder(boxIndex, false);
+                    setFocusBorder(idx, false);
                 }
             });
-
             boxContainers[i].setOnClickListener(v -> {
-                if (isSidebarVisible) return;
-                boxContainers[boxIndex].requestFocus();
+                if (!isSidebarVisible) boxContainers[idx].requestFocus();
             });
-        }
 
-        for (int i = 0; i < 4; i++) {
+            // WebView – MATCH_PARENT so it always fills its container (= "fullbox")
             webViews[i] = new WebView(this);
             webViews[i].setId(View.generateViewId());
             setupWebView(webViews[i], i);
+            boxContainers[i].addView(webViews[i], new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
 
-            boxContainers[i].addView(webViews[i],
-                new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT));
-        }
-
-        for (int i = 0; i < 4; i++) {
+            // Add all containers to gridLayout now.
+            // updateLayout() will remove/re-add with correct LayoutParams.
             gridLayout.addView(boxContainers[i]);
         }
 
-        updateLayout();
-        if (btnToggleSidebar != null) {
-            btnToggleSidebar.requestFocus();
-        }
-    }
-
-    private void updateFocusedBoxIndicator() {
-        tvFocusedBox.setText("Foco: " + (focusedBoxIndex + 1));
-    }
-
-    /**
-     * Draws a yellow border around the focused box using a programmatic drawable.
-     * Avoids needing R.drawable.box_focused_border in res/drawable.
-     */
-    private void setBoxFocusBorder(int idx, boolean focused) {
-        if (idx < 0 || idx >= 4 || boxContainers[idx] == null) return;
-        if (focused) {
-            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
-            gd.setColor(Color.BLACK);
-            gd.setStroke(4, Color.YELLOW);
-            boxContainers[idx].setBackground(gd);
-        } else {
-            boxContainers[idx].setBackgroundColor(Color.BLACK);
-        }
+        if (btnToggleSidebar != null) btnToggleSidebar.requestFocus();
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private void setupWebView(WebView webView, int boxIndex) {
-        WebSettings settings = webView.getSettings();
+    private void setupWebView(WebView wv, final int idx) {
+        WebSettings s = wv.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setAllowFileAccess(true);
+        s.setAllowContentAccess(true);
+        s.setMediaPlaybackRequiresUserGesture(false);
+        s.setSupportZoom(true);
+        s.setBuiltInZoomControls(true);
+        s.setDisplayZoomControls(false);
+        s.setLoadWithOverviewMode(true);
+        s.setUseWideViewPort(true);
+        s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
+            s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        s.setUserAgentString(buildUserAgent());
+        s.setTextZoom((int)(zoomLevels[idx] * 100));
+        wv.setInitialScale((int)(zoomLevels[idx] * 100));
+        wv.setBackgroundColor(Color.BLACK);
+        wv.setVerticalScrollBarEnabled(true);
+        wv.setHorizontalScrollBarEnabled(false);
+        wv.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
 
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
-
-        settings.setSupportZoom(true);
-        settings.setBuiltInZoomControls(true);
-        settings.setDisplayZoomControls(false);
-        settings.setLoadWithOverviewMode(true);
-        settings.setUseWideViewPort(true);
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        }
-
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-
-        String userAgent = "Mozilla/5.0 (Linux; Android 10; AFTMM) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Safari/537.36";
-        settings.setUserAgentString(userAgent);
-
-        if (cbBlockAds != null) {
-            settings.setBlockNetworkLoads(cbBlockAds.isChecked());
-            settings.setBlockNetworkImage(cbBlockAds.isChecked());
-        }
-
-        settings.setTextZoom((int)(zoomLevels[boxIndex] * 100));
-        webView.setInitialScale((int)(zoomLevels[boxIndex] * 100));
-
-        webView.setBackgroundColor(Color.BLACK);
-        webView.setVerticalScrollBarEnabled(true);
-        webView.setHorizontalScrollBarEnabled(false);
-        webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
-
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return handleUrlLoading(view, request.getUrl().toString());
-            }
-
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return handleUrlLoading(view, url);
-            }
-
-            private boolean handleUrlLoading(WebView view, String url) {
+        wv.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) { return handleUrl(v, r.getUrl().toString()); }
+            @Override public boolean shouldOverrideUrlLoading(WebView v, String url)           { return handleUrl(v, url); }
+            private boolean handleUrl(WebView v, String url) {
                 if (cbBlockRedirects != null && cbBlockRedirects.isChecked()) {
-                    String currentUrl = view.getUrl();
-                    if (currentUrl != null && !isSameDomain(currentUrl, url)) {
-                        return true;
-                    }
+                    String cur = v.getUrl();
+                    if (cur != null && !isSameDomain(cur, url)) return true;
                 }
-
-                if (cbBlockAds != null && cbBlockAds.isChecked() && isAdUrl(url)) {
-                    return true;
-                }
-
-                if (url.contains("youtube.com") || url.contains("twitch.tv") || url.contains("stream")) {
-                    view.loadUrl(url);
-                    return true;
-                }
-
+                if (cbBlockAds != null && cbBlockAds.isChecked() && isAdUrl(url)) return true;
                 return false;
             }
-
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                applyZoom(boxIndex);
-                if (cbBlockAds != null && cbBlockAds.isChecked()) {
-                    injectAdBlocker(view);
-                }
+            @Override public void onPageFinished(WebView v, String url) {
+                applyZoom(idx);
+                if (cbBlockAds != null && cbBlockAds.isChecked()) injectAdBlocker(v);
             }
         });
 
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public void onShowCustomView(View view, CustomViewCallback callback) {
-                Log.d(TAG, "Fullscreen on Box " + (boxIndex + 1));
-
-                boxInFullscreen[boxIndex] = true;
-                fullscreenViews[boxIndex] = view;
-                fullscreenCallbacks[boxIndex] = callback;
-
-                if (boxContainers[boxIndex].getChildCount() > 1) {
-                    boxContainers[boxIndex].removeViewAt(1);
-                }
-
-                boxContainers[boxIndex].addView(view,
-                    new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT));
-
-                webView.setVisibility(View.GONE);
-
-                getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-                getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_FULLSCREEN |
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                );
-
-                Toast.makeText(MainActivity.this,
-                    "Box " + (boxIndex + 1) + " fullscreen",
-                    Toast.LENGTH_SHORT).show();
+        wv.setWebChromeClient(new WebChromeClient() {
+            @Override public void onShowCustomView(View view, CustomViewCallback cb) {
+                // HTML5 fullscreen request from page – show inside the box container
+                if (boxContainers[idx].getChildCount() > 1) boxContainers[idx].removeViewAt(1);
+                boxContainers[idx].addView(view, new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+                wv.setVisibility(View.GONE);
             }
-
-            @Override
-            public void onHideCustomView() {
-                if (fullscreenViews[boxIndex] == null) return;
-
-                Log.d(TAG, "Exiting fullscreen Box " + (boxIndex + 1));
-
-                if (boxContainers[boxIndex].indexOfChild(fullscreenViews[boxIndex]) != -1) {
-                    boxContainers[boxIndex].removeView(fullscreenViews[boxIndex]);
-                }
-
-                webView.setVisibility(View.VISIBLE);
-
-                if (fullscreenCallbacks[boxIndex] != null) {
-                    fullscreenCallbacks[boxIndex].onCustomViewHidden();
-                }
-
-                fullscreenViews[boxIndex] = null;
-                fullscreenCallbacks[boxIndex] = null;
-                boxInFullscreen[boxIndex] = false;
-
-                if (!isAnyBoxInFullscreen()) {
-                    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-                    new Handler(getMainLooper()).post(this::updateLayoutPost);
-                }
-            }
-
-            private void updateLayoutPost() {
-                updateLayout();
+            @Override public void onHideCustomView() {
+                if (boxContainers[idx].getChildCount() > 1) boxContainers[idx].removeViewAt(1);
+                wv.setVisibility(View.VISIBLE);
             }
         });
     }
 
-    private boolean isAnyBoxInFullscreen() {
-        for (int i = 0; i < 4; i++) {
-            if (boxInFullscreen[i]) return true;
-        }
-        return false;
+    private String buildUserAgent() {
+        return isFireTVorTablet()
+            ? "Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/91.0.4472.120 Mobile Safari/537.36"
+            : "Mozilla/5.0 (Linux; Android 11; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36";
     }
 
-    private void exitFullscreen(int boxIndex) {
-        if (boxInFullscreen[boxIndex] && fullscreenViews[boxIndex] != null) {
-            if (boxContainers[boxIndex].indexOfChild(fullscreenViews[boxIndex]) != -1) {
-                boxContainers[boxIndex].removeView(fullscreenViews[boxIndex]);
-            }
+    // ══════════════════════════════════════════════════════════════════════════
+    //  UPDATE LAYOUT  –  single source of truth for grid arrangement
+    // ══════════════════════════════════════════════════════════════════════════
 
-            if (webViews[boxIndex] != null) {
-                webViews[boxIndex].setVisibility(View.VISIBLE);
-            }
-
-            if (fullscreenCallbacks[boxIndex] != null) {
-                fullscreenCallbacks[boxIndex].onCustomViewHidden();
-            }
-
-            fullscreenViews[boxIndex] = null;
-            fullscreenCallbacks[boxIndex] = null;
-            boxInFullscreen[boxIndex] = false;
-
-            if (!isAnyBoxInFullscreen()) {
-                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-                new Handler(getMainLooper()).post(this::updateLayout);
-            }
-        }
-    }
-
-    private void applyZoom(int boxIndex) {
-        WebView webView = webViews[boxIndex];
-        if (webView != null) {
-            webView.getSettings().setTextZoom((int)(zoomLevels[boxIndex] * 100));
-        }
-    }
-
-    private void zoomIn(int boxIndex) {
-        if (zoomLevels[boxIndex] < 2.0f) {
-            zoomLevels[boxIndex] += 0.1f;
-            applyZoom(boxIndex);
-            Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + String.format("%.0f", zoomLevels[boxIndex] * 100) + "%",
-                Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void zoomOut(int boxIndex) {
-        if (zoomLevels[boxIndex] > 0.5f) {
-            zoomLevels[boxIndex] -= 0.1f;
-            applyZoom(boxIndex);
-            Toast.makeText(this, "Box " + (boxIndex + 1) + " Zoom: " + String.format("%.0f", zoomLevels[boxIndex] * 100) + "%",
-                Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void injectAdBlocker(WebView view) {
-        String adBlockJS =
-            "try {" +
-            "   var selectors = [" +
-            "       'div[class*=\"ad\"]', 'div[id*=\"ad\"]', 'iframe[src*=\"ad\"]'," +
-            "       'ins.adsbygoogle', 'div.ad-container', 'div.advertisement'" +
-            "   ];" +
-            "   selectors.forEach(function(selector) {" +
-            "       var elements = document.querySelectorAll(selector);" +
-            "       elements.forEach(function(el) {" +
-            "           el.style.display = 'none';" +
-            "           el.parentNode.removeChild(el);" +
-            "       });" +
-            "   });" +
-            "} catch(e) {}";
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            view.evaluateJavascript(adBlockJS, null);
-        }
-    }
-
-    private boolean isAdUrl(String url) {
-        for (String domain : adDomains) {
-            if (url.toLowerCase().contains(domain.toLowerCase())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private String getDomain(String url) {
-        try {
-            java.net.URI uri = new java.net.URI(url);
-            String domain = uri.getHost();
-            return domain != null ? domain.replace("www.", "") : url;
-        } catch (Exception e) {
-            return url;
-        }
-    }
-
-    private boolean isSameDomain(String url1, String url2) {
-        try {
-            return getDomain(url1).equals(getDomain(url2));
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private void initEventListeners() {
-        if (btnToggleBottomBar != null) {
-            btnToggleBottomBar.setOnClickListener(v -> toggleBottomBar());
-        }
-
-        if (btnToggleSidebar != null) {
-            btnToggleSidebar.setOnClickListener(v -> {
-                if (isSidebarVisible) closeSidebar();
-                else openSidebar();
-            });
-        }
-
-        if (btnToggleOrientation != null) {
-            btnToggleOrientation.setOnClickListener(v -> toggleOrientation());
-        }
-
-        if (btnCloseSidebar != null) {
-            btnCloseSidebar.setOnClickListener(v -> closeSidebar());
-        }
-
-        if (btnCloseMenu != null) {
-            btnCloseMenu.setOnClickListener(v -> {
-                if (isBottomBarExpanded) closeBottomBar();
-            });
-        }
-
-        // Bottom bar action buttons
-        if (btnLoadAll != null)      btnLoadAll.setOnClickListener(v -> loadAllURLs());
-        if (btnReloadAll != null)    btnReloadAll.setOnClickListener(v -> reloadAllWebViews());
-        if (btnClearAll != null)     btnClearAll.setOnClickListener(v -> clearAllWebViews());
-        if (btnSaveState != null)    btnSaveState.setOnClickListener(v -> saveCurrentState());
-        if (btnLoadState != null)    btnLoadState.setOnClickListener(v -> loadSavedState(false));
-        if (btnSaveFavorites != null) btnSaveFavorites.setOnClickListener(v -> showSaveFavoriteDialog());
-        if (btnLoadFavorites != null) btnLoadFavorites.setOnClickListener(v -> showLoadFavoritesDialog());
-
-        // Sidebar action buttons (same actions as bottom bar)
-        if (btnSaveStateSidebar != null)    btnSaveStateSidebar.setOnClickListener(v -> saveCurrentState());
-        if (btnLoadStateSidebar != null)    btnLoadStateSidebar.setOnClickListener(v -> loadSavedState(false));
-        if (btnSaveFavoritesSidebar != null) btnSaveFavoritesSidebar.setOnClickListener(v -> showSaveFavoriteDialog());
-        if (btnLoadFavoritesSidebar != null) btnLoadFavoritesSidebar.setOnClickListener(v -> showLoadFavoritesDialog());
-        if (btnLoadAllSidebar != null)      btnLoadAllSidebar.setOnClickListener(v -> loadAllURLs());
-        if (btnReloadAllSidebar != null)    btnReloadAllSidebar.setOnClickListener(v -> reloadAllWebViews());
-        if (btnClearAllSidebar != null)     btnClearAllSidebar.setOnClickListener(v -> clearAllWebViews());
-
-        // Per-box controls
-        for (int i = 0; i < 4; i++) {
-            final int boxIndex = i;
-
-            // Bottom bar GO button
-            if (btnLoadUrl[i] != null) {
-                btnLoadUrl[i].setOnClickListener(v -> {
-                    String url = urlInputs[boxIndex].getText().toString().trim();
-                    if (!url.isEmpty()) {
-                        syncUrlToSidebar(boxIndex, url);
-                        loadURL(boxIndex, url);
-                        Toast.makeText(MainActivity.this, "Box " + (boxIndex + 1) + " carregando...", Toast.LENGTH_SHORT).show();
-                    }
-                });
-            }
-
-            // Sidebar GO button
-            if (btnLoadUrlSidebar[i] != null) {
-                btnLoadUrlSidebar[i].setOnClickListener(v -> {
-                    String url = urlInputsSidebar[boxIndex].getText().toString().trim();
-                    if (!url.isEmpty()) {
-                        syncUrlToBottomBar(boxIndex, url);
-                        loadURL(boxIndex, url);
-                        Toast.makeText(MainActivity.this, "Box " + (boxIndex + 1) + " carregando...", Toast.LENGTH_SHORT).show();
-                    }
-                });
-            }
-
-            if (btnRefresh[i] != null) {
-                btnRefresh[i].setOnClickListener(v -> {
-                    if (webViews[boxIndex] != null) {
-                        webViews[boxIndex].reload();
-                        Toast.makeText(MainActivity.this, "Box " + (boxIndex + 1) + " recarregada", Toast.LENGTH_SHORT).show();
-                    }
-                });
-            }
-
-            if (checkBoxes[i] != null) {
-                checkBoxes[i].setOnCheckedChangeListener((buttonView, isChecked) -> {
-                    boxEnabled[boxIndex] = isChecked;
-                    updateLayout();
-                });
-            }
-
-            if (checkBoxesKeepActive[i] != null) {
-                checkBoxesKeepActive[i].setOnCheckedChangeListener((buttonView, isChecked) -> {
-                    boxKeepActive[boxIndex] = isChecked;
-                    updateLayout();
-                });
-            }
-
-            if (btnZoomIn[i] != null)  btnZoomIn[i].setOnClickListener(v -> zoomIn(boxIndex));
-            if (btnZoomOut[i] != null) btnZoomOut[i].setOnClickListener(v -> zoomOut(boxIndex));
-
-            if (btnPrevious[i] != null) {
-                btnPrevious[i].setOnClickListener(v -> {
-                    if (webViews[boxIndex] != null && webViews[boxIndex].canGoBack()) {
-                        webViews[boxIndex].goBack();
-                    }
-                });
-            }
-
-            if (btnNext[i] != null) {
-                btnNext[i].setOnClickListener(v -> {
-                    if (webViews[boxIndex] != null && webViews[boxIndex].canGoForward()) {
-                        webViews[boxIndex].goForward();
-                    }
-                });
-            }
-        }
-
-        if (cbAllowScripts != null) {
-            cbAllowScripts.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                for (WebView webView : webViews) {
-                    if (webView != null) webView.getSettings().setJavaScriptEnabled(isChecked);
-                }
-            });
-        }
-
-        if (cbBlockAds != null) {
-            cbBlockAds.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                for (WebView webView : webViews) {
-                    if (webView != null) {
-                        WebSettings settings = webView.getSettings();
-                        settings.setBlockNetworkLoads(isChecked);
-                        settings.setBlockNetworkImage(isChecked);
-                    }
-                }
-            });
-        }
-    }
-
+    /**
+     * Rebuilds the GridLayout.
+     *
+     * CONTRACT:
+     *  • Reads: boxEnabled[], boxKeepActive[], currentOrientation, gridLayout dimensions
+     *  • Writes: GridLayout child list + LayoutParams, container visibility
+     *  • NEVER touches webViews[] – videos keep playing through any layout change
+     *
+     * Visibility:
+     *  enabled=true             → VISIBLE, added to grid
+     *  enabled=false keepActive → INVISIBLE, NOT in grid (WebView plays in bg)
+     *  enabled=false !keepActive → GONE
+     */
     private void updateLayout() {
-        // IMPORTANT: This method ONLY modifies layout and visibility
-        // It NEVER destroys, recreates, or reconstructs WebView objects
-        // WebViews are added/removed from their FrameLayout containers, but the WebView instances
-        // themselves persist with their full state (page, scroll, JavaScript context)
-        
-        if (isAnyBoxInFullscreen()) {
-            Log.d(TAG, "Box em fullscreen, ignorando updateLayout");
-            return;
-        }
+        // Count boxes that will be shown in the grid
+        int visibleCount = 0;
+        for (boolean e : boxEnabled) if (e) visibleCount++;
 
-        int activeBoxes = 0;
-        for (boolean enabled : boxEnabled) {
-            if (enabled) activeBoxes++;
-        }
-
-        if (activeBoxes == 0) {
+        // Enforce at least 1 visible box
+        if (visibleCount == 0) {
             for (int i = 0; i < 4; i++) {
                 boxEnabled[i] = true;
                 if (checkBoxes[i] != null) checkBoxes[i].setChecked(true);
             }
-            activeBoxes = 4;
+            visibleCount = 4;
         }
 
-        int orientation = currentOrientation;
-        if (orientation == 0) {
-            orientation = getResources().getConfiguration().orientation;
-        }
-        boolean isPortrait = (orientation == Configuration.ORIENTATION_PORTRAIT);
-
+        // Grid shape for current orientation + box count
+        boolean portrait = (currentOrientation == Configuration.ORIENTATION_PORTRAIT);
         int rows, cols;
-        if (isPortrait) {
-            switch (activeBoxes) {
-                case 1:  rows = 1; cols = 1; break;
-                case 2:  rows = 2; cols = 1; break;
-                case 3:  rows = 3; cols = 1; break;
-                default: rows = 2; cols = 2; break;
-            }
+        if (portrait) {
+            switch (visibleCount) { case 1: rows=1;cols=1;break; case 2: rows=2;cols=1;break; case 3: rows=3;cols=1;break; default: rows=2;cols=2;break; }
         } else {
-            switch (activeBoxes) {
-                case 1:  rows = 1; cols = 1; break;
-                case 2:  rows = 1; cols = 2; break;
-                case 3:  rows = 1; cols = 3; break;
-                default: rows = 2; cols = 2; break;
-            }
+            switch (visibleCount) { case 1: rows=1;cols=1;break; case 2: rows=1;cols=2;break; case 3: rows=1;cols=3;break; default: rows=2;cols=2;break; }
         }
 
-        // Mark visibility before measuring
+        final int fRows = rows, fCols = cols, fCount = visibleCount;
+
+        // Set visibility BEFORE post() so GONE boxes don't affect measured dimensions
         for (int i = 0; i < 4; i++) {
             if (boxContainers[i] == null) continue;
-            if (boxEnabled[i]) {
-                boxContainers[i].setVisibility(View.VISIBLE);
-                if (webViews[i] != null) webViews[i].setVisibility(View.VISIBLE);
-            } else if (boxKeepActive[i]) {
-                boxContainers[i].setVisibility(View.INVISIBLE);
-                if (webViews[i] != null) webViews[i].setVisibility(View.INVISIBLE);
-            } else {
-                boxContainers[i].setVisibility(View.GONE);
-            }
+            if      (boxEnabled[i])             boxContainers[i].setVisibility(View.VISIBLE);
+            else if (boxKeepActive[i])          boxContainers[i].setVisibility(View.INVISIBLE);
+            else                                boxContainers[i].setVisibility(View.GONE);
         }
 
-        final int finalRows = rows;
-        final int finalCols = cols;
-        final int finalActive = activeBoxes;
-
-        // Use post() so gridLayout has been laid out and getWidth()/getHeight() are valid
+        // post() → gridLayout dimensions are valid when the Runnable executes
         gridLayout.post(() -> {
-            if (isAnyBoxInFullscreen()) return;
-
             gridLayout.removeAllViews();
-            gridLayout.setRowCount(finalRows);
-            gridLayout.setColumnCount(finalCols);
+            gridLayout.setRowCount(fRows);
+            gridLayout.setColumnCount(fCols);
 
             int gridW = gridLayout.getWidth();
             int gridH = gridLayout.getHeight();
-
-            // Fallback when grid not yet measured (first call in onCreate)
             if (gridW <= 0 || gridH <= 0) {
+                // Fallback for first call before measurement
                 android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+                int barPx = (int)(24 * dm.density);
                 gridW = dm.widthPixels;
-                // Estimate: screen height minus bottom bar (~24dp) and status bar (~24dp)
-                int bottomBarPx = (int)(24 * dm.density);
-                gridH = dm.heightPixels - bottomBarPx * 2;
+                gridH = dm.heightPixels - barPx * 2;
             }
 
-            int margin = (finalActive == 1) ? 0 : (finalActive == 2) ? 2 : 1;
-            // Compute exact cell dimensions so portrait rows work correctly
-            int cellW = (gridW  - margin * 2 * finalCols) / finalCols;
-            int cellH = (gridH  - margin * 2 * finalRows) / finalRows;
+            int margin = fCount == 1 ? 0 : fCount == 2 ? 2 : 1;
+            // Explicit pixel sizes so portrait row-weights work correctly
+            int cellW = Math.max(0, (gridW - margin * 2 * fCols) / fCols);
+            int cellH = Math.max(0, (gridH - margin * 2 * fRows) / fRows);
 
-            int position = 0;
+            int pos = 0;
             for (int i = 0; i < 4; i++) {
-                if (!boxEnabled[i]) continue; // GONE or INVISIBLE boxes don't go in grid
+                if (!boxEnabled[i] || boxContainers[i] == null) continue;
 
-                if (boxContainers[i] == null) { position++; continue; }
-
-                int r = position / finalCols;
-                int c = position % finalCols;
-
-                // Use 1f weight AND explicit pixel size – this is what makes portrait work
-                GridLayout.Spec rowSpec = GridLayout.spec(r, 1, 1f);
-                GridLayout.Spec colSpec = GridLayout.spec(c, 1, 1f);
-                GridLayout.LayoutParams params = new GridLayout.LayoutParams(rowSpec, colSpec);
-                params.width  = cellW > 0 ? cellW : 0;
-                params.height = cellH > 0 ? cellH : 0;
-                params.setMargins(margin, margin, margin, margin);
-
-                gridLayout.addView(boxContainers[i], params);
-                position++;
+                GridLayout.Spec rowSpec = GridLayout.spec(pos / fCols, 1, 1f);
+                GridLayout.Spec colSpec = GridLayout.spec(pos % fCols, 1, 1f);
+                GridLayout.LayoutParams p = new GridLayout.LayoutParams(rowSpec, colSpec);
+                p.width  = cellW;
+                p.height = cellH;
+                p.setMargins(margin, margin, margin, margin);
+                gridLayout.addView(boxContainers[i], p);
+                pos++;
             }
 
             gridLayout.requestLayout();
-
-            Log.d(TAG, "updateLayout: " + finalActive + " boxes | "
-                + (isPortrait ? "portrait" : "landscape")
-                + " [" + finalCols + "x" + finalRows + "] "
-                + gridW + "x" + gridH + "px");
+            Log.d(TAG, "updateLayout " + fCount + " boxes "
+                + (portrait ? "portrait" : "landscape")
+                + " [" + fCols + "×" + fRows + "] cell=" + cellW + "×" + cellH);
         });
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  EVENT LISTENERS
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void initEventListeners() {
+        if (btnToggleBottomBar   != null) btnToggleBottomBar.setOnClickListener(v -> toggleBottomBar());
+        if (btnToggleSidebar     != null) btnToggleSidebar.setOnClickListener(v -> { if (isSidebarVisible) closeSidebar(); else openSidebar(); });
+        if (btnToggleOrientation != null) btnToggleOrientation.setOnClickListener(v -> toggleOrientation());
+        if (btnCloseSidebar      != null) btnCloseSidebar.setOnClickListener(v -> closeSidebar());
+        if (btnCloseMenu         != null) btnCloseMenu.setOnClickListener(v -> closeBottomBar());
+
+        if (btnLoadAll       != null) btnLoadAll.setOnClickListener(v -> loadAllURLs());
+        if (btnReloadAll     != null) btnReloadAll.setOnClickListener(v -> reloadAll());
+        if (btnClearAll      != null) btnClearAll.setOnClickListener(v -> clearAll());
+        if (btnSaveState     != null) btnSaveState.setOnClickListener(v -> saveCurrentState());
+        if (btnLoadState     != null) btnLoadState.setOnClickListener(v -> loadSavedState(false));
+        if (btnSaveFavorites != null) btnSaveFavorites.setOnClickListener(v -> showSaveFavoriteDialog());
+        if (btnLoadFavorites != null) btnLoadFavorites.setOnClickListener(v -> showLoadFavoritesDialog());
+
+        if (btnSaveStateSidebar     != null) btnSaveStateSidebar.setOnClickListener(v -> saveCurrentState());
+        if (btnLoadStateSidebar     != null) btnLoadStateSidebar.setOnClickListener(v -> loadSavedState(false));
+        if (btnSaveFavoritesSidebar != null) btnSaveFavoritesSidebar.setOnClickListener(v -> showSaveFavoriteDialog());
+        if (btnLoadFavoritesSidebar != null) btnLoadFavoritesSidebar.setOnClickListener(v -> showLoadFavoritesDialog());
+        if (btnLoadAllSidebar       != null) btnLoadAllSidebar.setOnClickListener(v -> loadAllURLs());
+        if (btnReloadAllSidebar     != null) btnReloadAllSidebar.setOnClickListener(v -> reloadAll());
+        if (btnClearAllSidebar      != null) btnClearAllSidebar.setOnClickListener(v -> clearAll());
+
+        for (int i = 0; i < 4; i++) {
+            final int idx = i;
+            if (btnLoadUrl[i]        != null) btnLoadUrl[i].setOnClickListener(v -> { String u = urlInputs[idx].getText().toString().trim(); if (!u.isEmpty()) { syncToSidebar(idx,u); loadURL(idx,u); } });
+            if (btnLoadUrlSidebar[i] != null) btnLoadUrlSidebar[i].setOnClickListener(v -> { String u = urlInputsSidebar[idx].getText().toString().trim(); if (!u.isEmpty()) { syncToBottomBar(idx,u); loadURL(idx,u); } });
+            if (btnRefresh[i]        != null) btnRefresh[i].setOnClickListener(v -> { if (webViews[idx]!=null) webViews[idx].reload(); });
+            if (btnZoomIn[i]         != null) btnZoomIn[i].setOnClickListener(v -> zoomIn(idx));
+            if (btnZoomOut[i]        != null) btnZoomOut[i].setOnClickListener(v -> zoomOut(idx));
+            if (btnPrevious[i]       != null) btnPrevious[i].setOnClickListener(v -> { if (webViews[idx]!=null&&webViews[idx].canGoBack())    webViews[idx].goBack(); });
+            if (btnNext[i]           != null) btnNext[i].setOnClickListener(v ->     { if (webViews[idx]!=null&&webViews[idx].canGoForward()) webViews[idx].goForward(); });
+
+            if (checkBoxes[i] != null) checkBoxes[i].setOnCheckedChangeListener((b, checked) -> {
+                boxEnabled[idx] = checked;
+                updateLayout();   // only rebuilds grid – WebViews untouched
+            });
+            if (checkBoxesKeepActive[i] != null) checkBoxesKeepActive[i].setOnCheckedChangeListener((b, checked) -> {
+                boxKeepActive[idx] = checked;
+                updateLayout();
+            });
+        }
+
+        if (cbAllowScripts != null) cbAllowScripts.setOnCheckedChangeListener((b, c) -> { for (WebView wv : webViews) if (wv!=null) wv.getSettings().setJavaScriptEnabled(c); });
+        if (cbBlockAds     != null) cbBlockAds.setOnCheckedChangeListener((b, c) -> { for (WebView wv : webViews) if (wv!=null) { wv.getSettings().setBlockNetworkLoads(c); wv.getSettings().setBlockNetworkImage(c); } });
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  URL LOADING
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void loadURL(int idx, String url) {
+        try {
+            if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("file://"))
+                url = "https://" + url;
+            if (webViews[idx] != null) webViews[idx].loadUrl(url);
+        } catch (Exception e) { Log.e(TAG, "loadURL " + idx, e); }
     }
 
     private void loadAllURLs() {
         for (int i = 0; i < 4; i++) {
-            if (boxEnabled[i] || boxKeepActive[i]) {
-                String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
-                if (url.isEmpty()) {
-                    url = getDefaultUrl(i);
-                    if (urlInputs[i] != null) urlInputs[i].setText(url);
-                }
-                syncUrlToSidebar(i, url);
-                loadURL(i, url);
-            }
+            if (!boxEnabled[i] && !boxKeepActive[i]) continue;
+            String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
+            if (url.isEmpty()) { url = defaultUrl(); if (urlInputs[i]!=null) urlInputs[i].setText(url); }
+            syncToSidebar(i, url); loadURL(i, url);
         }
         Toast.makeText(this, "Carregando todas as URLs", Toast.LENGTH_SHORT).show();
     }
 
     private void loadInitialURLs() {
         for (int i = 0; i < 4; i++) {
-            if (boxEnabled[i] || boxKeepActive[i]) {
-                String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
-                if (url.isEmpty()) {
-                    url = getDefaultUrl(i);
-                    if (urlInputs[i] != null) urlInputs[i].setText(url);
-                }
-                syncUrlToSidebar(i, url);
-                loadURL(i, url);
-            }
+            if (!boxEnabled[i] && !boxKeepActive[i]) continue;
+            String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
+            if (url.isEmpty()) { url = defaultUrl(); if (urlInputs[i]!=null) urlInputs[i].setText(url); }
+            syncToSidebar(i, url); loadURL(i, url);
         }
     }
 
-    private void loadURL(int boxIndex, String url) {
-        try {
-            if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("file://")) {
-                url = "https://" + url;
-            }
-            if (webViews[boxIndex] != null) {
-                webViews[boxIndex].loadUrl(url);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Erro ao carregar Box " + (boxIndex + 1), e);
-            Toast.makeText(this, "Erro ao carregar Box " + (boxIndex + 1), Toast.LENGTH_SHORT).show();
-        }
-    }
+    private void reloadAll() { for (int i=0;i<4;i++) if (webViews[i]!=null) webViews[i].reload(); Toast.makeText(this,"Recarregando todas",Toast.LENGTH_SHORT).show(); }
+    private void clearAll()  { for (int i=0;i<4;i++) if (webViews[i]!=null) webViews[i].loadUrl("about:blank"); Toast.makeText(this,"Limpando todas",Toast.LENGTH_SHORT).show(); }
+    private String defaultUrl() { return "https://dzritv.com/sport/football/"; }
 
-    private void reloadAllWebViews() {
-        for (int i = 0; i < 4; i++) {
-            if (boxEnabled[i] && webViews[i] != null) webViews[i].reload();
-        }
-        Toast.makeText(this, "Recarregando todas", Toast.LENGTH_SHORT).show();
-    }
+    // ══════════════════════════════════════════════════════════════════════════
+    //  ZOOM
+    // ══════════════════════════════════════════════════════════════════════════
 
-    private void clearAllWebViews() {
-        for (int i = 0; i < 4; i++) {
-            if (webViews[i] != null) webViews[i].loadUrl("about:blank");
-        }
-        Toast.makeText(this, "Limpando todas", Toast.LENGTH_SHORT).show();
-    }
+    private void applyZoom(int i) { if (webViews[i]!=null) webViews[i].getSettings().setTextZoom((int)(zoomLevels[i]*100)); }
+    private void zoomIn(int i)  { if (zoomLevels[i]<2.0f) { zoomLevels[i]+=0.1f; applyZoom(i); Toast.makeText(this,"Box "+(i+1)+" Zoom: "+Math.round(zoomLevels[i]*100)+"%",Toast.LENGTH_SHORT).show(); } }
+    private void zoomOut(int i) { if (zoomLevels[i]>0.5f) { zoomLevels[i]-=0.1f; applyZoom(i); Toast.makeText(this,"Box "+(i+1)+" Zoom: "+Math.round(zoomLevels[i]*100)+"%",Toast.LENGTH_SHORT).show(); } }
 
-    private boolean hasSavedState() {
-        return preferences.contains("url_0") || preferences.contains("box_enabled_0");
-    }
+    // ══════════════════════════════════════════════════════════════════════════
+    //  STATE PERSISTENCE
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private boolean hasSavedState() { return preferences.contains("url_0") || preferences.contains("box_enabled_0"); }
 
     private void saveCurrentState() {
         try {
-            SharedPreferences.Editor editor = preferences.edit();
-
-            for (int i = 0; i < 4; i++) {
-                String currentUrl = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
-                if (currentUrl.isEmpty()) currentUrl = getDefaultUrl(i);
-                editor.putString("url_" + i, currentUrl);
+            SharedPreferences.Editor ed = preferences.edit();
+            for (int i=0;i<4;i++) {
+                String url = urlInputs[i]!=null ? urlInputs[i].getText().toString().trim() : "";
+                ed.putString("url_"+i, url.isEmpty()?defaultUrl():url);
+                ed.putBoolean("box_enabled_"+i, boxEnabled[i]);
+                ed.putBoolean("box_keep_active_"+i, boxKeepActive[i]);
+                ed.putFloat("zoom_level_"+i, zoomLevels[i]);
             }
-
-            for (int i = 0; i < 4; i++) editor.putBoolean("box_enabled_" + i, boxEnabled[i]);
-            for (int i = 0; i < 4; i++) editor.putBoolean("box_keep_active_" + i, boxKeepActive[i]);
-            for (int i = 0; i < 4; i++) editor.putFloat("zoom_level_" + i, zoomLevels[i]);
-
-            if (cbAllowScripts != null)   editor.putBoolean("allow_scripts", cbAllowScripts.isChecked());
-            if (cbAllowForms != null)     editor.putBoolean("allow_forms", cbAllowForms.isChecked());
-            if (cbAllowPopups != null)    editor.putBoolean("allow_popups", cbAllowPopups.isChecked());
-            if (cbBlockRedirects != null) editor.putBoolean("block_redirects", cbBlockRedirects.isChecked());
-            if (cbBlockAds != null)       editor.putBoolean("block_ads", cbBlockAds.isChecked());
-
-            editor.apply();
-            Toast.makeText(this, "✅ Estado guardado!", Toast.LENGTH_SHORT).show();
-
-        } catch (Exception e) {
-            Log.e(TAG, "Erro ao guardar estado", e);
-            Toast.makeText(this, "❌ Erro ao guardar estado", Toast.LENGTH_SHORT).show();
-        }
+            if (cbAllowScripts   !=null) ed.putBoolean("allow_scripts",   cbAllowScripts.isChecked());
+            if (cbAllowForms     !=null) ed.putBoolean("allow_forms",     cbAllowForms.isChecked());
+            if (cbAllowPopups    !=null) ed.putBoolean("allow_popups",    cbAllowPopups.isChecked());
+            if (cbBlockRedirects !=null) ed.putBoolean("block_redirects", cbBlockRedirects.isChecked());
+            if (cbBlockAds       !=null) ed.putBoolean("block_ads",       cbBlockAds.isChecked());
+            ed.apply();
+            Toast.makeText(this,"✅ Estado guardado!",Toast.LENGTH_SHORT).show();
+        } catch (Exception e) { Toast.makeText(this,"❌ Erro ao guardar estado",Toast.LENGTH_SHORT).show(); }
     }
 
     private void loadSavedState(boolean silent) {
         try {
-            for (int i = 0; i < 4; i++) {
-                boolean savedState = preferences.getBoolean("box_enabled_" + i, true);
-                boxEnabled[i] = savedState;
-                if (checkBoxes[i] != null) checkBoxes[i].setChecked(savedState);
-            }
-
-            for (int i = 0; i < 4; i++) {
-                boolean savedKeepActive = preferences.getBoolean("box_keep_active_" + i, false);
-                boxKeepActive[i] = savedKeepActive;
-                if (checkBoxesKeepActive[i] != null) checkBoxesKeepActive[i].setChecked(savedKeepActive);
-            }
-
-            boolean hasSavedUrls = false;
-            for (int i = 0; i < 4; i++) {
-                String savedUrl = preferences.getString("url_" + i, "");
-                if (!savedUrl.isEmpty()) {
-                    hasSavedUrls = true;
-                    if (urlInputs[i] != null) urlInputs[i].setText(savedUrl);
-                    syncUrlToSidebar(i, savedUrl);
-                    if ((boxEnabled[i] || boxKeepActive[i]) && webViews[i] != null) {
-                        loadURL(i, savedUrl);
-                    }
-                }
-            }
-
-            if (!hasSavedUrls) {
-                for (int i = 0; i < 4; i++) {
-                    String def = getDefaultUrl(i);
-                    if (urlInputs[i] != null) urlInputs[i].setText(def);
-                    syncUrlToSidebar(i, def);
-                }
-            }
-
-            for (int i = 0; i < 4; i++) {
-                zoomLevels[i] = preferences.getFloat("zoom_level_" + i, 1.0f);
+            for (int i=0;i<4;i++) {
+                boxEnabled[i]    = preferences.getBoolean("box_enabled_"+i, true);
+                boxKeepActive[i] = preferences.getBoolean("box_keep_active_"+i, false);
+                zoomLevels[i]    = preferences.getFloat("zoom_level_"+i, 1.0f);
+                if (checkBoxes[i]           !=null) checkBoxes[i].setChecked(boxEnabled[i]);
+                if (checkBoxesKeepActive[i] !=null) checkBoxesKeepActive[i].setChecked(boxKeepActive[i]);
                 applyZoom(i);
             }
-
-            if (cbAllowScripts != null)   cbAllowScripts.setChecked(preferences.getBoolean("allow_scripts", true));
-            if (cbAllowForms != null)     cbAllowForms.setChecked(preferences.getBoolean("allow_forms", true));
-            if (cbAllowPopups != null)    cbAllowPopups.setChecked(preferences.getBoolean("allow_popups", true));
-            if (cbBlockRedirects != null) cbBlockRedirects.setChecked(preferences.getBoolean("block_redirects", false));
-            if (cbBlockAds != null)       cbBlockAds.setChecked(preferences.getBoolean("block_ads", false));
-
-            if (!silent) Toast.makeText(this, "✅ Estado carregado!", Toast.LENGTH_SHORT).show();
-
-            updateLayout();
-            updateFocusedBoxIndicator();
-
-        } catch (Exception e) {
-            Log.e(TAG, "Erro ao carregar estado", e);
-            if (!silent) Toast.makeText(this, "❌ Erro ao carregar estado", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private String getDefaultUrl(int boxIndex) {
-        return "https://dzritv.com/sport/football/";
-    }
-
-    private void loadFavoritesList() {
-        try {
-            String favoritesJson = preferences.getString("favorites_list", "[]");
-            JSONArray jsonArray = new JSONArray(favoritesJson);
-
-            favoritesList.clear();
-            for (int i = 0; i < jsonArray.length(); i++) {
-                favoritesList.add(jsonArray.getString(i));
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "❌ Erro ao carregar lista de favoritos", e);
-            favoritesList.clear();
-        }
-    }
-
-    private void saveFavoritesList() {
-        try {
-            JSONArray jsonArray = new JSONArray(favoritesList);
-            SharedPreferences.Editor editor = preferences.edit();
-            editor.putString("favorites_list", jsonArray.toString());
-            editor.apply();
-        } catch (Exception e) {
-            Log.e(TAG, "Erro ao guardar lista de favoritos", e);
-        }
-    }
-
-    private void saveFavorite(String favoriteName) {
-        try {
-            if (favoritesList.contains(favoriteName)) {
-                Toast.makeText(this, "❌ Já existe um favorito com este nome!", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            JSONObject favoriteData = new JSONObject();
-            favoriteData.put("name", favoriteName);
-
-            JSONArray urlsArray = new JSONArray();
-            for (int i = 0; i < 4; i++) {
-                String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
-                if (url.isEmpty()) url = getDefaultUrl(i);
-                urlsArray.put(url);
-            }
-            favoriteData.put("urls", urlsArray);
-
-            favoritesList.add(favoriteName);
-            saveFavoritesList();
-
-            SharedPreferences.Editor editor = preferences.edit();
-            editor.putString("favorite_" + favoriteName, favoriteData.toString());
-            editor.apply();
-
-            Toast.makeText(this, "✅ Favorito guardado!", Toast.LENGTH_SHORT).show();
-
-        } catch (Exception e) {
-            Log.e(TAG, "Erro ao guardar favorito", e);
-            Toast.makeText(this, "❌ Erro ao guardar favorito", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void loadFavorite(String favoriteName, int targetBox) {
-        try {
-            String favoriteJson = preferences.getString("favorite_" + favoriteName, "");
-            if (favoriteJson.isEmpty()) {
-                Toast.makeText(this, "❌ Favorito não encontrado!", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            JSONObject favoriteData = new JSONObject(favoriteJson);
-            JSONArray urlsArray = favoriteData.getJSONArray("urls");
-
-            if (targetBox == -1) {
-                for (int i = 0; i < 4 && i < urlsArray.length(); i++) {
-                    String url = urlsArray.getString(i);
-                    if (urlInputs[i] != null) urlInputs[i].setText(url);
-                    syncUrlToSidebar(i, url);
-                    if (boxEnabled[i] && webViews[i] != null) loadURL(i, url);
-                }
-                Toast.makeText(this, "✅ Favorito carregado em todas as boxes!", Toast.LENGTH_SHORT).show();
-            } else {
-                if (targetBox < urlsArray.length()) {
-                    String url = urlsArray.getString(targetBox);
-                    if (urlInputs[targetBox] != null) urlInputs[targetBox].setText(url);
-                    syncUrlToSidebar(targetBox, url);
-                    if (boxEnabled[targetBox] && webViews[targetBox] != null) loadURL(targetBox, url);
-                    Toast.makeText(this, "✅ Favorito carregado na Box " + (targetBox + 1), Toast.LENGTH_SHORT).show();
+            boolean hasUrls = false;
+            for (int i=0;i<4;i++) {
+                String url = preferences.getString("url_"+i,"");
+                if (!url.isEmpty()) {
+                    hasUrls = true;
+                    if (urlInputs[i]!=null) urlInputs[i].setText(url);
+                    syncToSidebar(i, url);
+                    if ((boxEnabled[i]||boxKeepActive[i])&&webViews[i]!=null) loadURL(i, url);
                 }
             }
-
-        } catch (Exception e) {
-            Log.e(TAG, "Erro ao carregar favorito", e);
-            Toast.makeText(this, "❌ Erro ao carregar favorito!", Toast.LENGTH_SHORT).show();
-        }
+            if (!hasUrls) { String d=defaultUrl(); for (int i=0;i<4;i++) { if (urlInputs[i]!=null) urlInputs[i].setText(d); syncToSidebar(i,d); } }
+            if (cbAllowScripts   !=null) cbAllowScripts.setChecked(preferences.getBoolean("allow_scripts",true));
+            if (cbAllowForms     !=null) cbAllowForms.setChecked(preferences.getBoolean("allow_forms",true));
+            if (cbAllowPopups    !=null) cbAllowPopups.setChecked(preferences.getBoolean("allow_popups",true));
+            if (cbBlockRedirects !=null) cbBlockRedirects.setChecked(preferences.getBoolean("block_redirects",false));
+            if (cbBlockAds       !=null) cbBlockAds.setChecked(preferences.getBoolean("block_ads",false));
+            if (!silent) Toast.makeText(this,"✅ Estado carregado!",Toast.LENGTH_SHORT).show();
+        } catch (Exception e) { if (!silent) Toast.makeText(this,"❌ Erro ao carregar",Toast.LENGTH_SHORT).show(); }
     }
 
-    private void deleteFavorite(String favoriteName) {
+    // ══════════════════════════════════════════════════════════════════════════
+    //  FAVORITES
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void loadFavoritesList() { try { JSONArray a=new JSONArray(preferences.getString("favorites_list","[]")); favoritesList.clear(); for(int i=0;i<a.length();i++) favoritesList.add(a.getString(i)); } catch(Exception e){favoritesList.clear();} }
+    private void saveFavoritesList() { try { preferences.edit().putString("favorites_list",new JSONArray(favoritesList).toString()).apply(); } catch(Exception ignored){} }
+
+    private void saveFavorite(String name) {
         try {
-            favoritesList.remove(favoriteName);
-            saveFavoritesList();
-
-            SharedPreferences.Editor editor = preferences.edit();
-            editor.remove("favorite_" + favoriteName);
-            editor.apply();
-
-            Toast.makeText(this, "✅ Favorito removido!", Toast.LENGTH_SHORT).show();
-
-        } catch (Exception e) {
-            Log.e(TAG, "Erro ao remover favorito", e);
-            Toast.makeText(this, "❌ Erro ao remover favorito", Toast.LENGTH_SHORT).show();
-        }
+            if (favoritesList.contains(name)) { Toast.makeText(this,"❌ Nome já existe!",Toast.LENGTH_SHORT).show(); return; }
+            JSONArray urls=new JSONArray();
+            for (int i=0;i<4;i++) { String u=urlInputs[i]!=null?urlInputs[i].getText().toString().trim():""; urls.put(u.isEmpty()?defaultUrl():u); }
+            JSONObject obj=new JSONObject(); obj.put("name",name); obj.put("urls",urls);
+            favoritesList.add(name); saveFavoritesList();
+            preferences.edit().putString("favorite_"+name,obj.toString()).apply();
+            Toast.makeText(this,"✅ Favorito guardado!",Toast.LENGTH_SHORT).show();
+        } catch(Exception e){Toast.makeText(this,"❌ Erro ao guardar favorito",Toast.LENGTH_SHORT).show();}
     }
+
+    private void loadFavorite(String name, int target) {
+        try {
+            String json=preferences.getString("favorite_"+name,"");
+            if (json.isEmpty()) { Toast.makeText(this,"❌ Não encontrado!",Toast.LENGTH_SHORT).show(); return; }
+            JSONArray urls=new JSONObject(json).getJSONArray("urls");
+            if (target==-1) { for(int i=0;i<4&&i<urls.length();i++){String u=urls.getString(i);if(urlInputs[i]!=null)urlInputs[i].setText(u);syncToSidebar(i,u);if((boxEnabled[i]||boxKeepActive[i])&&webViews[i]!=null)loadURL(i,u);} Toast.makeText(this,"✅ Carregado em todas!",Toast.LENGTH_SHORT).show(); }
+            else if (target<urls.length()) { String u=urls.getString(target);if(urlInputs[target]!=null)urlInputs[target].setText(u);syncToSidebar(target,u);if(webViews[target]!=null)loadURL(target,u);Toast.makeText(this,"✅ Box "+(target+1),Toast.LENGTH_SHORT).show(); }
+        } catch(Exception e){Toast.makeText(this,"❌ Erro ao carregar favorito",Toast.LENGTH_SHORT).show();}
+    }
+
+    private void deleteFavorite(String name) { favoritesList.remove(name); saveFavoritesList(); preferences.edit().remove("favorite_"+name).apply(); Toast.makeText(this,"✅ Removido!",Toast.LENGTH_SHORT).show(); }
 
     private void showSaveFavoriteDialog() {
-        final android.widget.EditText input = new android.widget.EditText(this);
-        input.setHint("Nome do favorito");
-        input.setTextColor(Color.BLACK);
-        input.setHintTextColor(Color.GRAY);
-        input.setBackgroundResource(android.R.drawable.edit_text);
-        input.setCursorVisible(true);
-        input.setSelectAllOnFocus(true);
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Guardar Favorito");
-        builder.setView(input);
-
-        builder.setPositiveButton("GUARDAR", (dialog, which) -> {
-            String favoriteName = input.getText().toString().trim();
-            if (!favoriteName.isEmpty()) saveFavorite(favoriteName);
-        });
-
-        builder.setNegativeButton("CANCELAR", null);
-
-        AlertDialog dialog = builder.create();
-        dialog.show();
-
-        input.requestFocus();
-        input.selectAll();
+        EditText input=new EditText(this); input.setHint("Nome do favorito"); input.setTextColor(Color.BLACK); input.setBackgroundResource(android.R.drawable.edit_text);
+        new AlertDialog.Builder(this).setTitle("Guardar Favorito").setView(input)
+            .setPositiveButton("GUARDAR",(d,w)->{String n=input.getText().toString().trim();if(!n.isEmpty())saveFavorite(n);})
+            .setNegativeButton("CANCELAR",null).show(); input.requestFocus();
     }
-
-    private void toggleOrientation() {
-        int requestedOrientation;
-
-        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
-            currentOrientation = Configuration.ORIENTATION_PORTRAIT;
-            Toast.makeText(this, "📱 Portrait", Toast.LENGTH_SHORT).show();
-        } else {
-            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
-            currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
-            Toast.makeText(this, "📺 Landscape", Toast.LENGTH_SHORT).show();
-        }
-
-        setRequestedOrientation(requestedOrientation);
-        updateLayout();
-    }
-
     private void showLoadFavoritesDialog() {
-        if (favoritesList.isEmpty()) {
-            Toast.makeText(this, "🔭 Não há favoritos guardados!", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Carregar Favorito");
-
-        final String[] favoriteNames = favoritesList.toArray(new String[0]);
-
-        builder.setItems(favoriteNames, (dialog, which) -> showFavoriteOptionsDialog(favoriteNames[which]));
-        builder.setNegativeButton("CANCELAR", null);
-        builder.show();
+        if (favoritesList.isEmpty()){Toast.makeText(this,"🔭 Sem favoritos!",Toast.LENGTH_SHORT).show();return;}
+        String[]names=favoritesList.toArray(new String[0]);
+        new AlertDialog.Builder(this).setTitle("Carregar Favorito").setItems(names,(d,w)->showFavoriteOptionsDialog(names[w])).setNegativeButton("CANCELAR",null).show();
+    }
+    private void showFavoriteOptionsDialog(String name) {
+        String[]opts={"Carregar em Todas","Box 1","Box 2","Box 3","Box 4","Eliminar","Cancelar"};
+        new AlertDialog.Builder(this).setTitle("Favorito: "+name).setItems(opts,(d,w)->{if(w<5)loadFavorite(name,w==0?-1:w-1);else if(w==5)showDeleteConfirmDialog(name);}).show();
+    }
+    private void showDeleteConfirmDialog(String name) {
+        new AlertDialog.Builder(this).setTitle("Eliminar '"+name+"'?")
+            .setPositiveButton("ELIMINAR",(d,w)->deleteFavorite(name)).setNegativeButton("CANCELAR",null).show();
     }
 
-    private void showFavoriteOptionsDialog(final String favoriteName) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Favorito: " + favoriteName);
+    // ══════════════════════════════════════════════════════════════════════════
+    //  SIDEBAR
+    // ══════════════════════════════════════════════════════════════════════════
 
-        String[] options = {"Carregar em Todas", "Carregar em Box 1", "Carregar em Box 2",
-                           "Carregar em Box 3", "Carregar em Box 4", "Eliminar", "Cancelar"};
+    public void closeSidebarFromOverlay(View v) { closeSidebar(); }
 
-        builder.setItems(options, (dialog, which) -> {
-            switch (which) {
-                case 0: loadFavorite(favoriteName, -1); break;
-                case 1: loadFavorite(favoriteName, 0); break;
-                case 2: loadFavorite(favoriteName, 1); break;
-                case 3: loadFavorite(favoriteName, 2); break;
-                case 4: loadFavorite(favoriteName, 3); break;
-                case 5: showDeleteConfirmDialog(favoriteName); break;
-            }
-        });
-
-        builder.show();
+    private void closeSidebar() {
+        android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(sidebarContainer,"alpha",1f,0f);
+        a.setDuration(250);
+        a.addListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator an){
+            sidebarContainer.setVisibility(View.GONE); isSidebarVisible=false;
+            RelativeLayout.LayoutParams p=(RelativeLayout.LayoutParams)gridLayout.getLayoutParams();
+            p.removeRule(RelativeLayout.LEFT_OF); gridLayout.setLayoutParams(p);
+            hideKeyboard(); if(btnToggleSidebar!=null)btnToggleSidebar.requestFocus();
+        }}); a.start();
     }
 
-    private void showDeleteConfirmDialog(final String favoriteName) {
-        new AlertDialog.Builder(this)
-            .setTitle("Confirmar Eliminação")
-            .setMessage("Eliminar o favorito '" + favoriteName + "'?")
-            .setPositiveButton("ELIMINAR", (dialog, which) -> deleteFavorite(favoriteName))
-            .setNegativeButton("CANCELAR", null)
-            .show();
+    private void openSidebar() {
+        sidebarContainer.setVisibility(View.VISIBLE); sidebarContainer.setAlpha(0f); isSidebarVisible=true;
+        RelativeLayout.LayoutParams p=(RelativeLayout.LayoutParams)gridLayout.getLayoutParams();
+        p.addRule(RelativeLayout.LEFT_OF, R.id.sidebarContainer); gridLayout.setLayoutParams(p);
+        android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(sidebarContainer,"alpha",0f,1f);
+        a.setDuration(250);
+        a.addListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator an){
+            for(int i=0;i<4;i++) if(urlInputs[i]!=null&&urlInputsSidebar[i]!=null) urlInputsSidebar[i].setText(urlInputs[i].getText());
+            if(btnCloseSidebar!=null)btnCloseSidebar.requestFocus();
+        }}); a.start();
     }
 
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
+    // ══════════════════════════════════════════════════════════════════════════
+    //  BOTTOM BAR
+    // ══════════════════════════════════════════════════════════════════════════
 
-        // Sync orientation state to the real system value
-        currentOrientation = newConfig.orientation;
-        Log.d(TAG, "onConfigurationChanged: "
-            + (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
+    private void toggleBottomBar() { if(isBottomBarExpanded) closeBottomBar(); else openBottomBar(); }
 
-        if (isAnyBoxInFullscreen()) {
-            // Preserve fullscreen UI flags across rotation – don't touch the grid
-            getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_FULLSCREEN |
-                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            );
-        } else {
-            // post() so the new layout dimensions are available before we rebuild
-            new Handler(getMainLooper()).post(this::updateLayout);
-        }
+    private void closeBottomBar() {
+        if(expandedBottomBar==null) return;
+        android.animation.ObjectAnimator a=android.animation.ObjectAnimator.ofFloat(expandedBottomBar,"translationY",0f,expandedBottomBar.getHeight());
+        a.setDuration(250); a.setInterpolator(new android.view.animation.AccelerateInterpolator());
+        a.addListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator an){
+            expandedBottomBar.setVisibility(View.GONE); isBottomBarExpanded=false; updateLayoutForBottomBar();
+            hideKeyboard(); if(btnToggleBottomBar!=null)btnToggleBottomBar.requestFocus();
+        }}); a.start();
     }
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-        saveCurrentState();
+    private void openBottomBar() {
+        if(expandedBottomBar==null) return;
+        expandedBottomBar.setVisibility(View.VISIBLE); expandedBottomBar.setTranslationY(expandedBottomBar.getHeight());
+        isBottomBarExpanded=true; updateLayoutForBottomBar();
+        android.animation.ObjectAnimator a=android.animation.ObjectAnimator.ofFloat(expandedBottomBar,"translationY",expandedBottomBar.getHeight(),0f);
+        a.setDuration(250); a.setInterpolator(new android.view.animation.DecelerateInterpolator());
+        a.addListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator an){if(btnCloseMenu!=null)btnCloseMenu.requestFocus();}}); a.start();
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-
-        // Ensure WakeLock is held on resume
-        if (wakeLock != null && !wakeLock.isHeld()) {
-            wakeLock.acquire();
-            Log.d(TAG, "WakeLock re-acquired on onResume");
-        }
-
-        // Restore window flags
-        getWindow().addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
-            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
-        );
-
-        loadFavoritesList();
-        if (btnToggleSidebar != null) btnToggleSidebar.requestFocus();
+    private void updateLayoutForBottomBar() {
+        if(gridLayout==null) return;
+        RelativeLayout.LayoutParams p=(RelativeLayout.LayoutParams)gridLayout.getLayoutParams();
+        p.removeRule(RelativeLayout.ABOVE);
+        p.addRule(RelativeLayout.ABOVE, isBottomBarExpanded ? R.id.expandedBottomBar : R.id.bottomControls);
+        gridLayout.setLayoutParams(p);
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
+    // ══════════════════════════════════════════════════════════════════════════
+    //  HELPERS
+    // ══════════════════════════════════════════════════════════════════════════
 
-        // Release WakeLock when app is destroyed
-        if (wakeLock != null && wakeLock.isHeld()) {
-            try {
-                wakeLock.release();
-                Log.d(TAG, "WakeLock released on onDestroy");
-            } catch (RuntimeException e) {
-                Log.e(TAG, "Error releasing WakeLock", e);
-            }
-        }
+    private void updateFocusedBoxIndicator() { if(tvFocusedBox!=null) tvFocusedBox.setText("Foco: "+(focusedBoxIndex+1)); }
 
-        clearAppCache();
-
-        // WebViews are destroyed here (they were created once and only destroyed now)
-        for (WebView webView : webViews) {
-            if (webView != null) {
-                webView.stopLoading();
-                webView.setWebViewClient(null);
-                webView.setWebChromeClient(null);
-                webView.destroy();
-            }
-        }
+    /** Programmatic focus border – no drawable resource needed. */
+    private void setFocusBorder(int idx, boolean focused) {
+        if(idx<0||idx>=4||boxContainers[idx]==null) return;
+        if(focused) { GradientDrawable gd=new GradientDrawable(); gd.setColor(Color.BLACK); gd.setStroke(4,Color.YELLOW); boxContainers[idx].setBackground(gd); }
+        else        { boxContainers[idx].setBackgroundColor(Color.BLACK); }
     }
+
+    private void scrollWebView(int i,int dy) { if(webViews[i]!=null&&Build.VERSION.SDK_INT>=Build.VERSION_CODES.KITKAT) webViews[i].evaluateJavascript("window.scrollBy(0,"+dy+");",null); }
+
+    private void showKeyboard(View v) { v.postDelayed(()->{InputMethodManager imm=(InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);if(imm!=null)imm.showSoftInput(v,InputMethodManager.SHOW_IMPLICIT);},100); }
+    private void hideKeyboard() { View v=getCurrentFocus(); if(v!=null){InputMethodManager imm=(InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);if(imm!=null)imm.hideSoftInputFromWindow(v.getWindowToken(),0);} }
+
+    private void injectAdBlocker(WebView v) { if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.KITKAT) v.evaluateJavascript("try{['div[class*=\"ad\"]','ins.adsbygoogle'].forEach(s=>document.querySelectorAll(s).forEach(e=>e.style.display='none'));}catch(e){}",null); }
+    private boolean isAdUrl(String url) { for(String d:adDomains) if(url.toLowerCase().contains(d)) return true; return false; }
+    private String getDomain(String url) { try{String h=new java.net.URI(url).getHost();return h!=null?h.replace("www.",""):url;}catch(Exception e){return url;} }
+    private boolean isSameDomain(String a,String b) { try{return getDomain(a).equals(getDomain(b));}catch(Exception e){return false;} }
+
+    private void clearAppCache() { try{for(WebView wv:webViews)if(wv!=null){wv.clearCache(true);wv.clearHistory();}if(getCacheDir()!=null)deleteDir(getCacheDir());}catch(Exception ignored){} }
+    private boolean deleteDir(java.io.File dir) { if(dir.isDirectory()){String[]c=dir.list();if(c!=null)for(String s:c)if(!deleteDir(new java.io.File(dir,s)))return false;}return dir.delete(); }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  LIFECYCLE
+    // ══════════════════════════════════════════════════════════════════════════
+
+    @Override protected void onPause()   { super.onPause();   saveCurrentState(); }
+    @Override protected void onResume()  { super.onResume();  loadFavoritesList(); if(btnToggleSidebar!=null)btnToggleSidebar.requestFocus(); }
+    @Override protected void onDestroy() { super.onDestroy(); clearAppCache(); for(WebView wv:webViews)if(wv!=null){wv.stopLoading();wv.setWebViewClient(null);wv.setWebChromeClient(null);wv.destroy();} }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            switch (keyCode) {
+        if(event.getAction()==KeyEvent.ACTION_DOWN) {
+            switch(keyCode) {
                 case KeyEvent.KEYCODE_BACK:
-                    if (isSidebarVisible) { closeSidebar(); return true; }
-                    for (int i = 0; i < 4; i++) {
-                        if (boxInFullscreen[i]) { exitFullscreen(i); return true; }
-                    }
-                    if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
-                        webViews[focusedBoxIndex].goBack(); return true;
-                    }
+                    if(isSidebarVisible){closeSidebar();return true;}
+                    if(webViews[focusedBoxIndex]!=null&&webViews[focusedBoxIndex].canGoBack()){webViews[focusedBoxIndex].goBack();return true;}
                     break;
-
                 case KeyEvent.KEYCODE_MENU:
-                    if (isSidebarVisible) closeSidebar(); else openSidebar();
-                    return true;
-
-                case KeyEvent.KEYCODE_DPAD_UP:
-                    if (!isSidebarVisible) { scrollWebView(focusedBoxIndex, -100); return true; }
-                    break;
-
-                case KeyEvent.KEYCODE_DPAD_DOWN:
-                    if (!isSidebarVisible) { scrollWebView(focusedBoxIndex, 100); return true; }
-                    break;
-
-                case KeyEvent.KEYCODE_PAGE_UP:
-                    if (!isSidebarVisible) { scrollWebView(focusedBoxIndex, -500); return true; }
-                    break;
-
-                case KeyEvent.KEYCODE_PAGE_DOWN:
-                    if (!isSidebarVisible) { scrollWebView(focusedBoxIndex, 500); return true; }
-                    break;
+                    if(isSidebarVisible)closeSidebar();else openSidebar(); return true;
+                case KeyEvent.KEYCODE_DPAD_UP:    if(!isSidebarVisible){scrollWebView(focusedBoxIndex,-100);return true;}break;
+                case KeyEvent.KEYCODE_DPAD_DOWN:  if(!isSidebarVisible){scrollWebView(focusedBoxIndex, 100);return true;}break;
+                case KeyEvent.KEYCODE_PAGE_UP:    if(!isSidebarVisible){scrollWebView(focusedBoxIndex,-500);return true;}break;
+                case KeyEvent.KEYCODE_PAGE_DOWN:  if(!isSidebarVisible){scrollWebView(focusedBoxIndex, 500);return true;}break;
             }
         }
-        return super.onKeyDown(keyCode, event);
-    }
-
-    private void scrollWebView(int boxIndex, int deltaY) {
-        WebView webView = webViews[boxIndex];
-        if (webView != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.evaluateJavascript("window.scrollBy(0, " + deltaY + ");", null);
-        }
+        return super.onKeyDown(keyCode,event);
     }
 
     @Override
     public void onBackPressed() {
-        if (isSidebarVisible) { closeSidebar(); return; }
-
-        for (int i = 0; i < 4; i++) {
-            if (boxInFullscreen[i]) { exitFullscreen(i); return; }
-        }
-
-        if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
-            webViews[focusedBoxIndex].goBack(); return;
-        }
-
-        for (WebView webView : webViews) {
-            if (webView != null && webView.canGoBack()) { webView.goBack(); return; }
-        }
-
-        new AlertDialog.Builder(this)
-            .setTitle("Sair do App")
-            .setMessage("Deseja sair?")
-            .setPositiveButton("SIM", (dialog, which) -> finish())
-            .setNegativeButton("NÃO", null)
-            .show();
+        if(isSidebarVisible){closeSidebar();return;}
+        if(webViews[focusedBoxIndex]!=null&&webViews[focusedBoxIndex].canGoBack()){webViews[focusedBoxIndex].goBack();return;}
+        for(WebView wv:webViews)if(wv!=null&&wv.canGoBack()){wv.goBack();return;}
+        new AlertDialog.Builder(this).setTitle("Sair?").setMessage("Deseja sair do app?")
+            .setPositiveButton("SIM",(d,w)->finish()).setNegativeButton("NÃO",null).show();
     }
 }
