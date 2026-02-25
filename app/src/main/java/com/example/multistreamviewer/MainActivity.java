@@ -135,11 +135,13 @@ public class MainActivity extends AppCompatActivity {
         deviceType = detectDeviceType();
         Log.d(TAG, "DeviceType = " + deviceType);
 
-        applyOrientationForDevice();
+        // DO NOT force orientation here - let system decide
+        // User can toggle orientation via the button
         setContentView(R.layout.activity_main);
 
         // Read the REAL current orientation AFTER setContentView
         currentOrientation = getResources().getConfiguration().orientation;
+        Log.d(TAG, "Initial orientation = " + (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
 
         preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
 
@@ -199,17 +201,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void applyOrientationForDevice() {
-        switch (deviceType) {
-            case FIRE_TV:
-            case TABLET:
-                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-                currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
-                break;
-            case PHONE:
-                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-                currentOrientation = Configuration.ORIENTATION_PORTRAIT;
-                break;
-        }
+        // DEPRECATED: We no longer force orientation on startup.
+        // User controls orientation via toggleOrientation() button.
+        // This prevents crash when transitioning between portrait and landscape.
     }
 
     // =========================================================================
