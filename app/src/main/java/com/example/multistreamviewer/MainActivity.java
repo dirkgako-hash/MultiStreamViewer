@@ -348,9 +348,7 @@ public class MainActivity extends AppCompatActivity {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
 
-            // Add all containers to gridLayout now.
-            // updateLayout() will remove/re-add with correct LayoutParams.
-            gridLayout.addView(boxContainers[i]);
+            // NOT adding to gridLayout here – updateLayout() will do it with proper LayoutParams
         }
 
         if (btnToggleSidebar != null) btnToggleSidebar.requestFocus();
