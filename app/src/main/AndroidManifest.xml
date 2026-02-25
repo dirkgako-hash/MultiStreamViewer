@@ -22,7 +22,7 @@
 
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
             android:exported="true"
             android:theme="@style/Theme.MultiStreamViewer.NoActionBar.FullScreen">
             <intent-filter>

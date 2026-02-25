@@ -420,6 +420,18 @@
                 android:textSize="10sp" />
             
             <Button
+                android:id="@+id/btnMute1"
+                android:layout_width="26dp"
+                android:layout_height="20dp"
+                android:layout_marginStart="1dp"
+                android:background="@color/button_blue_dark"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:text="🔊"
+                android:textColor="@color/text_white"
+                android:textSize="9sp" />
+            
+            <Button
                 android:id="@+id/btnZoomIn1"
                 android:layout_width="26dp"
                 android:layout_height="20dp"
@@ -509,6 +521,18 @@
                 android:text="R"
                 android:textColor="@color/text_white"
                 android:textSize="10sp" />
+            
+            <Button
+                android:id="@+id/btnMute2"
+                android:layout_width="26dp"
+                android:layout_height="20dp"
+                android:layout_marginStart="1dp"
+                android:background="@color/button_purple_dark"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:text="🔊"
+                android:textColor="@color/text_white"
+                android:textSize="9sp" />
             
             <Button
                 android:id="@+id/btnZoomIn2"
@@ -602,6 +626,18 @@
                 android:textSize="10sp" />
             
             <Button
+                android:id="@+id/btnMute3"
+                android:layout_width="26dp"
+                android:layout_height="20dp"
+                android:layout_marginStart="1dp"
+                android:background="@color/button_blue_dark"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:text="🔊"
+                android:textColor="@color/text_white"
+                android:textSize="9sp" />
+            
+            <Button
                 android:id="@+id/btnZoomIn3"
                 android:layout_width="26dp"
                 android:layout_height="20dp"
@@ -690,6 +726,18 @@
                 android:text="R"
                 android:textColor="@color/text_white"
                 android:textSize="10sp" />
+            
+            <Button
+                android:id="@+id/btnMute4"
+                android:layout_width="26dp"
+                android:layout_height="20dp"
+                android:layout_marginStart="1dp"
+                android:background="@color/button_purple_dark"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:text="🔊"
+                android:textColor="@color/text_white"
+                android:textSize="9sp" />
             
             <Button
                 android:id="@+id/btnZoomIn4"
