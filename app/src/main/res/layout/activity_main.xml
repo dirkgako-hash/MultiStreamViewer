@@ -820,7 +820,7 @@
                     android:textStyle="bold" />
 
                 <Button
-                    android:id="@+id/btnCloseMenu"
+                    android:id="@+id/btnCloseSidebar"
                     android:layout_width="32dp"
                     android:layout_height="32dp"
                     android:background="@color/button_red"

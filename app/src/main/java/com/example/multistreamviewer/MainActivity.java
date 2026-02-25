@@ -52,7 +52,7 @@ public class MainActivity extends AppCompatActivity {
     
     private Button btnMenu;
     private Button btnToggleBottomBar, btnToggleSidebar;
-    private Button btnCloseMenu, btnLoadAll, btnReloadAll, btnClearAll;
+    private Button btnCloseMenu, btnCloseSidebar, btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
     private Button btnToggleOrientation;
     private Button[] btnRefresh = new Button[4];
@@ -232,6 +232,7 @@ public class MainActivity extends AppCompatActivity {
         btnToggleSidebar = findViewById(R.id.btnToggleSidebar);
         btnToggleOrientation = findViewById(R.id.btnToggleOrientation);
         btnCloseMenu = findViewById(R.id.btnCloseMenu);
+        btnCloseSidebar = findViewById(R.id.btnCloseSidebar);
         
         btnLoadAll = findViewById(R.id.btnLoadAll);
         btnReloadAll = findViewById(R.id.btnReloadAll);
@@ -411,8 +412,8 @@ public class MainActivity extends AppCompatActivity {
         animator.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(android.animation.Animator animation) {
-                if (btnCloseMenu != null) {
-                    btnCloseMenu.requestFocus();
+                if (btnCloseSidebar != null) {
+                    btnCloseSidebar.requestFocus();
                 }
             }
         });
@@ -848,13 +849,19 @@ public class MainActivity extends AppCompatActivity {
             });
         }
         
+        if (btnCloseSidebar != null) {
+            btnCloseSidebar.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    closeSidebar();
+                }
+            });
+        }
+        
         if (btnCloseMenu != null) {
             btnCloseMenu.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    if (isSidebarVisible) {
-                        closeSidebar();
-                    }
                     if (isBottomBarExpanded) {
                         closeBottomBar();
                     }
