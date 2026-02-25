@@ -806,7 +806,7 @@
                 android:layout_marginBottom="4dp">
                 
                 <Button
-                    android:id="@+id/btnSaveState"
+                    android:id="@+id/btnSaveStateSidebar"
                     android:layout_width="0dp"
                     android:layout_height="25dp"
                     android:layout_weight="1"
@@ -818,7 +818,7 @@
                     android:textSize="9sp" />
                 
                 <Button
-                    android:id="@+id/btnLoadState"
+                    android:id="@+id/btnLoadStateSidebar"
                     android:layout_width="0dp"
                     android:layout_height="25dp"
                     android:layout_weight="1"
@@ -838,7 +838,7 @@
                 android:layout_marginBottom="8dp">
                 
                 <Button
-                    android:id="@+id/btnSaveFavorites"
+                    android:id="@+id/btnSaveFavoritesSidebar"
                     android:layout_width="0dp"
                     android:layout_height="25dp"
                     android:layout_weight="1"
@@ -850,7 +850,7 @@
                     android:textSize="9sp" />
                 
                 <Button
-                    android:id="@+id/btnLoadFavorites"
+                    android:id="@+id/btnLoadFavoritesSidebar"
                     android:layout_width="0dp"
                     android:layout_height="25dp"
                     android:layout_weight="1"
