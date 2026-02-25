@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.PowerManager;
 import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -120,6 +121,9 @@ public class MainActivity extends AppCompatActivity {
         "doubleclick.net", "googleadservices.com", "googlesyndication.com");
 
     private static final String TAG = "MultiStreamViewer";
+    
+    // WakeLock to keep screen on
+    private PowerManager.WakeLock wakeLock;
 
     // =========================================================================
     //  LIFECYCLE
@@ -129,6 +133,21 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Keep activity in foreground
+        getWindow().addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+        );
+
+        // Acquire WakeLock to keep screen on
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        if (pm != null) {
+            wakeLock = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK, TAG + ":MainActivity");
+            wakeLock.acquire();
+            Log.d(TAG, "WakeLock acquired");
+        }
 
         deviceType = detectDeviceType();
         Log.d(TAG, "DeviceType = " + deviceType);
@@ -1017,10 +1036,33 @@ public class MainActivity extends AppCompatActivity {
     //  ANDROID LIFECYCLE
     // =========================================================================
 
-    @Override protected void onPause()   { super.onPause();   saveCurrentState(); }
-    @Override protected void onResume()  { super.onResume();  loadFavoritesList(); if (btnToggleSidebar!=null) btnToggleSidebar.requestFocus(); }
+    @Override
+    protected void onPause() {
+        super.onPause();
+        saveCurrentState();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Keep activity in foreground when resumed
+        getWindow().addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+        );
+        loadFavoritesList();
+        if (btnToggleSidebar != null) btnToggleSidebar.requestFocus();
+    }
     @Override protected void onDestroy() {
-        super.onDestroy(); clearAppCache();
+        super.onDestroy();
+        
+        // Release WakeLock
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+            Log.d(TAG, "WakeLock released");
+        }
+        
+        clearAppCache();
         for (WebView wv:webViews) if(wv!=null){wv.stopLoading();wv.setWebViewClient(null);wv.setWebChromeClient(null);wv.destroy();}
     }
 
@@ -1031,8 +1073,14 @@ public class MainActivity extends AppCompatActivity {
                 case KeyEvent.KEYCODE_BACK:
                     if (isSidebarVisible) { closeSidebar(); return true; }
                     for (int i=0;i<4;i++) if(boxInFullscreen[i]){exitFullscreen(i);return true;}
-                    if (webViews[focusedBoxIndex]!=null&&webViews[focusedBoxIndex].canGoBack()){webViews[focusedBoxIndex].goBack();return true;}
-                    break;
+                    if (focusedBoxIndex >= 0 && focusedBoxIndex < 4 && webViews[focusedBoxIndex]!=null) {
+                        if (webViews[focusedBoxIndex].canGoBack()) {
+                            webViews[focusedBoxIndex].goBack();
+                            return true;
+                        }
+                    }
+                    // Prevent back key from exiting app in normal navigation
+                    return true;
                 case KeyEvent.KEYCODE_MENU:
                     if (isSidebarVisible) closeSidebar(); else openSidebar(); return true;
                 case KeyEvent.KEYCODE_DPAD_UP:    if (!isSidebarVisible){scrollWebView(focusedBoxIndex,-100);return true;} break;
@@ -1047,10 +1095,24 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onBackPressed() {
         if (isSidebarVisible){closeSidebar();return;}
-        for (int i=0;i<4;i++) if(boxInFullscreen[i]){exitFullscreen(i);return;}
-        if (webViews[focusedBoxIndex]!=null&&webViews[focusedBoxIndex].canGoBack()){webViews[focusedBoxIndex].goBack();return;}
-        for (WebView wv:webViews) if(wv!=null&&wv.canGoBack()){wv.goBack();return;}
-        new AlertDialog.Builder(this).setTitle("Sair do App").setMessage("Deseja sair?")
-            .setPositiveButton("SIM",(d,w)->finish()).setNegativeButton("NÃO",null).show();
+        for (int i=0;i<4;i++) {
+            if(boxInFullscreen[i]){exitFullscreen(i);return;}
+        }
+        // Try to go back in the focused webview first
+        if (focusedBoxIndex >= 0 && focusedBoxIndex < 4 && webViews[focusedBoxIndex]!=null) {
+            if(webViews[focusedBoxIndex].canGoBack()) {
+                webViews[focusedBoxIndex].goBack();
+                return;
+            }
+        }
+        // Try any other webview that can go back
+        for (WebView wv:webViews) {
+            if(wv!=null&&wv.canGoBack()){wv.goBack();return;}
+        }
+        // Prevent app from exiting on back press by default
+        // Only exit if user really wants to (commented for now)
+        // new AlertDialog.Builder(this).setTitle("Sair do App").setMessage("Deseja sair?")
+        //     .setPositiveButton("SIM",(d,w)->finish()).setNegativeButton("NÃO",null).show();
+        Log.d(TAG, "Back pressed - app stays in foreground");
     }
 }
