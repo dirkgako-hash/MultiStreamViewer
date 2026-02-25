@@ -211,8 +211,16 @@ public class MainActivity extends AppCompatActivity {
         super.onConfigurationChanged(newConfig);
         currentOrientation = newConfig.orientation;
         Log.d(TAG, "onConfigurationChanged → " + (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
-        // Mesmo padrão que clicar num checkbox:
-        // Mudança é processada, estado é actualizado, updateLayout() é chamado
+        
+        // Recarregar o layout porque android:configChanges previne a recreação da Activity
+        // Mas o layout XML não é recarregado automaticamente
+        setContentView(R.layout.activity_main);
+        
+        // Reinicializar as views com o novo layout
+        initViews();
+        initEventListeners();
+        
+        // Recalcular grid com novo layout
         gridLayout.post(this::updateLayout);
     }
 
