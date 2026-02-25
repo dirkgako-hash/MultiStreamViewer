@@ -2,6 +2,7 @@ package com.example.multistreamviewer;
 
 import android.annotation.SuppressLint;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
@@ -124,6 +125,11 @@ public class MainActivity extends AppCompatActivity {
     
     // WakeLock to keep screen on
     private PowerManager.WakeLock wakeLock;
+    
+    // Handler for keeping foreground
+    private Handler foregroundHandler = new Handler();
+    private Runnable foregroundChecker;
+    private boolean isActivityVisible = false;
 
     // =========================================================================
     //  LIFECYCLE
@@ -172,6 +178,9 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "✅ " + favoritesList.size() + " Favoritos carregados!", Toast.LENGTH_SHORT).show();
         }, 1500);
 
+        // Start foreground checker
+        startForegroundChecker();
+
         // Wait for the GridLayout to be measured before the first layout pass
         gridLayout.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
             @Override public void onGlobalLayout() {
@@ -183,6 +192,56 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    private void startForegroundChecker() {
+        foregroundChecker = new Runnable() {
+            @Override
+            public void run() {
+                if (isActivityVisible) {
+                    Log.d(TAG, "Activity is visible and in foreground");
+                } else {
+                    Log.d(TAG, "Activity is NOT visible - attempting to bring to foreground");
+                    // Try to bring back to foreground
+                    Intent intent = new Intent(MainActivity.this, MainActivity.class);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | 
+                                   Intent.FLAG_ACTIVITY_REORDER_TO_FRONT |
+                                   Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                    startActivity(intent);
+                }
+                // Check again in 3 seconds
+                foregroundHandler.postDelayed(this, 3000);
+            }
+        };
+        foregroundHandler.postDelayed(foregroundChecker, 3000);
+    }
+
+    private void stopForegroundChecker() {
+        if (foregroundChecker != null) {
+            foregroundHandler.removeCallbacks(foregroundChecker);
+        }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        isActivityVisible = hasFocus;
+        Log.d(TAG, "Window focus changed: " + (hasFocus ? "GAINED" : "LOST"));
+        
+        if (hasFocus) {
+            // Restore fullscreen UI when window gains focus
+            if (isAnyBoxInFullscreen()) {
+                getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_FULLSCREEN |
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+            }
+            // Re-acquire WakeLock
+            if (wakeLock != null && !wakeLock.isHeld()) {
+                wakeLock.acquire();
+                Log.d(TAG, "WakeLock re-acquired on focus");
+            }
+        }
     }
 
     // =========================================================================
@@ -1045,25 +1104,64 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        isActivityVisible = true;
+        
+        Log.d(TAG, "onResume - Bringing activity to foreground");
+        
         // Keep activity in foreground when resumed
         getWindow().addFlags(
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
-            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
         );
+        
+        // Ensure WakeLock is acquired
+        if (wakeLock != null) {
+            if (!wakeLock.isHeld()) {
+                wakeLock.acquire();
+                Log.d(TAG, "WakeLock acquired on resume");
+            }
+        }
+        
+        // Request focus
+        if (gridLayout != null) {
+            gridLayout.requestFocus();
+        }
+        
         loadFavoritesList();
         if (btnToggleSidebar != null) btnToggleSidebar.requestFocus();
+        
+        // Restart foreground checker on resume
+        startForegroundChecker();
     }
-    @Override protected void onDestroy() {
+    @Override
+    protected void onDestroy() {
         super.onDestroy();
+        
+        Log.d(TAG, "onDestroy called");
+        
+        // Stop foreground checker
+        stopForegroundChecker();
         
         // Release WakeLock
         if (wakeLock != null && wakeLock.isHeld()) {
-            wakeLock.release();
-            Log.d(TAG, "WakeLock released");
+            try {
+                wakeLock.release();
+                Log.d(TAG, "WakeLock released");
+            } catch (RuntimeException e) {
+                Log.e(TAG, "Error releasing WakeLock", e);
+            }
         }
         
         clearAppCache();
-        for (WebView wv:webViews) if(wv!=null){wv.stopLoading();wv.setWebViewClient(null);wv.setWebChromeClient(null);wv.destroy();}
+        for (WebView wv:webViews) {
+            if(wv!=null){
+                wv.stopLoading();
+                wv.setWebViewClient(null);
+                wv.setWebChromeClient(null);
+                wv.destroy();
+            }
+        }
     }
 
     @Override
