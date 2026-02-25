@@ -74,7 +74,6 @@ public class MainActivity extends AppCompatActivity {
 
     // Per-box bottom-bar controls
     private Button[]   btnRefresh  = new Button[4];
-    private Button[]   btnMute     = new Button[4];   // 🔊 / 🔇
     private Button[]   btnZoomIn   = new Button[4];
     private Button[]   btnZoomOut  = new Button[4];
     private Button[]   btnPrevious = new Button[4];
@@ -96,7 +95,6 @@ public class MainActivity extends AppCompatActivity {
     // ─── State ────────────────────────────────────────────────────────────────
     private boolean[] boxEnabled    = {true, true, true, true};
     private boolean[] boxKeepActive = {false, false, false, false};
-    private boolean[] boxMuted      = {false, false, false, false}; // mute state per box
     private boolean   isSidebarVisible    = false;
     private boolean   isBottomBarExpanded = false;
     private int       focusedBoxIndex     = 0;
@@ -132,71 +130,40 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        try {
-            deviceType = detectDeviceType();
-            Log.d(TAG, "DeviceType = " + deviceType);
+        deviceType = detectDeviceType();
+        Log.d(TAG, "DeviceType = " + deviceType);
 
-            // DO NOT force orientation here - let system decide
-            // User can toggle orientation via the button
-            Log.d(TAG, "Setting content view...");
-            setContentView(R.layout.activity_main);
-            Log.d(TAG, "Content view set successfully");
+        applyOrientationForDevice();
+        setContentView(R.layout.activity_main);
 
-            // Read the REAL current orientation AFTER setContentView
-            currentOrientation = getResources().getConfiguration().orientation;
-            Log.d(TAG, "Initial orientation = " + (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
+        // Read the REAL current orientation AFTER setContentView
+        currentOrientation = getResources().getConfiguration().orientation;
 
-            preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
+        preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
 
-            Log.d(TAG, "Initializing views...");
-            initViews();
-            Log.d(TAG, "Views initialized");
-            
-            Log.d(TAG, "Initializing WebViews...");
-            initWebViews();
-            Log.d(TAG, "WebViews initialized");
-            
-            Log.d(TAG, "Initializing event listeners...");
-            initEventListeners();
-            Log.d(TAG, "Event listeners initialized");
+        initViews();
+        initWebViews();
+        initEventListeners();
 
-            Log.d(TAG, "Loading saved state...");
-            loadSavedState(true);
-            Log.d(TAG, "Saved state loaded");
-            
-            Log.d(TAG, "Loading favorites list...");
-            loadFavoritesList();
-            Log.d(TAG, "Favorites list loaded");
+        loadSavedState(true);
+        loadFavoritesList();
 
-            new Handler().postDelayed(() -> {
-                if (!favoritesList.isEmpty())
-                    Toast.makeText(this, "✅ " + favoritesList.size() + " Favoritos carregados!", Toast.LENGTH_SHORT).show();
-            }, 1500);
+        new Handler().postDelayed(() -> {
+            if (!favoritesList.isEmpty())
+                Toast.makeText(this, "✅ " + favoritesList.size() + " Favoritos carregados!", Toast.LENGTH_SHORT).show();
+        }, 1500);
 
-            // Wait for the GridLayout to be measured before the first layout pass
-            if (gridLayout != null) {
-                gridLayout.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
-                    @Override public void onGlobalLayout() {
-                        try {
-                            gridLayout.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                            updateLayout();
-                            updateFocusedBoxIndicator();
-                            if (!hasSavedState()) {
-                                new Handler().postDelayed(MainActivity.this::loadInitialURLs, 500);
-                            }
-                        } catch (Exception e) {
-                            Log.e(TAG, "Error in onGlobalLayout", e);
-                        }
-                    }
-                });
-            } else {
-                Log.e(TAG, "gridLayout is null!");
+        // Wait for the GridLayout to be measured before the first layout pass
+        gridLayout.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override public void onGlobalLayout() {
+                gridLayout.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                updateLayout();
+                updateFocusedBoxIndicator();
+                if (!hasSavedState()) {
+                    new Handler().postDelayed(MainActivity.this::loadInitialURLs, 500);
+                }
             }
-            Log.d(TAG, "onCreate completed successfully");
-        } catch (Exception e) {
-            Log.e(TAG, "CRITICAL ERROR in onCreate", e);
-            Toast.makeText(this, "❌ Erro ao inicializar: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
+        });
     }
 
     // =========================================================================
@@ -230,9 +197,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void applyOrientationForDevice() {
-        // DEPRECATED: We no longer force orientation on startup.
-        // User controls orientation via toggleOrientation() button.
-        // This prevents crash when transitioning between portrait and landscape.
+        switch (deviceType) {
+            case FIRE_TV:
+            case TABLET:
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+                currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
+                break;
+            case PHONE:
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                currentOrientation = Configuration.ORIENTATION_PORTRAIT;
+                break;
+        }
     }
 
     // =========================================================================
@@ -293,87 +268,69 @@ public class MainActivity extends AppCompatActivity {
     // =========================================================================
 
     private void initViews() {
-        try {
-            gridLayout          = findViewById(R.id.gridLayout);
-            bottomControls      = findViewById(R.id.bottomControls);
-            expandedBottomBar   = findViewById(R.id.expandedBottomBar);
-            sidebarContainer    = findViewById(R.id.sidebarContainer);
-            mainLayout          = findViewById(R.id.main_layout);
-            tvFocusedBox        = findViewById(R.id.tvFocusedBox);
-            
-            // Validate critical views
-            if (gridLayout == null) Log.e(TAG, "ERROR: gridLayout is null");
-            if (bottomControls == null) Log.e(TAG, "ERROR: bottomControls is null");
-            if (expandedBottomBar == null) Log.e(TAG, "ERROR: expandedBottomBar is null");
-            if (sidebarContainer == null) Log.e(TAG, "ERROR: sidebarContainer is null");
-            if (mainLayout == null) Log.e(TAG, "ERROR: mainLayout is null");
+        gridLayout          = findViewById(R.id.gridLayout);
+        bottomControls      = findViewById(R.id.bottomControls);
+        expandedBottomBar   = findViewById(R.id.expandedBottomBar);
+        sidebarContainer    = findViewById(R.id.sidebarContainer);
+        mainLayout          = findViewById(R.id.main_layout);
+        tvFocusedBox        = findViewById(R.id.tvFocusedBox);
 
-            btnToggleBottomBar   = findViewById(R.id.btnToggleBottomBar);
-            btnToggleSidebar     = findViewById(R.id.btnToggleSidebar);
-            btnToggleOrientation = findViewById(R.id.btnToggleOrientation);
-            btnCloseMenu         = findViewById(R.id.btnCloseMenu);
-            btnCloseSidebar      = findViewById(R.id.btnCloseSidebar);
+        btnToggleBottomBar   = findViewById(R.id.btnToggleBottomBar);
+        btnToggleSidebar     = findViewById(R.id.btnToggleSidebar);
+        btnToggleOrientation = findViewById(R.id.btnToggleOrientation);
+        btnCloseMenu         = findViewById(R.id.btnCloseMenu);
+        btnCloseSidebar      = findViewById(R.id.btnCloseSidebar);
 
-            btnLoadAll     = findViewById(R.id.btnLoadAll);
-            btnReloadAll   = findViewById(R.id.btnReloadAll);
-            btnClearAll    = findViewById(R.id.btnClearAll);
-            btnSaveState   = findViewById(R.id.btnSaveState);
-            btnLoadState   = findViewById(R.id.btnLoadState);
-            btnSaveFavorites = findViewById(R.id.btnSaveFavorites);
-            btnLoadFavorites = findViewById(R.id.btnLoadFavorites);
+        btnLoadAll     = findViewById(R.id.btnLoadAll);
+        btnReloadAll   = findViewById(R.id.btnReloadAll);
+        btnClearAll    = findViewById(R.id.btnClearAll);
+        btnSaveState   = findViewById(R.id.btnSaveState);
+        btnLoadState   = findViewById(R.id.btnLoadState);
+        btnSaveFavorites = findViewById(R.id.btnSaveFavorites);
+        btnLoadFavorites = findViewById(R.id.btnLoadFavorites);
 
-            btnSaveStateSidebar     = findViewById(R.id.btnSaveStateSidebar);
-            btnLoadStateSidebar     = findViewById(R.id.btnLoadStateSidebar);
-            btnSaveFavoritesSidebar = findViewById(R.id.btnSaveFavoritesSidebar);
-            btnLoadFavoritesSidebar = findViewById(R.id.btnLoadFavoritesSidebar);
-            btnLoadAllSidebar       = findViewById(R.id.btnLoadAllSidebar);
-            btnReloadAllSidebar     = findViewById(R.id.btnReloadAllSidebar);
-            btnClearAllSidebar      = findViewById(R.id.btnClearAllSidebar);
+        btnSaveStateSidebar     = findViewById(R.id.btnSaveStateSidebar);
+        btnLoadStateSidebar     = findViewById(R.id.btnLoadStateSidebar);
+        btnSaveFavoritesSidebar = findViewById(R.id.btnSaveFavoritesSidebar);
+        btnLoadFavoritesSidebar = findViewById(R.id.btnLoadFavoritesSidebar);
+        btnLoadAllSidebar       = findViewById(R.id.btnLoadAllSidebar);
+        btnReloadAllSidebar     = findViewById(R.id.btnReloadAllSidebar);
+        btnClearAllSidebar      = findViewById(R.id.btnClearAllSidebar);
 
-            cbAllowScripts  = findViewById(R.id.cbAllowScripts);
-            cbAllowForms    = findViewById(R.id.cbAllowForms);
-            cbAllowPopups   = findViewById(R.id.cbAllowPopups);
-            cbBlockRedirects= findViewById(R.id.cbBlockRedirects);
-            cbBlockAds      = findViewById(R.id.cbBlockAds);
+        cbAllowScripts  = findViewById(R.id.cbAllowScripts);
+        cbAllowForms    = findViewById(R.id.cbAllowForms);
+        cbAllowPopups   = findViewById(R.id.cbAllowPopups);
+        cbBlockRedirects= findViewById(R.id.cbBlockRedirects);
+        cbBlockAds      = findViewById(R.id.cbBlockAds);
 
-            int[] cbId  = {R.id.checkBox1,          R.id.checkBox2,          R.id.checkBox3,          R.id.checkBox4};
-            int[] kaId  = {R.id.checkBoxKeepActive1, R.id.checkBoxKeepActive2, R.id.checkBoxKeepActive3, R.id.checkBoxKeepActive4};
-            int[] rfId  = {R.id.btnRefresh1,  R.id.btnRefresh2,  R.id.btnRefresh3,  R.id.btnRefresh4};
-            int[] muId  = {R.id.btnMute1,     R.id.btnMute2,     R.id.btnMute3,     R.id.btnMute4};
-            int[] ziId  = {R.id.btnZoomIn1,   R.id.btnZoomIn2,   R.id.btnZoomIn3,   R.id.btnZoomIn4};
-            int[] zoId  = {R.id.btnZoomOut1,  R.id.btnZoomOut2,  R.id.btnZoomOut3,  R.id.btnZoomOut4};
-            int[] pvId  = {R.id.btnPrevious1, R.id.btnPrevious2, R.id.btnPrevious3, R.id.btnPrevious4};
-            int[] nxId  = {R.id.btnNext1,     R.id.btnNext2,     R.id.btnNext3,     R.id.btnNext4};
-            int[] goId  = {R.id.btnLoadUrl1,  R.id.btnLoadUrl2,  R.id.btnLoadUrl3,  R.id.btnLoadUrl4};
-            int[] ulId  = {R.id.urlInput1,    R.id.urlInput2,    R.id.urlInput3,    R.id.urlInput4};
-            int[] usbId = {R.id.urlInput1Sidebar,  R.id.urlInput2Sidebar,  R.id.urlInput3Sidebar,  R.id.urlInput4Sidebar};
-            int[] gsbId = {R.id.btnLoadUrl1Sidebar, R.id.btnLoadUrl2Sidebar, R.id.btnLoadUrl3Sidebar, R.id.btnLoadUrl4Sidebar};
+        int[] cbId  = {R.id.checkBox1,          R.id.checkBox2,          R.id.checkBox3,          R.id.checkBox4};
+        int[] kaId  = {R.id.checkBoxKeepActive1, R.id.checkBoxKeepActive2, R.id.checkBoxKeepActive3, R.id.checkBoxKeepActive4};
+        int[] rfId  = {R.id.btnRefresh1,  R.id.btnRefresh2,  R.id.btnRefresh3,  R.id.btnRefresh4};
+        int[] ziId  = {R.id.btnZoomIn1,   R.id.btnZoomIn2,   R.id.btnZoomIn3,   R.id.btnZoomIn4};
+        int[] zoId  = {R.id.btnZoomOut1,  R.id.btnZoomOut2,  R.id.btnZoomOut3,  R.id.btnZoomOut4};
+        int[] pvId  = {R.id.btnPrevious1, R.id.btnPrevious2, R.id.btnPrevious3, R.id.btnPrevious4};
+        int[] nxId  = {R.id.btnNext1,     R.id.btnNext2,     R.id.btnNext3,     R.id.btnNext4};
+        int[] goId  = {R.id.btnLoadUrl1,  R.id.btnLoadUrl2,  R.id.btnLoadUrl3,  R.id.btnLoadUrl4};
+        int[] ulId  = {R.id.urlInput1,    R.id.urlInput2,    R.id.urlInput3,    R.id.urlInput4};
+        int[] usbId = {R.id.urlInputSidebar1,  R.id.urlInputSidebar2,  R.id.urlInputSidebar3,  R.id.urlInputSidebar4};
+        int[] gsbId = {R.id.btnLoadUrlSidebar1, R.id.btnLoadUrlSidebar2, R.id.btnLoadUrlSidebar3, R.id.btnLoadUrlSidebar4};
 
-            String def = "https://dzritv.com/sport/football/";
-            for (int i = 0; i < 4; i++) {
-                checkBoxes[i]           = findViewById(cbId[i]);
-                checkBoxesKeepActive[i] = findViewById(kaId[i]);
-                btnRefresh[i]           = findViewById(rfId[i]);
-                btnMute[i]              = findViewById(muId[i]);
-                btnZoomIn[i]            = findViewById(ziId[i]);
-                btnZoomOut[i]           = findViewById(zoId[i]);
-                btnPrevious[i]          = findViewById(pvId[i]);
-                btnNext[i]              = findViewById(nxId[i]);
-                btnLoadUrl[i]           = findViewById(goId[i]);
-                urlInputs[i]            = findViewById(ulId[i]);
-                urlInputsSidebar[i]     = findViewById(usbId[i]);
-                btnLoadUrlSidebar[i]    = findViewById(gsbId[i]);
-                
-                if (btnMute[i] == null) Log.w(TAG, "WARNING: btnMute" + (i+1) + " is null");
-                if (urlInputs[i] == null) Log.w(TAG, "WARNING: urlInput" + (i+1) + " is null");
+        String def = "https://dzritv.com/sport/football/";
+        for (int i = 0; i < 4; i++) {
+            checkBoxes[i]           = findViewById(cbId[i]);
+            checkBoxesKeepActive[i] = findViewById(kaId[i]);
+            btnRefresh[i]           = findViewById(rfId[i]);
+            btnZoomIn[i]            = findViewById(ziId[i]);
+            btnZoomOut[i]           = findViewById(zoId[i]);
+            btnPrevious[i]          = findViewById(pvId[i]);
+            btnNext[i]              = findViewById(nxId[i]);
+            btnLoadUrl[i]           = findViewById(goId[i]);
+            urlInputs[i]            = findViewById(ulId[i]);
+            urlInputsSidebar[i]     = findViewById(usbId[i]);
+            btnLoadUrlSidebar[i]    = findViewById(gsbId[i]);
 
-                setupUrlInput(urlInputs[i],        def, i, false);
-                setupUrlInput(urlInputsSidebar[i], def, i, true);
-            }
-            Log.d(TAG, "initViews completed successfully");
-        } catch (Exception e) {
-            Log.e(TAG, "CRITICAL ERROR in initViews", e);
-            throw new RuntimeException("Failed to initialize views", e);
+            setupUrlInput(urlInputs[i],        def, i, false);
+            setupUrlInput(urlInputsSidebar[i], def, i, true);
         }
     }
 
@@ -406,56 +363,45 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint("SetJavaScriptEnabled")
     private void initWebViews() {
-        try {
-            if (gridLayout == null) {
-                Log.e(TAG, "ERROR: gridLayout is null in initWebViews!");
-                return;
-            }
-            
-            for (int i = 0; i < 4; i++) {
-                final int idx = i;
+        for (int i = 0; i < 4; i++) {
+            final int idx = i;
 
-                boxContainers[i] = new FrameLayout(this);
-                boxContainers[i].setId(View.generateViewId());
-                boxContainers[i].setBackgroundColor(Color.BLACK);
-                boxContainers[i].setFocusable(true);
-                boxContainers[i].setFocusableInTouchMode(true);
+            boxContainers[i] = new FrameLayout(this);
+            boxContainers[i].setId(View.generateViewId());
+            boxContainers[i].setBackgroundColor(Color.BLACK);
+            boxContainers[i].setFocusable(true);
+            boxContainers[i].setFocusableInTouchMode(true);
 
-                boxContainers[i].setOnFocusChangeListener((v, hasFocus) -> {
-                    if (hasFocus && !isSidebarVisible) {
-                        focusedBoxIndex = idx;
-                        updateFocusedBoxIndicator();
-                        highlightFocusedBox(idx);
-                    } else if (!hasFocus) {
-                        boxContainers[idx].setBackgroundColor(Color.BLACK);
-                    }
-                });
-                boxContainers[i].setOnClickListener(v -> {
-                    if (!isSidebarVisible) { focusedBoxIndex = idx; updateFocusedBoxIndicator(); boxContainers[idx].requestFocus(); }
-                });
-                boxContainers[i].setOnHoverListener((v, ev) -> {
-                    if (ev.getAction() == MotionEvent.ACTION_HOVER_ENTER && !isSidebarVisible) {
-                        focusedBoxIndex = idx;
-                        updateFocusedBoxIndicator();
-                        highlightFocusedBox(idx);
-                    } else if (ev.getAction() == MotionEvent.ACTION_HOVER_EXIT) {
-                        boxContainers[idx].setBackgroundColor(Color.BLACK);
-                    }
-                    if (webViews[idx] != null) webViews[idx].onGenericMotionEvent(ev);
-                    return true;
-                });
+            boxContainers[i].setOnFocusChangeListener((v, hasFocus) -> {
+                if (hasFocus && !isSidebarVisible) {
+                    focusedBoxIndex = idx;
+                    updateFocusedBoxIndicator();
+                    highlightFocusedBox(idx);
+                } else if (!hasFocus) {
+                    boxContainers[idx].setBackgroundColor(Color.BLACK);
+                }
+            });
+            boxContainers[i].setOnClickListener(v -> {
+                if (!isSidebarVisible) { focusedBoxIndex = idx; updateFocusedBoxIndicator(); boxContainers[idx].requestFocus(); }
+            });
+            boxContainers[i].setOnHoverListener((v, ev) -> {
+                if (ev.getAction() == MotionEvent.ACTION_HOVER_ENTER && !isSidebarVisible) {
+                    focusedBoxIndex = idx;
+                    updateFocusedBoxIndicator();
+                    highlightFocusedBox(idx);
+                } else if (ev.getAction() == MotionEvent.ACTION_HOVER_EXIT) {
+                    boxContainers[idx].setBackgroundColor(Color.BLACK);
+                }
+                if (webViews[idx] != null) webViews[idx].onGenericMotionEvent(ev);
+                return true;
+            });
 
-                webViews[i] = new WebView(this);
-                webViews[i].setId(View.generateViewId());
-                setupWebView(webViews[i], i);
-                boxContainers[i].addView(webViews[i], new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-                gridLayout.addView(boxContainers[i]);
-            }
-            Log.d(TAG, "initWebViews completed successfully");
-        } catch (Exception e) {
-            Log.e(TAG, "CRITICAL ERROR in initWebViews", e);
-            throw new RuntimeException("Failed to initialize WebViews", e);
+            webViews[i] = new WebView(this);
+            webViews[i].setId(View.generateViewId());
+            setupWebView(webViews[i], i);
+            boxContainers[i].addView(webViews[i], new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            gridLayout.addView(boxContainers[i]);
         }
     }
 
@@ -503,8 +449,6 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onPageFinished(WebView v, String url) {
                 applyZoom(idx);
                 if (cbBlockAds != null && cbBlockAds.isChecked()) injectAdBlocker(v);
-                // Re-apply mute state after every page load
-                applyMuteState(idx);
             }
         });
 
@@ -545,54 +489,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // =========================================================================
-    //  MUTE / UNMUTE
-    // =========================================================================
 
-    /**
-     * Applies the current mute state of a box by injecting JS into its WebView.
-     * Called on every page load so the state survives navigation.
-     */
-    private void applyMuteState(int idx) {
-        if (webViews[idx] == null) return;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            String muted = boxMuted[idx] ? "true" : "false";
-            String js =
-                "(function(){" +
-                "  var els = document.querySelectorAll('video,audio');" +
-                "  for(var i=0;i<els.length;i++) els[i].muted=" + muted + ";" +
-                "  // Watch for future elements added dynamically" +
-                "  if(window.__muteObserver) window.__muteObserver.disconnect();" +
-                "  window.__muteObserver = new MutationObserver(function(muts){" +
-                "    muts.forEach(function(m){" +
-                "      m.addedNodes.forEach(function(n){" +
-                "        if(n.tagName==='VIDEO'||n.tagName==='AUDIO') n.muted=" + muted + ";" +
-                "        if(n.querySelectorAll){" +
-                "          n.querySelectorAll('video,audio').forEach(function(e){e.muted=" + muted + ";});" +
-                "        }" +
-                "      });" +
-                "    });" +
-                "  });" +
-                "  window.__muteObserver.observe(document.body,{childList:true,subtree:true});" +
-                "})();";
-            webViews[idx].evaluateJavascript(js, null);
-        }
-    }
-
-    /** Toggles mute for one box and updates the button icon. */
-    private void toggleMute(int idx) {
-        boxMuted[idx] = !boxMuted[idx];
-        applyMuteState(idx);
-        updateMuteButton(idx);
-        Toast.makeText(this,
-            "Box " + (idx + 1) + (boxMuted[idx] ? " 🔇 Muted" : " 🔊 Unmuted"),
-            Toast.LENGTH_SHORT).show();
-    }
-
-    private void updateMuteButton(int idx) {
-        if (btnMute[idx] != null)
-            btnMute[idx].setText(boxMuted[idx] ? "🔇" : "🔊");
-    }
 
     // =========================================================================
     //  LAYOUT UPDATE  (fixed for portrait box toggle + orientation)
@@ -794,7 +691,6 @@ public class MainActivity extends AppCompatActivity {
                 if (!url.isEmpty()) { syncToBottomBar(idx, url); loadURL(idx, url); }
             });
             if (btnRefresh[i]  != null) btnRefresh[i].setOnClickListener(v -> { if (webViews[idx] != null) webViews[idx].reload(); });
-            if (btnMute[i]     != null) btnMute[i].setOnClickListener(v -> toggleMute(idx));
             if (btnZoomIn[i]   != null) btnZoomIn[i].setOnClickListener(v -> zoomIn(idx));
             if (btnZoomOut[i]  != null) btnZoomOut[i].setOnClickListener(v -> zoomOut(idx));
             if (btnPrevious[i] != null) btnPrevious[i].setOnClickListener(v -> { if (webViews[idx] != null && webViews[idx].canGoBack())    webViews[idx].goBack(); });
@@ -904,7 +800,6 @@ public class MainActivity extends AppCompatActivity {
                 ed.putBoolean("box_enabled_"+i, boxEnabled[i]);
                 ed.putBoolean("box_keep_active_"+i, boxKeepActive[i]);
                 ed.putFloat("zoom_level_"+i, zoomLevels[i]);
-                ed.putBoolean("box_muted_"+i, boxMuted[i]);
             }
             if (cbAllowScripts   != null) ed.putBoolean("allow_scripts",   cbAllowScripts.isChecked());
             if (cbAllowForms     != null) ed.putBoolean("allow_forms",     cbAllowForms.isChecked());
@@ -921,10 +816,8 @@ public class MainActivity extends AppCompatActivity {
             for (int i = 0; i < 4; i++) {
                 boxEnabled[i]    = preferences.getBoolean("box_enabled_"+i, true);
                 boxKeepActive[i] = preferences.getBoolean("box_keep_active_"+i, false);
-                boxMuted[i]      = preferences.getBoolean("box_muted_"+i, false);
                 if (checkBoxes[i]           != null) checkBoxes[i].setChecked(boxEnabled[i]);
                 if (checkBoxesKeepActive[i] != null) checkBoxesKeepActive[i].setChecked(boxKeepActive[i]);
-                updateMuteButton(i);
             }
             boolean hasUrls = false;
             for (int i = 0; i < 4; i++) {
@@ -1124,8 +1017,8 @@ public class MainActivity extends AppCompatActivity {
     //  ANDROID LIFECYCLE
     // =========================================================================
 
-    @Override protected void onPause()   { super.onPause();   try { saveCurrentState(); } catch (Exception e) { Log.e(TAG, "Error in onPause", e); } }
-    @Override protected void onResume()  { super.onResume();  try { loadFavoritesList(); if (btnToggleSidebar!=null) btnToggleSidebar.requestFocus(); } catch (Exception e) { Log.e(TAG, "Error in onResume", e); } }
+    @Override protected void onPause()   { super.onPause();   saveCurrentState(); }
+    @Override protected void onResume()  { super.onResume();  loadFavoritesList(); if (btnToggleSidebar!=null) btnToggleSidebar.requestFocus(); }
     @Override protected void onDestroy() {
         super.onDestroy(); clearAppCache();
         for (WebView wv:webViews) if(wv!=null){wv.stopLoading();wv.setWebViewClient(null);wv.setWebChromeClient(null);wv.destroy();}

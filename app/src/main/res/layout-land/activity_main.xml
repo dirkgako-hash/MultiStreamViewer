@@ -382,19 +382,6 @@
                         android:textColor="@color/text_white"
                         android:textSize="8sp" />
 
-                    <!-- MUTE button Box 1 -->
-                    <Button
-                        android:id="@+id/btnMute1"
-                        android:layout_width="22dp"
-                        android:layout_height="20dp"
-                        android:layout_marginStart="1dp"
-                        android:background="@color/button_blue_dark"
-                        android:focusable="true"
-                        android:focusableInTouchMode="true"
-                        android:text="🔊"
-                        android:textColor="@color/text_white"
-                        android:textSize="7sp" />
-
                     <Button
                         android:id="@+id/btnZoomIn1"
                         android:layout_width="20dp"
@@ -485,19 +472,6 @@
                         android:text="R"
                         android:textColor="@color/text_white"
                         android:textSize="8sp" />
-
-                    <!-- MUTE button Box 2 -->
-                    <Button
-                        android:id="@+id/btnMute2"
-                        android:layout_width="22dp"
-                        android:layout_height="20dp"
-                        android:layout_marginStart="1dp"
-                        android:background="@color/button_purple_dark"
-                        android:focusable="true"
-                        android:focusableInTouchMode="true"
-                        android:text="🔊"
-                        android:textColor="@color/text_white"
-                        android:textSize="7sp" />
 
                     <Button
                         android:id="@+id/btnZoomIn2"
@@ -590,19 +564,6 @@
                         android:textColor="@color/text_white"
                         android:textSize="8sp" />
 
-                    <!-- MUTE button Box 3 -->
-                    <Button
-                        android:id="@+id/btnMute3"
-                        android:layout_width="22dp"
-                        android:layout_height="20dp"
-                        android:layout_marginStart="1dp"
-                        android:background="@color/button_blue_dark"
-                        android:focusable="true"
-                        android:focusableInTouchMode="true"
-                        android:text="🔊"
-                        android:textColor="@color/text_white"
-                        android:textSize="7sp" />
-
                     <Button
                         android:id="@+id/btnZoomIn3"
                         android:layout_width="20dp"
@@ -692,19 +653,6 @@
                         android:text="R"
                         android:textColor="@color/text_white"
                         android:textSize="8sp" />
-
-                    <!-- MUTE button Box 4 -->
-                    <Button
-                        android:id="@+id/btnMute4"
-                        android:layout_width="22dp"
-                        android:layout_height="20dp"
-                        android:layout_marginStart="1dp"
-                        android:background="@color/button_purple_dark"
-                        android:focusable="true"
-                        android:focusableInTouchMode="true"
-                        android:text="🔊"
-                        android:textColor="@color/text_white"
-                        android:textSize="7sp" />
 
                     <Button
                         android:id="@+id/btnZoomIn4"
@@ -987,14 +935,14 @@
             <!-- URL inputs – sidebar (unique IDs) -->
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:layout_marginBottom="3dp">
-                <EditText android:id="@+id/urlInput1Sidebar" android:layout_width="0dp"
+                <EditText android:id="@+id/urlInputSidebar1" android:layout_width="0dp"
                     android:layout_height="20dp" android:layout_weight="1"
                     android:background="@color/background_darker" android:focusable="true"
                     android:focusableInTouchMode="true" android:hint="Box 1"
                     android:imeOptions="actionDone" android:inputType="textUri" android:padding="6dp"
                     android:text="https://dzritv.com/sport/football/" android:textColor="@color/text_white"
                     android:textSize="8sp" android:singleLine="true" android:maxLines="1" />
-                <Button android:id="@+id/btnLoadUrl1Sidebar" android:layout_width="40dp"
+                <Button android:id="@+id/btnLoadUrlSidebar1" android:layout_width="40dp"
                     android:layout_height="20dp" android:layout_marginStart="3dp"
                     android:background="@color/button_blue" android:focusable="true"
                     android:focusableInTouchMode="true" android:text="GO"
@@ -1003,14 +951,14 @@
 
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:layout_marginBottom="3dp">
-                <EditText android:id="@+id/urlInput2Sidebar" android:layout_width="0dp"
+                <EditText android:id="@+id/urlInputSidebar2" android:layout_width="0dp"
                     android:layout_height="20dp" android:layout_weight="1"
                     android:background="@color/background_darker" android:focusable="true"
                     android:focusableInTouchMode="true" android:hint="Box 2"
                     android:imeOptions="actionDone" android:inputType="textUri" android:padding="6dp"
                     android:text="https://dzritv.com/sport/football/" android:textColor="@color/text_white"
                     android:textSize="8sp" android:singleLine="true" android:maxLines="1" />
-                <Button android:id="@+id/btnLoadUrl2Sidebar" android:layout_width="40dp"
+                <Button android:id="@+id/btnLoadUrlSidebar2" android:layout_width="40dp"
                     android:layout_height="20dp" android:layout_marginStart="3dp"
                     android:background="@color/button_purple" android:focusable="true"
                     android:focusableInTouchMode="true" android:text="GO"
@@ -1019,14 +967,14 @@
 
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:layout_marginBottom="3dp">
-                <EditText android:id="@+id/urlInput3Sidebar" android:layout_width="0dp"
+                <EditText android:id="@+id/urlInputSidebar3" android:layout_width="0dp"
                     android:layout_height="20dp" android:layout_weight="1"
                     android:background="@color/background_darker" android:focusable="true"
                     android:focusableInTouchMode="true" android:hint="Box 3"
                     android:imeOptions="actionDone" android:inputType="textUri" android:padding="6dp"
                     android:text="https://dzritv.com/sport/football/" android:textColor="@color/text_white"
                     android:textSize="8sp" android:singleLine="true" android:maxLines="1" />
-                <Button android:id="@+id/btnLoadUrl3Sidebar" android:layout_width="40dp"
+                <Button android:id="@+id/btnLoadUrlSidebar3" android:layout_width="40dp"
                     android:layout_height="20dp" android:layout_marginStart="3dp"
                     android:background="@color/button_blue" android:focusable="true"
                     android:focusableInTouchMode="true" android:text="GO"
@@ -1035,14 +983,14 @@
 
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="horizontal" android:layout_marginBottom="8dp">
-                <EditText android:id="@+id/urlInput4Sidebar" android:layout_width="0dp"
+                <EditText android:id="@+id/urlInputSidebar4" android:layout_width="0dp"
                     android:layout_height="20dp" android:layout_weight="1"
                     android:background="@color/background_darker" android:focusable="true"
                     android:focusableInTouchMode="true" android:hint="Box 4"
                     android:imeOptions="actionDone" android:inputType="textUri" android:padding="6dp"
                     android:text="https://dzritv.com/sport/football/" android:textColor="@color/text_white"
                     android:textSize="8sp" android:singleLine="true" android:maxLines="1" />
-                <Button android:id="@+id/btnLoadUrl4Sidebar" android:layout_width="40dp"
+                <Button android:id="@+id/btnLoadUrlSidebar4" android:layout_width="40dp"
                     android:layout_height="20dp" android:layout_marginStart="3dp"
                     android:background="@color/button_purple" android:focusable="true"
                     android:focusableInTouchMode="true" android:text="GO"
