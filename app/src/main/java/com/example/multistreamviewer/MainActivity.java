@@ -485,44 +485,47 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // post() → gridLayout dimensions are valid when the Runnable executes
-        gridLayout.post(() -> {
-            int gridW = gridLayout.getWidth();
-            int gridH = gridLayout.getHeight();
-            if (gridW <= 0 || gridH <= 0) {
-                // Fallback for first call before measurement
-                android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
-                int barPx = (int)(24 * dm.density);
-                gridW = dm.widthPixels;
-                gridH = dm.heightPixels - barPx * 2;
-            }
+        // Espera até o GridLayout estar realmente medido
+        gridLayout.getViewTreeObserver().addOnGlobalLayoutListener(
+            new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
 
-            int margin = fCount == 1 ? 0 : fCount == 2 ? 2 : 1;
-            int cellW = Math.max(0, (gridW - margin * 2 * fCols) / fCols);
-            int cellH = Math.max(0, (gridH - margin * 2 * fRows) / fRows);
+                @Override
+                public void onGlobalLayout() {
 
-            // Sempre fazer rebuild para evitar problemas com LayoutParams
-            gridLayout.removeAllViews();
-            gridLayout.setRowCount(fRows);
-            gridLayout.setColumnCount(fCols);
+                    // Remove listener para evitar loop infinito
+                    gridLayout.getViewTreeObserver().removeOnGlobalLayoutListener(this);
 
-            int pos = 0;
-            for (int i = 0; i < 4; i++) {
-                if (!boxEnabled[i] || boxContainers[i] == null) continue;
+                    int gridW = gridLayout.getMeasuredWidth();
+                    int gridH = gridLayout.getMeasuredHeight();
 
-                GridLayout.Spec rowSpec = GridLayout.spec(pos / fCols, 1, 1f);
-                GridLayout.Spec colSpec = GridLayout.spec(pos % fCols, 1, 1f);
-                GridLayout.LayoutParams p = new GridLayout.LayoutParams(rowSpec, colSpec);
-                p.width = cellW;
-                p.height = cellH;
-                p.setMargins(margin, margin, margin, margin);
-                gridLayout.addView(boxContainers[i], p);
-                pos++;
-            }
+                    if (gridW <= 0 || gridH <= 0) return;
 
-            gridLayout.requestLayout();
-            Log.d(TAG, "updateLayout " + fCount + " boxes "
-                + (portrait ? "portrait" : "landscape")
-                + " [" + fCols + "×" + fRows + "] cell=" + cellW + "×" + cellH);
+                    int margin = fCount == 1 ? 0 : fCount == 2 ? 2 : 1;
+                    int cellW = Math.max(0, (gridW - margin * 2 * fCols) / fCols);
+                    int cellH = Math.max(0, (gridH - margin * 2 * fRows) / fRows);
+
+                    gridLayout.removeAllViews();
+                    gridLayout.setRowCount(fRows);
+                    gridLayout.setColumnCount(fCols);
+
+                    int pos = 0;
+                    for (int i = 0; i < 4; i++) {
+                        if (!boxEnabled[i] || boxContainers[i] == null) continue;
+
+                        GridLayout.Spec rowSpec = GridLayout.spec(pos / fCols, 1, 1f);
+                        GridLayout.Spec colSpec = GridLayout.spec(pos % fCols, 1, 1f);
+                        GridLayout.LayoutParams p = new GridLayout.LayoutParams(rowSpec, colSpec);
+
+                        p.width = cellW;
+                        p.height = cellH;
+                        p.setMargins(margin, margin, margin, margin);
+
+                        gridLayout.addView(boxContainers[i], p);
+                        pos++;
+                    }
+
+                    gridLayout.requestLayout();
+                }
         });
     }
 
