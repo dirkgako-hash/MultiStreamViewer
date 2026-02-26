@@ -556,21 +556,14 @@ public class MainActivity extends AppCompatActivity {
             if (btnPrevious[i]       != null) btnPrevious[i].setOnClickListener(v -> { if (webViews[idx]!=null&&webViews[idx].canGoBack())    webViews[idx].goBack(); });
             if (btnNext[i]           != null) btnNext[i].setOnClickListener(v ->     { if (webViews[idx]!=null&&webViews[idx].canGoForward()) webViews[idx].goForward(); });
 
-            if (checkBoxes[i] != null) {
-                checkBoxes[i].setOnCheckedChangeListener((b, checked) -> {
-                    if (isSyncingUI) return;   // ⛔ BLOQUEIA durante loadSavedState
-                    boxEnabled[idx] = checked;
-                    updateLayout();
-                });
-            }
-
-            if (checkBoxesKeepActive[i] != null) {
-                checkBoxesKeepActive[i].setOnCheckedChangeListener((b, checked) -> {
-                    if (isSyncingUI) return;   // ⛔ BLOQUEIA durante loadSavedState
-                    boxKeepActive[idx] = checked;
-                    updateLayout();
-                });
-            }
+            if (checkBoxes[i] != null) checkBoxes[i].setOnCheckedChangeListener((b, checked) -> {
+                boxEnabled[idx] = checked;
+                updateLayout();   // only rebuilds grid – WebViews untouched
+            });
+            if (checkBoxesKeepActive[i] != null) checkBoxesKeepActive[i].setOnCheckedChangeListener((b, checked) -> {
+                boxKeepActive[idx] = checked;
+                updateLayout();
+            });
         }
 
         if (cbAllowScripts != null) cbAllowScripts.setOnCheckedChangeListener((b, c) -> { for (WebView wv : webViews) if (wv!=null) wv.getSettings().setJavaScriptEnabled(c); });
@@ -676,8 +669,7 @@ public class MainActivity extends AppCompatActivity {
             if (!silent) Toast.makeText(this,"✅ Estado carregado!",Toast.LENGTH_SHORT).show();
         } catch (Exception e) { if (!silent) Toast.makeText(this,"❌ Erro ao carregar",Toast.LENGTH_SHORT).show(); }
         finally {
-            isSyncingUI = false;
-            updateLayout();   // 🔥 Força layout final consistente
+            isSyncingUI = false;  // Re-habilitar listeners
         }
     }
 
