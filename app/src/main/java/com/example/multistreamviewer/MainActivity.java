@@ -206,17 +206,24 @@ public class MainActivity extends AppCompatActivity {
         // Lá é que se atualiza currentOrientation e se chama updateLayout()
     }
 
+
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+
         currentOrientation = newConfig.orientation;
-        Log.d(TAG, "onConfigurationChanged → " + (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
-        
-        // Proteger contra nullPointerException se gridLayout não estiver pronto
+
+        Log.d(TAG, "onConfigurationChanged → " +
+                (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
+
         if (gridLayout != null) {
-            gridLayout.post(this::updateLayout);
-        } else {
-            Log.e(TAG, "gridLayout is null during onConfigurationChanged!");
+
+            // 🔥 Força novo layout pass antes de calcular dimensões
+            gridLayout.requestLayout();
+
+            gridLayout.postDelayed(() -> {
+                updateLayout();
+            }, 50); // pequeno delay garante medidas corretas
         }
     }
 

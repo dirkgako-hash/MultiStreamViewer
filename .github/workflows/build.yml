@@ -69,13 +69,13 @@ jobs:
             -keyalg RSA \
             -keysize 2048 \
             -validity 10000 \
-            -storepass 123456 \
-            -keypass 123456 \
+            -storepass 458080 \
+            -keypass 458080 \
             -dname "CN=Android, OU=Android, O=Android, L=City, ST=State, C=US" \
             -noprompt
           
-          echo "storePassword=123456" > keystore.properties
-          echo "keyPassword=123456" >> keystore.properties
+          echo "storePassword=458080" > keystore.properties
+          echo "keyPassword=458080" >> keystore.properties
           echo "keyAlias=key0" >> keystore.properties
           echo "storeFile=../multistreamviewer.jks" >> keystore.properties
           
