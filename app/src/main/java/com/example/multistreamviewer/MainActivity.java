@@ -64,10 +64,18 @@ import java.util.List;
  */
 public class MainActivity extends AppCompatActivity {
 
+
+
+
+
     // ── Views ──────────────────────────────────────────────────────────────────
     private GridLayout     gridLayout;
     private FrameLayout[]  boxContainers = new FrameLayout[4];
     private WebView[]      webViews      = new WebView[4];
+
+    // 🔥 Fullscreen video tracking
+    private View[] customViews = new View[4];
+    private WebChromeClient.CustomViewCallback[] customCallbacks = new WebChromeClient.CustomViewCallback[4];
 
     private LinearLayout   bottomControls;
     private LinearLayout   expandedBottomBar;
@@ -207,26 +215,42 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
+@Override
+public void onConfigurationChanged(Configuration newConfig) {
+    super.onConfigurationChanged(newConfig);
 
-        currentOrientation = newConfig.orientation;
+    currentOrientation = newConfig.orientation;
 
-        Log.d(TAG, "onConfigurationChanged → " +
-                (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
+    Log.d(TAG, "onConfigurationChanged → " +
+            (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
 
-        if (gridLayout != null) {
+    if (gridLayout != null) {
 
-            // 🔥 Força novo layout pass antes de calcular dimensões
-            gridLayout.requestLayout();
+        gridLayout.requestLayout();
 
-            gridLayout.postDelayed(() -> {
-                updateLayout();
-            }, 50); // pequeno delay garante medidas corretas
-        }
+        gridLayout.postDelayed(() -> {
+
+            updateLayout();
+
+            // 🔥 REAPLICAR FULLSCREEN SE EXISTIR
+            for (int i = 0; i < 4; i++) {
+
+                if (customViews[i] != null) {
+
+                    boxContainers[i].removeView(customViews[i]);
+
+                    boxContainers[i].addView(customViews[i],
+                            new FrameLayout.LayoutParams(
+                                    FrameLayout.LayoutParams.MATCH_PARENT,
+                                    FrameLayout.LayoutParams.MATCH_PARENT));
+
+                    boxContainers[i].requestLayout();
+                }
+            }
+
+        }, 50);
     }
-
+}
     // ══════════════════════════════════════════════════════════════════════════
     //  INIT VIEWS
     // ══════════════════════════════════════════════════════════════════════════
@@ -407,16 +431,33 @@ public class MainActivity extends AppCompatActivity {
         });
 
         wv.setWebChromeClient(new WebChromeClient() {
-            @Override public void onShowCustomView(View view, CustomViewCallback cb) {
-                // HTML5 fullscreen request from page – show inside the box container
-                if (boxContainers[idx].getChildCount() > 1) boxContainers[idx].removeViewAt(1);
-                boxContainers[idx].addView(view, new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-                wv.setVisibility(View.GONE);
+
+            @Override
+            public void onShowCustomView(View view, CustomViewCallback cb) {
+
+                customViews[idx] = view;
+                customCallbacks[idx] = cb;
+
+                if (boxContainers[idx].getChildCount() > 1)
+                    boxContainers[idx].removeViewAt(1);
+
+                boxContainers[idx].addView(view,
+                        new FrameLayout.LayoutParams(
+                                FrameLayout.LayoutParams.MATCH_PARENT,
+                                FrameLayout.LayoutParams.MATCH_PARENT));
+
+                webViews[idx].setVisibility(View.GONE);
             }
-            @Override public void onHideCustomView() {
-                if (boxContainers[idx].getChildCount() > 1) boxContainers[idx].removeViewAt(1);
-                wv.setVisibility(View.VISIBLE);
+
+            @Override
+            public void onHideCustomView() {
+
+                if (customViews[idx] != null) {
+                    boxContainers[idx].removeView(customViews[idx]);
+                    customViews[idx] = null;
+                }
+
+                webViews[idx].setVisibility(View.VISIBLE);
             }
         });
     }
