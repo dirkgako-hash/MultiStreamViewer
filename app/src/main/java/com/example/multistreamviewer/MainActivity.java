@@ -216,7 +216,7 @@ public class MainActivity extends AppCompatActivity {
 
 
 @Override
-@Override
+
 public void onConfigurationChanged(Configuration newConfig) {
     super.onConfigurationChanged(newConfig);
 
@@ -412,18 +412,23 @@ public void onConfigurationChanged(Configuration newConfig) {
 wv.setWebChromeClient(new WebChromeClient() {
 
     @Override
-    public void onShowCustomView(View view, CustomViewCallback callback) {
+@Override
+public void onShowCustomView(View view, CustomViewCallback callback) {
 
-        customViews[idx] = view;
-        customCallbacks[idx] = callback;
-
-        boxContainers[idx].addView(view,
-                new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT));
-
-        webViews[idx].setVisibility(View.GONE);
+    if (customViews[idx] != null) {
+        boxContainers[idx].removeView(customViews[idx]);
     }
+
+    customViews[idx] = view;
+    customCallbacks[idx] = callback;
+
+    boxContainers[idx].addView(view,
+            new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT));
+
+    webViews[idx].setVisibility(View.GONE);
+}
 
     @Override
     public void onHideCustomView() {
@@ -532,8 +537,8 @@ private void reapplyFullscreenViews() {
 
     gridLayout.post(() -> {
 
-        int gridW = gridLayout.getWidth();
-        int gridH = gridLayout.getHeight();
+        int gridW = gridLayout.getMeasuredWidth();
+        int gridH = gridLayout.getMeasuredHeight();
 
         if (gridW <= 0 || gridH <= 0) return;
 
