@@ -93,7 +93,9 @@ jobs:
       
       - name: Build Release APK
         run: |
-          echo "Building Release APK..."
+          echo "VERSION_CODE=${{ github.run_number }}" >> $GITHUB_ENV
+          echo "VERSION_NAME=1.0.${{ github.run_number }}" >> $GITHUB_ENV
+
           ./gradlew assembleRelease --stacktrace
           echo "✓ Release APK built successfully!"
       
