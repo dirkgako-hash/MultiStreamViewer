@@ -412,23 +412,18 @@ public void onConfigurationChanged(Configuration newConfig) {
 wv.setWebChromeClient(new WebChromeClient() {
 
     @Override
-@Override
-public void onShowCustomView(View view, CustomViewCallback callback) {
+    public void onShowCustomView(View view, CustomViewCallback callback) {
 
-    if (customViews[idx] != null) {
-        boxContainers[idx].removeView(customViews[idx]);
+        customViews[idx] = view;
+        customCallbacks[idx] = callback;
+
+        boxContainers[idx].addView(view,
+                new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT));
+
+        webViews[idx].setVisibility(View.GONE);
     }
-
-    customViews[idx] = view;
-    customCallbacks[idx] = callback;
-
-    boxContainers[idx].addView(view,
-            new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT));
-
-    webViews[idx].setVisibility(View.GONE);
-}
 
     @Override
     public void onHideCustomView() {
@@ -493,7 +488,7 @@ private void reapplyFullscreenViews() {
      *  • Ao abrir sidebar, a grid reajusta width mas estado das boxes NÃO muda.
      *  • KeepAlive é ativado por padrão (boxKeepActive[] inicializado com true).
      */
-    private void updateLayout() {
+private void updateLayout() {
 
     int visibleCount = 0;
     for (boolean e : boxEnabled) if (e) visibleCount++;
@@ -503,7 +498,7 @@ private void reapplyFullscreenViews() {
         visibleCount = 1;
     }
 
-    boolean portrait = (currentOrientation == Configuration.ORIENTATION_PORTRAIT);
+    final boolean portrait = (currentOrientation == Configuration.ORIENTATION_PORTRAIT);
 
     int rows, cols;
 
@@ -522,6 +517,11 @@ private void reapplyFullscreenViews() {
             default: rows = 2; cols = 2; break;
         }
     }
+
+    // 🔥 Tornar final para uso dentro do lambda
+    final int fVisibleCount = visibleCount;
+    final int fRows = rows;
+    final int fCols = cols;
 
     for (int i = 0; i < 4; i++) {
         if (boxContainers[i] == null) continue;
@@ -542,21 +542,21 @@ private void reapplyFullscreenViews() {
 
         if (gridW <= 0 || gridH <= 0) return;
 
-        int margin = visibleCount == 1 ? 0 : 2;
-        int cellW = (gridW - margin * 2 * cols) / cols;
-        int cellH = (gridH - margin * 2 * rows) / rows;
+        int margin = fVisibleCount == 1 ? 0 : 2;
+        int cellW = (gridW - margin * 2 * fCols) / fCols;
+        int cellH = (gridH - margin * 2 * fRows) / fRows;
 
         gridLayout.removeAllViews();
-        gridLayout.setRowCount(rows);
-        gridLayout.setColumnCount(cols);
+        gridLayout.setRowCount(fRows);
+        gridLayout.setColumnCount(fCols);
 
         int pos = 0;
 
         for (int i = 0; i < 4; i++) {
             if (!boxEnabled[i]) continue;
 
-            GridLayout.Spec rowSpec = GridLayout.spec(pos / cols, 1f);
-            GridLayout.Spec colSpec = GridLayout.spec(pos % cols, 1f);
+            GridLayout.Spec rowSpec = GridLayout.spec(pos / fCols, 1f);
+            GridLayout.Spec colSpec = GridLayout.spec(pos % fCols, 1f);
 
             GridLayout.LayoutParams p =
                     new GridLayout.LayoutParams(rowSpec, colSpec);
@@ -571,11 +571,13 @@ private void reapplyFullscreenViews() {
 
         gridLayout.requestLayout();
 
-        // 🔥 IMPORTANTÍSSIMO
+        // 🔥 Reaplicar fullscreen após reorganização
         reapplyFullscreenViews();
     });
 }
-    // ══════════════════════════════════════════════════════════════════════════
+
+
+// ══════════════════════════════════════════════════════════════════════════
     //  EVENT LISTENERS
     // ══════════════════════════════════════════════════════════════════════════
 
