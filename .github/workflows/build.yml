@@ -100,7 +100,7 @@ jobs:
       - name: Verify Release APK
         run: |
           echo "=== Generated Release APK ==="
-          find app/build -name "*release*.apk" -type f | xargs -I {} sh -c 'echo "{} - $(du -h {} | cut -f1)"'
+          find app/build -name "*MULTIBOX-DIROSKY*.apk" -type f | xargs -I {} sh -c 'echo "{} - $(du -h {} | cut -f1)"'
           
           echo ""
           echo "=== Verifying signature ==="
@@ -112,7 +112,7 @@ jobs:
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MultiStreamViewer-Release
+          name: MultiBox_DIROSKY-Release
           path: app/build/outputs/apk/release/
           if-no-files-found: error
           retention-days: 30

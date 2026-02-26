@@ -216,42 +216,21 @@ public class MainActivity extends AppCompatActivity {
 
 
 @Override
+@Override
 public void onConfigurationChanged(Configuration newConfig) {
     super.onConfigurationChanged(newConfig);
 
     currentOrientation = newConfig.orientation;
 
-    Log.d(TAG, "onConfigurationChanged → " +
+    Log.d(TAG, "Rotation → " +
             (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
 
     if (gridLayout != null) {
-
-        gridLayout.requestLayout();
-
-        gridLayout.postDelayed(() -> {
-
-            updateLayout();
-
-            // 🔥 REAPLICAR FULLSCREEN SE EXISTIR
-            for (int i = 0; i < 4; i++) {
-
-                if (customViews[i] != null) {
-
-                    boxContainers[i].removeView(customViews[i]);
-
-                    boxContainers[i].addView(customViews[i],
-                            new FrameLayout.LayoutParams(
-                                    FrameLayout.LayoutParams.MATCH_PARENT,
-                                    FrameLayout.LayoutParams.MATCH_PARENT));
-
-                    boxContainers[i].requestLayout();
-                }
-            }
-
-        }, 50);
+        gridLayout.post(this::updateLayout);
     }
 }
-    // ══════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════
     //  INIT VIEWS
     // ══════════════════════════════════════════════════════════════════════════
 
@@ -430,36 +409,33 @@ public void onConfigurationChanged(Configuration newConfig) {
             }
         });
 
-        wv.setWebChromeClient(new WebChromeClient() {
+wv.setWebChromeClient(new WebChromeClient() {
 
-            @Override
-            public void onShowCustomView(View view, CustomViewCallback cb) {
+    @Override
+    public void onShowCustomView(View view, CustomViewCallback callback) {
 
-                customViews[idx] = view;
-                customCallbacks[idx] = cb;
+        customViews[idx] = view;
+        customCallbacks[idx] = callback;
 
-                if (boxContainers[idx].getChildCount() > 1)
-                    boxContainers[idx].removeViewAt(1);
+        boxContainers[idx].addView(view,
+                new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT));
 
-                boxContainers[idx].addView(view,
-                        new FrameLayout.LayoutParams(
-                                FrameLayout.LayoutParams.MATCH_PARENT,
-                                FrameLayout.LayoutParams.MATCH_PARENT));
+        webViews[idx].setVisibility(View.GONE);
+    }
 
-                webViews[idx].setVisibility(View.GONE);
-            }
+    @Override
+    public void onHideCustomView() {
 
-            @Override
-            public void onHideCustomView() {
+        if (customViews[idx] != null) {
+            boxContainers[idx].removeView(customViews[idx]);
+            customViews[idx] = null;
+        }
 
-                if (customViews[idx] != null) {
-                    boxContainers[idx].removeView(customViews[idx]);
-                    customViews[idx] = null;
-                }
-
-                webViews[idx].setVisibility(View.VISIBLE);
-            }
-        });
+        webViews[idx].setVisibility(View.VISIBLE);
+    }
+});
     }
 
     private String buildUserAgent() {
@@ -467,6 +443,26 @@ public void onConfigurationChanged(Configuration newConfig) {
             ? "Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/91.0.4472.120 Mobile Safari/537.36"
             : "Mozilla/5.0 (Linux; Android 11; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36";
     }
+
+private void reapplyFullscreenViews() {
+
+    for (int i = 0; i < 4; i++) {
+
+        if (customViews[i] != null) {
+
+            boxContainers[i].removeView(customViews[i]);
+
+            boxContainers[i].addView(customViews[i],
+                    new FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT));
+
+            boxContainers[i].requestLayout();
+        }
+    }
+}
+
+
 
     // ══════════════════════════════════════════════════════════════════════════
     //  UPDATE LAYOUT  –  single source of truth for grid arrangement
@@ -493,83 +489,87 @@ public void onConfigurationChanged(Configuration newConfig) {
      *  • KeepAlive é ativado por padrão (boxKeepActive[] inicializado com true).
      */
     private void updateLayout() {
-        // Count boxes that will be shown in the grid
-        int visibleCount = 0;
-        for (boolean e : boxEnabled) if (e) visibleCount++;
 
-        // Enforce at least 1 visible box
-        if (visibleCount == 0) {
-            for (int i = 0; i < 4; i++) {
-                boxEnabled[i] = true;
-                if (checkBoxes[i] != null) checkBoxes[i].setChecked(true);
-            }
-            visibleCount = 4;
-        }
+    int visibleCount = 0;
+    for (boolean e : boxEnabled) if (e) visibleCount++;
 
-        // Grid shape for current orientation + box count
-        boolean portrait = (currentOrientation == Configuration.ORIENTATION_PORTRAIT);
-        int rows, cols;
-        if (portrait) {
-            switch (visibleCount) { case 1: rows=1;cols=1;break; case 2: rows=2;cols=1;break; case 3: rows=3;cols=1;break; default: rows=2;cols=2;break; }
-        } else {
-            switch (visibleCount) { case 1: rows=1;cols=1;break; case 2: rows=1;cols=2;break; case 3: rows=1;cols=3;break; default: rows=2;cols=2;break; }
-        }
-
-        final int fRows = rows, fCols = cols, fCount = visibleCount;
-
-        // Set visibility BEFORE post() so GONE boxes don't affect measured dimensions
-        for (int i = 0; i < 4; i++) {
-            if (boxContainers[i] == null) continue;
-            if      (boxEnabled[i])             boxContainers[i].setVisibility(View.VISIBLE);
-            else if (boxKeepActive[i])          boxContainers[i].setVisibility(View.INVISIBLE);
-            else                                boxContainers[i].setVisibility(View.GONE);
-        }
-
-        // post() → gridLayout dimensions are valid when the Runnable executes
-        // Espera até o GridLayout estar realmente medido
-        gridLayout.getViewTreeObserver().addOnGlobalLayoutListener(
-            new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
-
-                @Override
-                public void onGlobalLayout() {
-
-                    // Remove listener para evitar loop infinito
-                    gridLayout.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-
-                    int gridW = gridLayout.getMeasuredWidth();
-                    int gridH = gridLayout.getMeasuredHeight();
-
-                    if (gridW <= 0 || gridH <= 0) return;
-
-                    int margin = fCount == 1 ? 0 : fCount == 2 ? 2 : 1;
-                    int cellW = Math.max(0, (gridW - margin * 2 * fCols) / fCols);
-                    int cellH = Math.max(0, (gridH - margin * 2 * fRows) / fRows);
-
-                    gridLayout.removeAllViews();
-                    gridLayout.setRowCount(fRows);
-                    gridLayout.setColumnCount(fCols);
-
-                    int pos = 0;
-                    for (int i = 0; i < 4; i++) {
-                        if (!boxEnabled[i] || boxContainers[i] == null) continue;
-
-                        GridLayout.Spec rowSpec = GridLayout.spec(pos / fCols, 1, 1f);
-                        GridLayout.Spec colSpec = GridLayout.spec(pos % fCols, 1, 1f);
-                        GridLayout.LayoutParams p = new GridLayout.LayoutParams(rowSpec, colSpec);
-
-                        p.width = cellW;
-                        p.height = cellH;
-                        p.setMargins(margin, margin, margin, margin);
-
-                        gridLayout.addView(boxContainers[i], p);
-                        pos++;
-                    }
-
-                    gridLayout.requestLayout();
-                }
-        });
+    if (visibleCount == 0) {
+        boxEnabled[0] = true;
+        visibleCount = 1;
     }
 
+    boolean portrait = (currentOrientation == Configuration.ORIENTATION_PORTRAIT);
+
+    int rows, cols;
+
+    if (portrait) {
+        switch (visibleCount) {
+            case 1: rows = 1; cols = 1; break;
+            case 2: rows = 2; cols = 1; break;
+            case 3: rows = 3; cols = 1; break;
+            default: rows = 2; cols = 2; break;
+        }
+    } else {
+        switch (visibleCount) {
+            case 1: rows = 1; cols = 1; break;
+            case 2: rows = 1; cols = 2; break;
+            case 3: rows = 1; cols = 3; break;
+            default: rows = 2; cols = 2; break;
+        }
+    }
+
+    for (int i = 0; i < 4; i++) {
+        if (boxContainers[i] == null) continue;
+
+        if (boxEnabled[i]) {
+            boxContainers[i].setVisibility(View.VISIBLE);
+        } else if (boxKeepActive[i]) {
+            boxContainers[i].setVisibility(View.INVISIBLE);
+        } else {
+            boxContainers[i].setVisibility(View.GONE);
+        }
+    }
+
+    gridLayout.post(() -> {
+
+        int gridW = gridLayout.getWidth();
+        int gridH = gridLayout.getHeight();
+
+        if (gridW <= 0 || gridH <= 0) return;
+
+        int margin = visibleCount == 1 ? 0 : 2;
+        int cellW = (gridW - margin * 2 * cols) / cols;
+        int cellH = (gridH - margin * 2 * rows) / rows;
+
+        gridLayout.removeAllViews();
+        gridLayout.setRowCount(rows);
+        gridLayout.setColumnCount(cols);
+
+        int pos = 0;
+
+        for (int i = 0; i < 4; i++) {
+            if (!boxEnabled[i]) continue;
+
+            GridLayout.Spec rowSpec = GridLayout.spec(pos / cols, 1f);
+            GridLayout.Spec colSpec = GridLayout.spec(pos % cols, 1f);
+
+            GridLayout.LayoutParams p =
+                    new GridLayout.LayoutParams(rowSpec, colSpec);
+
+            p.width = cellW;
+            p.height = cellH;
+            p.setMargins(margin, margin, margin, margin);
+
+            gridLayout.addView(boxContainers[i], p);
+            pos++;
+        }
+
+        gridLayout.requestLayout();
+
+        // 🔥 IMPORTANTÍSSIMO
+        reapplyFullscreenViews();
+    });
+}
     // ══════════════════════════════════════════════════════════════════════════
     //  EVENT LISTENERS
     // ══════════════════════════════════════════════════════════════════════════
