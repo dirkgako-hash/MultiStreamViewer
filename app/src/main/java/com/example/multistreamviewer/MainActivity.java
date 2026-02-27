@@ -216,17 +216,40 @@ public class MainActivity extends AppCompatActivity {
 
 
 @Override
-
 public void onConfigurationChanged(Configuration newConfig) {
     super.onConfigurationChanged(newConfig);
 
     currentOrientation = newConfig.orientation;
 
-    Log.d(TAG, "Rotation → " +
-            (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "PORTRAIT" : "LANDSCAPE"));
-
     if (gridLayout != null) {
-        gridLayout.post(this::updateLayout);
+
+        gridLayout.post(() -> {
+
+            updateLayout();
+
+            // 🔥 Forçar re-layout profundo do fullscreen
+            for (int i = 0; i < 4; i++) {
+
+                if (customViews[i] != null) {
+
+                    View custom = customViews[i];
+
+                    boxContainers[i].removeView(custom);
+
+                    custom.setLayoutParams(
+                            new FrameLayout.LayoutParams(
+                                    FrameLayout.LayoutParams.MATCH_PARENT,
+                                    FrameLayout.LayoutParams.MATCH_PARENT
+                            )
+                    );
+
+                    boxContainers[i].addView(custom);
+
+                    custom.requestLayout();
+                    custom.invalidate();
+                }
+            }
+        });
     }
 }
 
