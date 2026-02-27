@@ -318,7 +318,8 @@ public class MainActivity extends AppCompatActivity {
             s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setUserAgentString(buildUserAgent());
         s.setTextZoom((int) (zoomLevels[idx] * 100));
-        wv.setInitialScale((int) (zoomLevels[idx] * 100));
+        // Removido setInitialScale fixo – agora usa 0 para respeitar a viewport da página
+        wv.setInitialScale(0);
         wv.setBackgroundColor(Color.BLACK);
         wv.setVerticalScrollBarEnabled(true);
         wv.setHorizontalScrollBarEnabled(false);
@@ -384,6 +385,7 @@ public class MainActivity extends AppCompatActivity {
                 : "Mozilla/5.0 (Linux; Android 11; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36";
     }
 
+    // ================== MÉTODO CORRIGIDO updateLayout ==================
     private void updateLayout() {
         int visibleCount = 0;
         for (boolean e : boxEnabled) if (e) visibleCount++;
@@ -394,7 +396,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         final boolean portrait = (currentOrientation == Configuration.ORIENTATION_PORTRAIT);
-
         int rows, cols;
 
         if (portrait) {
@@ -441,6 +442,7 @@ public class MainActivity extends AppCompatActivity {
         final int fRows = rows;
         final int fCols = cols;
 
+        // Define a visibilidade dos containers
         for (int i = 0; i < 4; i++) {
             if (boxContainers[i] == null) continue;
             if (boxEnabled[i]) {
@@ -457,9 +459,19 @@ public class MainActivity extends AppCompatActivity {
             int gridH = gridLayout.getMeasuredHeight();
             if (gridW <= 0 || gridH <= 0) return;
 
-            int margin = fVisibleCount == 1 ? 0 : 2;
-            int cellW = (gridW - margin * 2 * fCols) / fCols;
-            int cellH = (gridH - margin * 2 * fRows) / fRows;
+            // Converte a margem de 2dp para pixels, garantindo consistência em todas as telas
+            float density = getResources().getDisplayMetrics().density;
+            int margin = (fVisibleCount == 1) ? 0 : (int) (2 * density);
+
+            // Largura total disponível para as células (descontando as margens laterais)
+            int totalCellWidth = gridW - margin * 2 * fCols;
+            int baseCellWidth = totalCellWidth / fCols;
+            int remainderWidth = totalCellWidth % fCols; // pixels extras a distribuir
+
+            // Altura total disponível para as células (descontando as margens superior/inferior)
+            int totalCellHeight = gridH - margin * 2 * fRows;
+            int baseCellHeight = totalCellHeight / fRows;
+            int remainderHeight = totalCellHeight % fRows;
 
             gridLayout.removeAllViews();
             gridLayout.setRowCount(fRows);
@@ -469,8 +481,15 @@ public class MainActivity extends AppCompatActivity {
             for (int i = 0; i < 4; i++) {
                 if (!boxEnabled[i]) continue;
 
-                GridLayout.Spec rowSpec = GridLayout.spec(pos / fCols, 1f);
-                GridLayout.Spec colSpec = GridLayout.spec(pos % fCols, 1f);
+                int row = pos / fCols;
+                int col = pos % fCols;
+
+                // A largura da célula recebe +1 se houver resto e esta coluna estiver entre as primeiras 'remainderWidth' colunas
+                int cellW = baseCellWidth + (col < remainderWidth ? 1 : 0);
+                int cellH = baseCellHeight + (row < remainderHeight ? 1 : 0);
+
+                GridLayout.Spec rowSpec = GridLayout.spec(row, 1f);
+                GridLayout.Spec colSpec = GridLayout.spec(col, 1f);
                 GridLayout.LayoutParams p = new GridLayout.LayoutParams(rowSpec, colSpec);
                 p.width = cellW;
                 p.height = cellH;
@@ -482,6 +501,7 @@ public class MainActivity extends AppCompatActivity {
             gridLayout.requestLayout();
         });
     }
+    // ================== FIM DA CORREÇÃO ==================
 
     private void initEventListeners() {
         if (btnToggleBottomBar != null) btnToggleBottomBar.setOnClickListener(v -> toggleBottomBar());
