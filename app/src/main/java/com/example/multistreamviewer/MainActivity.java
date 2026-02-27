@@ -411,8 +411,11 @@ public void onConfigurationChanged(Configuration newConfig) {
 
 wv.setWebChromeClient(new WebChromeClient() {
 
+
     @Override
     public void onShowCustomView(View view, CustomViewCallback callback) {
+
+        Log.d("MSV_FULLSCREEN", "onShowCustomView → idx=" + idx);
 
         customViews[idx] = view;
         customCallbacks[idx] = callback;
@@ -428,6 +431,8 @@ wv.setWebChromeClient(new WebChromeClient() {
     @Override
     public void onHideCustomView() {
 
+        Log.d("MSV_FULLSCREEN", "onHideCustomView → idx=" + idx);
+
         if (customViews[idx] != null) {
             boxContainers[idx].removeView(customViews[idx]);
             customViews[idx] = null;
@@ -435,6 +440,8 @@ wv.setWebChromeClient(new WebChromeClient() {
 
         webViews[idx].setVisibility(View.VISIBLE);
     }
+
+
 });
     }
 
