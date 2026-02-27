@@ -98,6 +98,8 @@ public class MainActivity extends AppCompatActivity {
     private EditText[] urlInputs   = new EditText[4];
     private CheckBox[] checkBoxes           = new CheckBox[4];
     private CheckBox[] checkBoxesKeepActive = new CheckBox[4];
+    private boolean[] fullscreenActive = new boolean[4];
+
 
     // Sidebar controls (unique IDs – no duplicate-ID build error)
     private EditText[] urlInputsSidebar  = new EditText[4];
@@ -226,7 +228,22 @@ public void onConfigurationChanged(Configuration newConfig) {
         gridLayout.post(() -> {
 
             updateLayout();
+            
+            gridLayout.postDelayed(() -> {
 
+                for (int i = 0; i < 4; i++) {
+
+                    if (fullscreenActive[i] && webViews[i] != null) {
+
+                        webViews[i].evaluateJavascript(
+                            "var v=document.querySelector('video');" +
+                            "if(v){ if(!document.fullscreenElement){ v.requestFullscreen(); }}",
+                            null
+                        );
+                    }
+                }
+
+            }, 300);
             // 🔥 Forçar re-layout profundo do fullscreen
             for (int i = 0; i < 4; i++) {
 
@@ -440,6 +457,7 @@ wv.setWebChromeClient(new WebChromeClient() {
 
         Log.d("MSV_FULLSCREEN", "onShowCustomView → idx=" + idx);
 
+        fullscreenActive[idx] = true;
         customViews[idx] = view;
         customCallbacks[idx] = callback;
 
@@ -456,6 +474,7 @@ wv.setWebChromeClient(new WebChromeClient() {
 
         Log.d("MSV_FULLSCREEN", "onHideCustomView → idx=" + idx);
 
+        fullscreenActive[idx] = false;
         if (customViews[idx] != null) {
             boxContainers[idx].removeView(customViews[idx]);
             customViews[idx] = null;
