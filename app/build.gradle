@@ -70,7 +70,7 @@ androidComponents {
     onVariants(selector().withBuildType("release")) { variant ->
         variant.outputs.forEach { output ->
             output.outputFileName.set(
-                "MULTIBOXDIROSKY-v${variant.versionName.get()}.apk"
+                "MULTIBOXDIROSKY-v${System.getenv("VERSION_NAME") ?: "1.0"}.apk"
             )
         }
     }
