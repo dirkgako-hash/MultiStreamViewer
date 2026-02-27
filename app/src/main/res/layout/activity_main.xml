@@ -831,15 +831,7 @@
                     android:textSize="12sp" />
             </LinearLayout>
 
-            <!-- GUARDAR/CARREGAR -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="GUARDAR/CARREGAR"
-                android:textColor="@color/text_white"
-                android:textSize="9sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="4dp" />
+
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -905,15 +897,6 @@
                     android:textSize="9sp" />
             </LinearLayout>
 
-            <!-- CONFIGURAÇÕES WEB - DUAS COLUNAS -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="CONFIG WEB"
-                android:textColor="@color/text_white"
-                android:textSize="9sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="4dp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -996,16 +979,6 @@
                         android:focusableInTouchMode="true" />
                 </LinearLayout>
             </LinearLayout>
-
-            <!-- URLs -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="URLs (GO para carregar)"
-                android:textColor="@color/text_white"
-                android:textSize="9sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="4dp" />
 
             <!-- URL 1 com botão - COMPACTO -->
             <LinearLayout
