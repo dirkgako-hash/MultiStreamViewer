@@ -64,6 +64,10 @@ import java.util.List;
  */
 public class MainActivity extends AppCompatActivity {
 
+
+
+
+
     // ── Views ──────────────────────────────────────────────────────────────────
     private GridLayout     gridLayout;
     private FrameLayout[]  boxContainers = new FrameLayout[4];
@@ -79,8 +83,7 @@ public class MainActivity extends AppCompatActivity {
     private RelativeLayout mainLayout;
     private TextView       tvFocusedBox;
 
-    private Button btnToggleBottomBar, btnToggleSidebar;
-    private Button btnSetPortrait, btnSetLandscape;  // 🔥 Substitui btnToggleOrientation
+    private Button btnToggleBottomBar, btnToggleSidebar, btnToggleOrientation;
     private Button btnCloseMenu, btnCloseSidebar;
     private Button btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
@@ -97,6 +100,7 @@ public class MainActivity extends AppCompatActivity {
     private CheckBox[] checkBoxesKeepActive = new CheckBox[4];
     private boolean[] fullscreenActive = new boolean[4];
 
+
     // Sidebar controls (unique IDs – no duplicate-ID build error)
     private EditText[] urlInputsSidebar  = new EditText[4];
     private Button[]   btnLoadUrlSidebar = new Button[4];
@@ -107,12 +111,17 @@ public class MainActivity extends AppCompatActivity {
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
 
     // ── State ──────────────────────────────────────────────────────────────────
+    //
+    //  boxEnabled[i]    = true  → container VISIBLE   (in grid)
+    //  boxEnabled[i]    = false + boxKeepActive[i]=true  → INVISIBLE (playing bg)
+    //  boxEnabled[i]    = false + boxKeepActive[i]=false → GONE
+    //
     private boolean[] boxEnabled    = {true, true, true, true};
     private boolean[] boxKeepActive = {true, true, true, true};
 
     private boolean isSidebarVisible    = false;
     private boolean isBottomBarExpanded = false;
-    private boolean isSyncingUI         = false;
+    private boolean isSyncingUI         = false;  // Flag para evitar disparar listeners durante sincronização
     private int     focusedBoxIndex     = 0;
     private float[] zoomLevels          = {1.0f, 1.0f, 1.0f, 1.0f};
     private int     currentOrientation  = Configuration.ORIENTATION_LANDSCAPE;
@@ -134,16 +143,23 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // ① Inflate layout FIRST – views must exist before any orientation
+        //   change fires (setRequestedOrientation can trigger it immediately)
         setContentView(R.layout.activity_main);
 
+        // ② Read the real orientation AFTER layout inflation
         currentOrientation = getResources().getConfiguration().orientation;
 
+        // ③ Request orientation AFTER setContentView (safe – views already exist)
         applyDefaultOrientation();
 
         preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
 
         initViews();
 
+        // ④ Create all 4 WebViews exactly once.
+        //   From this point on webViews[] are NEVER removed from boxContainers[].
+        //   updateLayout() only moves boxContainers[] in/out of gridLayout.
         initWebViewsOnce();
 
         initEventListeners();
@@ -155,6 +171,7 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "✅ " + favoritesList.size() + " favoritos", Toast.LENGTH_SHORT).show();
         }, 1500);
 
+        // First layout pass – post() so gridLayout is measured
         gridLayout.post(() -> {
             updateLayout();
             updateFocusedBoxIndicator();
@@ -184,44 +201,76 @@ public class MainActivity extends AppCompatActivity {
             : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
 
-    private void setOrientation(int requestedOrientation) {
-        String orientationName = (requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) ? "Portrait" : "Landscape";
-        setRequestedOrientation(requestedOrientation);
-        Toast.makeText(this, "📐 " + orientationName, Toast.LENGTH_SHORT).show();
+    private void toggleOrientation() {
+        int newOrientation = (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) 
+            ? Configuration.ORIENTATION_PORTRAIT 
+            : Configuration.ORIENTATION_LANDSCAPE;
+        
+        int screenOrientation = (newOrientation == Configuration.ORIENTATION_PORTRAIT)
+            ? ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            : ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+        
+        setRequestedOrientation(screenOrientation);
+        Toast.makeText(this, newOrientation == Configuration.ORIENTATION_PORTRAIT ? "📱 Portrait" : "📺 Landscape", Toast.LENGTH_SHORT).show();
+        // onConfigurationChanged() vai ser chamado automaticamente pelo Android
+        // Lá é que se atualiza currentOrientation e se chama updateLayout()
     }
 
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        currentOrientation = newConfig.orientation;
 
-        if (gridLayout != null) {
-            gridLayout.post(() -> {
-                updateLayout();
+@Override
+public void onConfigurationChanged(Configuration newConfig) {
+    super.onConfigurationChanged(newConfig);
 
-                // Garantir que as views de fullscreen preenchem os containers após rotação
+    currentOrientation = newConfig.orientation;
+
+    if (gridLayout != null) {
+
+        gridLayout.post(() -> {
+
+            updateLayout();
+            
+            gridLayout.postDelayed(() -> {
+
                 for (int i = 0; i < 4; i++) {
-                    if (customViews[i] != null) {
-                        FrameLayout container = boxContainers[i];
-                        View custom = customViews[i];
 
-                        // Forçar MATCH_PARENT caso não esteja
-                        if (!(custom.getLayoutParams() instanceof FrameLayout.LayoutParams) ||
-                            ((FrameLayout.LayoutParams) custom.getLayoutParams()).width != FrameLayout.LayoutParams.MATCH_PARENT ||
-                            ((FrameLayout.LayoutParams) custom.getLayoutParams()).height != FrameLayout.LayoutParams.MATCH_PARENT) {
-                            custom.setLayoutParams(new FrameLayout.LayoutParams(
-                                    FrameLayout.LayoutParams.MATCH_PARENT,
-                                    FrameLayout.LayoutParams.MATCH_PARENT));
-                        }
+                    if (fullscreenActive[i] && webViews[i] != null) {
 
-                        container.requestLayout();
+                        webViews[i].evaluateJavascript(
+                            "var v=document.querySelector('video');" +
+                            "if(v){ if(!document.fullscreenElement){ v.requestFullscreen(); }}",
+                            null
+                        );
                     }
                 }
-            });
-        }
-    }
 
-    // ══════════════════════════════════════════════════════════════════════════
+            }, 300);
+            // 🔥 Forçar re-layout profundo do fullscreen
+            for (int i = 0; i < 4; i++) {
+
+                if (customViews[i] != null) {
+
+                    View custom = customViews[i];
+
+                    boxContainers[i].removeView(custom);
+
+                    custom.setLayoutParams(
+                            new FrameLayout.LayoutParams(
+                                    FrameLayout.LayoutParams.MATCH_PARENT,
+                                    FrameLayout.LayoutParams.MATCH_PARENT
+                            )
+                    );
+
+                    boxContainers[i].addView(custom);
+
+                    custom.requestLayout();
+                    custom.invalidate();
+                }
+            }
+        });
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
     //  INIT VIEWS
     // ══════════════════════════════════════════════════════════════════════════
 
@@ -235,9 +284,7 @@ public class MainActivity extends AppCompatActivity {
 
         btnToggleBottomBar   = findViewById(R.id.btnToggleBottomBar);
         btnToggleSidebar     = findViewById(R.id.btnToggleSidebar);
-        // 🔥 Novos botões de orientação
-        btnSetPortrait       = findViewById(R.id.btnSetPortrait);
-        btnSetLandscape      = findViewById(R.id.btnSetLandscape);
+        btnToggleOrientation = findViewById(R.id.btnToggleOrientation);
         btnCloseMenu         = findViewById(R.id.btnCloseMenu);
         btnCloseSidebar      = findViewById(R.id.btnCloseSidebar);
 
@@ -320,7 +367,7 @@ public class MainActivity extends AppCompatActivity {
     private void syncToBottomBar(int i, String url) { if (urlInputs[i]        != null) urlInputs[i].setText(url); }
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  INIT WEBVIEWS
+    //  INIT WEBVIEWS  –  called exactly ONCE from onCreate
     // ══════════════════════════════════════════════════════════════════════════
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -328,6 +375,7 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < 4; i++) {
             final int idx = i;
 
+            // Container
             boxContainers[i] = new FrameLayout(this);
             boxContainers[i].setId(View.generateViewId());
             boxContainers[i].setBackgroundColor(Color.BLACK);
@@ -346,12 +394,15 @@ public class MainActivity extends AppCompatActivity {
                 if (!isSidebarVisible) boxContainers[idx].requestFocus();
             });
 
+            // WebView – MATCH_PARENT so it always fills its container (= "fullbox")
             webViews[i] = new WebView(this);
             webViews[i].setId(View.generateViewId());
             setupWebView(webViews[i], i);
             boxContainers[i].addView(webViews[i], new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
+
+            // NOT adding to gridLayout here – updateLayout() will do it with proper LayoutParams
         }
 
         if (btnToggleSidebar != null) btnToggleSidebar.requestFocus();
@@ -398,31 +449,42 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        wv.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public void onShowCustomView(View view, CustomViewCallback callback) {
-                Log.d("MSV_FULLSCREEN", "onShowCustomView → idx=" + idx);
-                fullscreenActive[idx] = true;
-                customViews[idx] = view;
-                customCallbacks[idx] = callback;
-                boxContainers[idx].addView(view,
-                        new FrameLayout.LayoutParams(
-                                FrameLayout.LayoutParams.MATCH_PARENT,
-                                FrameLayout.LayoutParams.MATCH_PARENT));
-                webViews[idx].setVisibility(View.GONE);
-            }
+wv.setWebChromeClient(new WebChromeClient() {
 
-            @Override
-            public void onHideCustomView() {
-                Log.d("MSV_FULLSCREEN", "onHideCustomView → idx=" + idx);
-                fullscreenActive[idx] = false;
-                if (customViews[idx] != null) {
-                    boxContainers[idx].removeView(customViews[idx]);
-                    customViews[idx] = null;
-                }
-                webViews[idx].setVisibility(View.VISIBLE);
-            }
-        });
+
+    @Override
+    public void onShowCustomView(View view, CustomViewCallback callback) {
+
+        Log.d("MSV_FULLSCREEN", "onShowCustomView → idx=" + idx);
+
+        fullscreenActive[idx] = true;
+        customViews[idx] = view;
+        customCallbacks[idx] = callback;
+
+        boxContainers[idx].addView(view,
+                new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT));
+
+        webViews[idx].setVisibility(View.GONE);
+    }
+
+    @Override
+    public void onHideCustomView() {
+
+        Log.d("MSV_FULLSCREEN", "onHideCustomView → idx=" + idx);
+
+        fullscreenActive[idx] = false;
+        if (customViews[idx] != null) {
+            boxContainers[idx].removeView(customViews[idx]);
+            customViews[idx] = null;
+        }
+
+        webViews[idx].setVisibility(View.VISIBLE);
+    }
+
+
+});
     }
 
     private String buildUserAgent() {
@@ -431,109 +493,147 @@ public class MainActivity extends AppCompatActivity {
             : "Mozilla/5.0 (Linux; Android 11; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36";
     }
 
-    private void reapplyFullscreenViews() {
-        for (int i = 0; i < 4; i++) {
-            if (customViews[i] != null) {
-                boxContainers[i].removeView(customViews[i]);
-                boxContainers[i].addView(customViews[i],
-                        new FrameLayout.LayoutParams(
-                                FrameLayout.LayoutParams.MATCH_PARENT,
-                                FrameLayout.LayoutParams.MATCH_PARENT));
-                boxContainers[i].requestLayout();
-            }
+private void reapplyFullscreenViews() {
+
+    for (int i = 0; i < 4; i++) {
+
+        if (customViews[i] != null) {
+
+            boxContainers[i].removeView(customViews[i]);
+
+            boxContainers[i].addView(customViews[i],
+                    new FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT));
+
+            boxContainers[i].requestLayout();
+        }
+    }
+}
+
+
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  UPDATE LAYOUT  –  single source of truth for grid arrangement
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Rebuilds the GridLayout.
+     *
+     * CONTRACT:
+     *  • Reads: boxEnabled[], boxKeepActive[], currentOrientation, gridLayout dimensions
+     *  • Writes: GridLayout child list + LayoutParams, container visibility
+     *  • NEVER touches webViews[] – videos keep playing through any layout change
+     *
+     * Visibility:
+     *  enabled=true             → VISIBLE, added to grid
+     *  enabled=false keepActive → INVISIBLE, NOT in grid (WebView plays in bg)
+     *  enabled=false !keepActive → GONE
+     *
+     * IMPORTANTE:
+     *  • NÃO há fullscreen automático. Com 1 box ativa, a grid usa layout 1×1.
+     *  • Quando o sidebar abre, o espaço é dividido: grid + sidebar no mesmo ecrã.
+     *  • Ao rodar o ecrã, o estado das boxes (enabled/keepActive) mantém-se intacto.
+     *  • Ao abrir sidebar, a grid reajusta width mas estado das boxes NÃO muda.
+     *  • KeepAlive é ativado por padrão (boxKeepActive[] inicializado com true).
+     */
+private void updateLayout() {
+
+    int visibleCount = 0;
+    for (boolean e : boxEnabled) if (e) visibleCount++;
+
+    if (visibleCount == 0) {
+        boxEnabled[0] = true;
+        visibleCount = 1;
+    }
+
+    final boolean portrait = (currentOrientation == Configuration.ORIENTATION_PORTRAIT);
+
+    int rows, cols;
+
+    if (portrait) {
+        switch (visibleCount) {
+            case 1: rows = 1; cols = 1; break;
+            case 2: rows = 2; cols = 1; break;
+            case 3: rows = 3; cols = 1; break;
+            default: rows = 2; cols = 2; break;
+        }
+    } else {
+        switch (visibleCount) {
+            case 1: rows = 1; cols = 1; break;
+            case 2: rows = 1; cols = 2; break;
+            case 3: rows = 1; cols = 3; break;
+            default: rows = 2; cols = 2; break;
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    //  UPDATE LAYOUT
-    // ══════════════════════════════════════════════════════════════════════════
+    // 🔥 Tornar final para uso dentro do lambda
+    final int fVisibleCount = visibleCount;
+    final int fRows = rows;
+    final int fCols = cols;
 
-    private void updateLayout() {
-        int visibleCount = 0;
-        for (boolean e : boxEnabled) if (e) visibleCount++;
+    for (int i = 0; i < 4; i++) {
+        if (boxContainers[i] == null) continue;
 
-        if (visibleCount == 0) {
-            boxEnabled[0] = true;
-            visibleCount = 1;
-        }
-
-        final boolean portrait = (currentOrientation == Configuration.ORIENTATION_PORTRAIT);
-
-        int rows, cols;
-
-        if (portrait) {
-            switch (visibleCount) {
-                case 1: rows = 1; cols = 1; break;
-                case 2: rows = 2; cols = 1; break;
-                case 3: rows = 3; cols = 1; break;
-                default: rows = 2; cols = 2; break;
-            }
+        if (boxEnabled[i]) {
+            boxContainers[i].setVisibility(View.VISIBLE);
+        } else if (boxKeepActive[i]) {
+            boxContainers[i].setVisibility(View.INVISIBLE);
         } else {
-            switch (visibleCount) {
-                case 1: rows = 1; cols = 1; break;
-                case 2: rows = 1; cols = 2; break;
-                case 3: rows = 1; cols = 3; break;
-                default: rows = 2; cols = 2; break;
-            }
+            boxContainers[i].setVisibility(View.GONE);
         }
-
-        final int fVisibleCount = visibleCount;
-        final int fRows = rows;
-        final int fCols = cols;
-
-        for (int i = 0; i < 4; i++) {
-            if (boxContainers[i] == null) continue;
-            if (boxEnabled[i]) {
-                boxContainers[i].setVisibility(View.VISIBLE);
-            } else if (boxKeepActive[i]) {
-                boxContainers[i].setVisibility(View.INVISIBLE);
-            } else {
-                boxContainers[i].setVisibility(View.GONE);
-            }
-        }
-
-        gridLayout.post(() -> {
-            int gridW = gridLayout.getMeasuredWidth();
-            int gridH = gridLayout.getMeasuredHeight();
-            if (gridW <= 0 || gridH <= 0) return;
-
-            int margin = fVisibleCount == 1 ? 0 : 2;
-            int cellW = (gridW - margin * 2 * fCols) / fCols;
-            int cellH = (gridH - margin * 2 * fRows) / fRows;
-
-            gridLayout.removeAllViews();
-            gridLayout.setRowCount(fRows);
-            gridLayout.setColumnCount(fCols);
-
-            int pos = 0;
-            for (int i = 0; i < 4; i++) {
-                if (!boxEnabled[i]) continue;
-
-                GridLayout.Spec rowSpec = GridLayout.spec(pos / fCols, 1f);
-                GridLayout.Spec colSpec = GridLayout.spec(pos % fCols, 1f);
-                GridLayout.LayoutParams p = new GridLayout.LayoutParams(rowSpec, colSpec);
-                p.width = cellW;
-                p.height = cellH;
-                p.setMargins(margin, margin, margin, margin);
-
-                gridLayout.addView(boxContainers[i], p);
-                pos++;
-            }
-            gridLayout.requestLayout();
-            reapplyFullscreenViews();
-        });
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
+    gridLayout.post(() -> {
+
+        int gridW = gridLayout.getMeasuredWidth();
+        int gridH = gridLayout.getMeasuredHeight();
+
+        if (gridW <= 0 || gridH <= 0) return;
+
+        int margin = fVisibleCount == 1 ? 0 : 2;
+        int cellW = (gridW - margin * 2 * fCols) / fCols;
+        int cellH = (gridH - margin * 2 * fRows) / fRows;
+
+        gridLayout.removeAllViews();
+        gridLayout.setRowCount(fRows);
+        gridLayout.setColumnCount(fCols);
+
+        int pos = 0;
+
+        for (int i = 0; i < 4; i++) {
+            if (!boxEnabled[i]) continue;
+
+            GridLayout.Spec rowSpec = GridLayout.spec(pos / fCols, 1f);
+            GridLayout.Spec colSpec = GridLayout.spec(pos % fCols, 1f);
+
+            GridLayout.LayoutParams p =
+                    new GridLayout.LayoutParams(rowSpec, colSpec);
+
+            p.width = cellW;
+            p.height = cellH;
+            p.setMargins(margin, margin, margin, margin);
+
+            gridLayout.addView(boxContainers[i], p);
+            pos++;
+        }
+
+        gridLayout.requestLayout();
+
+        // 🔥 Reaplicar fullscreen após reorganização
+        reapplyFullscreenViews();
+    });
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════
     //  EVENT LISTENERS
     // ══════════════════════════════════════════════════════════════════════════
 
     private void initEventListeners() {
         if (btnToggleBottomBar   != null) btnToggleBottomBar.setOnClickListener(v -> toggleBottomBar());
         if (btnToggleSidebar     != null) btnToggleSidebar.setOnClickListener(v -> { if (isSidebarVisible) closeSidebar(); else openSidebar(); });
-        // 🔥 Listeners para os novos botões
-        if (btnSetPortrait       != null) btnSetPortrait.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT));
-        if (btnSetLandscape      != null) btnSetLandscape.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE));
+        if (btnToggleOrientation != null) btnToggleOrientation.setOnClickListener(v -> toggleOrientation());
         if (btnCloseSidebar      != null) btnCloseSidebar.setOnClickListener(v -> closeSidebar());
         if (btnCloseMenu         != null) btnCloseMenu.setOnClickListener(v -> closeBottomBar());
 
@@ -565,7 +665,7 @@ public class MainActivity extends AppCompatActivity {
 
             if (checkBoxes[i] != null) {
                 checkBoxes[i].setOnCheckedChangeListener((b, checked) -> {
-                    if (isSyncingUI) return;
+                    if (isSyncingUI) return;   // ⛔ BLOQUEIA durante loadSavedState
                     boxEnabled[idx] = checked;
                     updateLayout();
                 });
@@ -573,7 +673,7 @@ public class MainActivity extends AppCompatActivity {
 
             if (checkBoxesKeepActive[i] != null) {
                 checkBoxesKeepActive[i].setOnCheckedChangeListener((b, checked) -> {
-                    if (isSyncingUI) return;
+                    if (isSyncingUI) return;   // ⛔ BLOQUEIA durante loadSavedState
                     boxKeepActive[idx] = checked;
                     updateLayout();
                 });
@@ -655,7 +755,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadSavedState(boolean silent) {
         try {
-            isSyncingUI = true;
+            isSyncingUI = true;  // Desabilitar listeners durante carregamento
             for (int i=0;i<4;i++) {
                 boxEnabled[i]    = preferences.getBoolean("box_enabled_"+i, true);
                 boxKeepActive[i] = preferences.getBoolean("box_keep_active_"+i, true);
@@ -684,7 +784,7 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) { if (!silent) Toast.makeText(this,"❌ Erro ao carregar",Toast.LENGTH_SHORT).show(); }
         finally {
             isSyncingUI = false;
-            updateLayout();
+            updateLayout();   // 🔥 Força layout final consistente
         }
     }
 
@@ -750,6 +850,7 @@ public class MainActivity extends AppCompatActivity {
         a.setDuration(250);
         a.addListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator an){
             sidebarContainer.setVisibility(View.GONE); isSidebarVisible=false;
+            // Restaurar gridLayout para ocupar width total (sem sidebar)
             adjustGridLayoutForSidebar(false);
             hideKeyboard(); if(btnToggleSidebar!=null)btnToggleSidebar.requestFocus();
         }}); a.start();
@@ -757,6 +858,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void openSidebar() {
         sidebarContainer.setVisibility(View.VISIBLE); sidebarContainer.setAlpha(0f); isSidebarVisible=true;
+        // Reduzir gridLayout width para dar espaço ao sidebar
         adjustGridLayoutForSidebar(true);
         android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(sidebarContainer,"alpha",0f,1f);
         a.setDuration(250);
@@ -766,6 +868,12 @@ public class MainActivity extends AppCompatActivity {
         }}); a.start();
     }
 
+    /**
+     * Ajusta a largura do gridLayout quando sidebar abre/fecha.
+     * O sidebar tem width 200dp, então gridLayout reduz para liberar espaço.
+     * O estado das boxes (enabled/keepActive) mantém-se inalterado.
+     * A grid divide o espaço disponível entre as boxes visíveis.
+     */
     private void adjustGridLayoutForSidebar(boolean sidebarOpen) {
         if(gridLayout==null) return;
         android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
@@ -773,6 +881,7 @@ public class MainActivity extends AppCompatActivity {
         RelativeLayout.LayoutParams p = (RelativeLayout.LayoutParams)gridLayout.getLayoutParams();
         p.rightMargin = sidebarWidth;
         gridLayout.setLayoutParams(p);
+        // Recalcular layout imediatamente
         gridLayout.post(this::updateLayout);
     }
 
@@ -815,6 +924,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateFocusedBoxIndicator() { if(tvFocusedBox!=null) tvFocusedBox.setText("Foco: "+(focusedBoxIndex+1)); }
 
+    /** Programmatic focus border – no drawable resource needed. */
     private void setFocusBorder(int idx, boolean focused) {
         if(idx<0||idx>=4||boxContainers[idx]==null) return;
         if(focused) { GradientDrawable gd=new GradientDrawable(); gd.setColor(Color.BLACK); gd.setStroke(4,Color.YELLOW); boxContainers[idx].setBackground(gd); }
