@@ -106,6 +106,11 @@ public class MainActivity extends AppCompatActivity {
 
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
 
+
+    private static final String PREF_PORTRAIT_PREFIX = "portrait_";
+    private static final String PREF_LANDSCAPE_PREFIX = "landscape_";
+
+
     // ── State ──────────────────────────────────────────────────────────────────
     private boolean[] boxEnabled    = {true, true, true, true};
     private boolean[] boxKeepActive = {true, true, true, true};
@@ -147,7 +152,8 @@ public class MainActivity extends AppCompatActivity {
         initWebViewsOnce();
 
         initEventListeners();
-        loadSavedState(/*silent=*/true);
+        // Substituir loadSavedState(true); por:
+        loadStateForOrientation(currentOrientation);
         loadFavoritesList();
 
         new Handler().postDelayed(() -> {
@@ -190,37 +196,42 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(this, "📐 " + orientationName, Toast.LENGTH_SHORT).show();
     }
 
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        currentOrientation = newConfig.orientation;
+@Override
+public void onConfigurationChanged(Configuration newConfig) {
+    int oldOrientation = currentOrientation;
+    super.onConfigurationChanged(newConfig);
+    currentOrientation = newConfig.orientation;
 
-        if (gridLayout != null) {
-            gridLayout.post(() -> {
-                updateLayout();
-
-                // Garantir que as views de fullscreen preenchem os containers após rotação
-                for (int i = 0; i < 4; i++) {
-                    if (customViews[i] != null) {
-                        FrameLayout container = boxContainers[i];
-                        View custom = customViews[i];
-
-                        // Forçar MATCH_PARENT caso não esteja
-                        if (!(custom.getLayoutParams() instanceof FrameLayout.LayoutParams) ||
-                            ((FrameLayout.LayoutParams) custom.getLayoutParams()).width != FrameLayout.LayoutParams.MATCH_PARENT ||
-                            ((FrameLayout.LayoutParams) custom.getLayoutParams()).height != FrameLayout.LayoutParams.MATCH_PARENT) {
-                            custom.setLayoutParams(new FrameLayout.LayoutParams(
-                                    FrameLayout.LayoutParams.MATCH_PARENT,
-                                    FrameLayout.LayoutParams.MATCH_PARENT));
-                        }
-
-                        container.requestLayout();
-                    }
-                }
-            });
-        }
+    // Guardar estado da orientação anterior (se for uma orientação válida)
+    if (oldOrientation == Configuration.ORIENTATION_PORTRAIT || oldOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+        saveStateForOrientation(oldOrientation);
     }
 
+    // Carregar estado da nova orientação
+    loadStateForOrientation(currentOrientation);
+
+    // Reorganizar grelha (já é chamado dentro de loadStateForOrientation via updateLayout,
+    // mas podemos garantir chamando novamente se necessário)
+    // Nota: loadStateForOrientation já chama updateLayout no finally.
+    // No entanto, precisamos também reaplicar as views de fullscreen como antes.
+    gridLayout.post(() -> {
+        // Garantir que as views de fullscreen preenchem os containers após rotação
+        for (int i = 0; i < 4; i++) {
+            if (customViews[i] != null) {
+                FrameLayout container = boxContainers[i];
+                View custom = customViews[i];
+                if (!(custom.getLayoutParams() instanceof FrameLayout.LayoutParams) ||
+                    ((FrameLayout.LayoutParams) custom.getLayoutParams()).width != FrameLayout.LayoutParams.MATCH_PARENT ||
+                    ((FrameLayout.LayoutParams) custom.getLayoutParams()).height != FrameLayout.LayoutParams.MATCH_PARENT) {
+                    custom.setLayoutParams(new FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT));
+                }
+                container.requestLayout();
+            }
+        }
+    });
+}
     // ══════════════════════════════════════════════════════════════════════════
     //  INIT VIEWS
     // ══════════════════════════════════════════════════════════════════════════
@@ -322,6 +333,72 @@ public class MainActivity extends AppCompatActivity {
     // ══════════════════════════════════════════════════════════════════════════
     //  INIT WEBVIEWS
     // ══════════════════════════════════════════════════════════════════════════
+
+
+private void saveStateForOrientation(int orientation) {
+    String prefix = (orientation == Configuration.ORIENTATION_PORTRAIT) ? PREF_PORTRAIT_PREFIX : PREF_LANDSCAPE_PREFIX;
+    SharedPreferences.Editor ed = preferences.edit();
+    for (int i = 0; i < 4; i++) {
+        String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
+        ed.putString(prefix + "url_" + i, url.isEmpty() ? defaultUrl() : url);
+        ed.putBoolean(prefix + "box_enabled_" + i, boxEnabled[i]);
+        ed.putBoolean(prefix + "box_keep_active_" + i, boxKeepActive[i]);
+        ed.putFloat(prefix + "zoom_level_" + i, zoomLevels[i]);
+    }
+    if (cbAllowScripts   != null) ed.putBoolean(prefix + "allow_scripts",   cbAllowScripts.isChecked());
+    if (cbAllowForms     != null) ed.putBoolean(prefix + "allow_forms",     cbAllowForms.isChecked());
+    if (cbAllowPopups    != null) ed.putBoolean(prefix + "allow_popups",    cbAllowPopups.isChecked());
+    if (cbBlockRedirects != null) ed.putBoolean(prefix + "block_redirects", cbBlockRedirects.isChecked());
+    if (cbBlockAds       != null) ed.putBoolean(prefix + "block_ads",       cbBlockAds.isChecked());
+    ed.apply();
+}
+
+private void loadStateForOrientation(int orientation) {
+    String prefix = (orientation == Configuration.ORIENTATION_PORTRAIT) ? PREF_PORTRAIT_PREFIX : PREF_LANDSCAPE_PREFIX;
+    isSyncingUI = true;
+    try {
+        for (int i = 0; i < 4; i++) {
+            boxEnabled[i]    = preferences.getBoolean(prefix + "box_enabled_" + i, true);
+            boxKeepActive[i] = preferences.getBoolean(prefix + "box_keep_active_" + i, true);
+            zoomLevels[i]    = preferences.getFloat(prefix + "zoom_level_" + i, 1.0f);
+            if (checkBoxes[i] != null) checkBoxes[i].setChecked(boxEnabled[i]);
+            if (checkBoxesKeepActive[i] != null) checkBoxesKeepActive[i].setChecked(boxKeepActive[i]);
+            applyZoom(i);
+        }
+        boolean hasUrls = false;
+        for (int i = 0; i < 4; i++) {
+            String url = preferences.getString(prefix + "url_" + i, "");
+            if (!url.isEmpty()) {
+                hasUrls = true;
+                if (urlInputs[i] != null) urlInputs[i].setText(url);
+                syncToSidebar(i, url);
+                if ((boxEnabled[i] || boxKeepActive[i]) && webViews[i] != null) {
+                    loadURL(i, url);
+                }
+            }
+        }
+        if (!hasUrls) {
+            String d = defaultUrl();
+            for (int i = 0; i < 4; i++) {
+                if (urlInputs[i] != null) urlInputs[i].setText(d);
+                syncToSidebar(i, d);
+            }
+        }
+        if (cbAllowScripts   != null) cbAllowScripts.setChecked(preferences.getBoolean(prefix + "allow_scripts", true));
+        if (cbAllowForms     != null) cbAllowForms.setChecked(preferences.getBoolean(prefix + "allow_forms", true));
+        if (cbAllowPopups    != null) cbAllowPopups.setChecked(preferences.getBoolean(prefix + "allow_popups", true));
+        if (cbBlockRedirects != null) cbBlockRedirects.setChecked(preferences.getBoolean(prefix + "block_redirects", false));
+        if (cbBlockAds       != null) cbBlockAds.setChecked(preferences.getBoolean(prefix + "block_ads", false));
+    } finally {
+        isSyncingUI = false;
+        updateLayout();   // garantir que o layout reflete as novas boxes ativas
+    }
+}
+
+
+
+
+
 
     @SuppressLint("SetJavaScriptEnabled")
     private void initWebViewsOnce() {
@@ -634,59 +711,18 @@ public class MainActivity extends AppCompatActivity {
     private boolean hasSavedState() { return preferences.contains("url_0") || preferences.contains("box_enabled_0"); }
 
     private void saveCurrentState() {
-        try {
-            SharedPreferences.Editor ed = preferences.edit();
-            for (int i=0;i<4;i++) {
-                String url = urlInputs[i]!=null ? urlInputs[i].getText().toString().trim() : "";
-                ed.putString("url_"+i, url.isEmpty()?defaultUrl():url);
-                ed.putBoolean("box_enabled_"+i, boxEnabled[i]);
-                ed.putBoolean("box_keep_active_"+i, boxKeepActive[i]);
-                ed.putFloat("zoom_level_"+i, zoomLevels[i]);
-            }
-            if (cbAllowScripts   !=null) ed.putBoolean("allow_scripts",   cbAllowScripts.isChecked());
-            if (cbAllowForms     !=null) ed.putBoolean("allow_forms",     cbAllowForms.isChecked());
-            if (cbAllowPopups    !=null) ed.putBoolean("allow_popups",    cbAllowPopups.isChecked());
-            if (cbBlockRedirects !=null) ed.putBoolean("block_redirects", cbBlockRedirects.isChecked());
-            if (cbBlockAds       !=null) ed.putBoolean("block_ads",       cbBlockAds.isChecked());
-            ed.apply();
-            Toast.makeText(this,"✅ Estado guardado!",Toast.LENGTH_SHORT).show();
-        } catch (Exception e) { Toast.makeText(this,"❌ Erro ao guardar estado",Toast.LENGTH_SHORT).show(); }
+        saveStateForOrientation(currentOrientation);
+        Toast.makeText(this, "✅ Estado guardado para " + 
+            (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "Portrait" : "Landscape"), Toast.LENGTH_SHORT).show();
     }
 
     private void loadSavedState(boolean silent) {
-        try {
-            isSyncingUI = true;
-            for (int i=0;i<4;i++) {
-                boxEnabled[i]    = preferences.getBoolean("box_enabled_"+i, true);
-                boxKeepActive[i] = preferences.getBoolean("box_keep_active_"+i, true);
-                zoomLevels[i]    = preferences.getFloat("zoom_level_"+i, 1.0f);
-                if (checkBoxes[i]           !=null) checkBoxes[i].setChecked(boxEnabled[i]);
-                if (checkBoxesKeepActive[i] !=null) checkBoxesKeepActive[i].setChecked(boxKeepActive[i]);
-                applyZoom(i);
-            }
-            boolean hasUrls = false;
-            for (int i=0;i<4;i++) {
-                String url = preferences.getString("url_"+i,"");
-                if (!url.isEmpty()) {
-                    hasUrls = true;
-                    if (urlInputs[i]!=null) urlInputs[i].setText(url);
-                    syncToSidebar(i, url);
-                    if ((boxEnabled[i]||boxKeepActive[i])&&webViews[i]!=null) loadURL(i, url);
-                }
-            }
-            if (!hasUrls) { String d=defaultUrl(); for (int i=0;i<4;i++) { if (urlInputs[i]!=null) urlInputs[i].setText(d); syncToSidebar(i,d); } }
-            if (cbAllowScripts   !=null) cbAllowScripts.setChecked(preferences.getBoolean("allow_scripts",true));
-            if (cbAllowForms     !=null) cbAllowForms.setChecked(preferences.getBoolean("allow_forms",true));
-            if (cbAllowPopups    !=null) cbAllowPopups.setChecked(preferences.getBoolean("allow_popups",true));
-            if (cbBlockRedirects !=null) cbBlockRedirects.setChecked(preferences.getBoolean("block_redirects",false));
-            if (cbBlockAds       !=null) cbBlockAds.setChecked(preferences.getBoolean("block_ads",false));
-            if (!silent) Toast.makeText(this,"✅ Estado carregado!",Toast.LENGTH_SHORT).show();
-        } catch (Exception e) { if (!silent) Toast.makeText(this,"❌ Erro ao carregar",Toast.LENGTH_SHORT).show(); }
-        finally {
-            isSyncingUI = false;
-            updateLayout();
+        loadStateForOrientation(currentOrientation);
+        if (!silent) {
+            Toast.makeText(this, "✅ Estado carregado para " + 
+                (currentOrientation == Configuration.ORIENTATION_PORTRAIT ? "Portrait" : "Landscape"), Toast.LENGTH_SHORT).show();
         }
-    }
+    } 
 
     // ══════════════════════════════════════════════════════════════════════════
     //  FAVORITES
