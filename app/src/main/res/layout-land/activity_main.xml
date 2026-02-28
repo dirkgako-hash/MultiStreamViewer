@@ -19,7 +19,7 @@
     <LinearLayout
         android:id="@+id/expandedBottomBar"
         android:layout_width="match_parent"
-        android:layout_height="200dp"
+        android:layout_height="100dp"
         android:layout_above="@+id/bottomControls"
         android:background="#1A1A2E"
         android:visibility="gone"
@@ -218,10 +218,10 @@
                     <Button android:id="@+id/btnZoomOut1" android:layout_width="17dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#1565C0" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="Z-" android:textColor="#FFFFFF" android:textSize="8sp" />
-                    <Button android:id="@+id/btnPrevious1" android:layout_width="1dp" android:layout_height="20dp"
+                    <Button android:id="@+id/btnPrevious1" android:layout_width="15dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#0D47A1" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="&lt;" android:textColor="#FFFFFF" android:textSize="8sp" />
-                    <Button android:id="@+id/btnNext1" android:layout_width="1dp" android:layout_height="20dp"
+                    <Button android:id="@+id/btnNext1" android:layout_width="15dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#0D47A1" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="&gt;" android:textColor="#FFFFFF" android:textSize="8sp" />
                 </LinearLayout>
@@ -250,10 +250,10 @@
                     <Button android:id="@+id/btnZoomOut2" android:layout_width="17dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#6A1B9A" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="Z-" android:textColor="#FFFFFF" android:textSize="8sp" />
-                    <Button android:id="@+id/btnPrevious2" android:layout_width="1dp" android:layout_height="20dp"
+                    <Button android:id="@+id/btnPrevious2" android:layout_width="15dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#4A148C" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="&lt;" android:textColor="#FFFFFF" android:textSize="8sp" />
-                    <Button android:id="@+id/btnNext2" android:layout_width="1dp" android:layout_height="20dp"
+                    <Button android:id="@+id/btnNext2" android:layout_width="15dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#4A148C" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="&gt;" android:textColor="#FFFFFF" android:textSize="8sp" />
                 </LinearLayout>
@@ -282,10 +282,10 @@
                     <Button android:id="@+id/btnZoomOut3" android:layout_width="17dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#1565C0" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="Z-" android:textColor="#FFFFFF" android:textSize="8sp" />
-                    <Button android:id="@+id/btnPrevious3" android:layout_width="1dp" android:layout_height="20dp"
+                    <Button android:id="@+id/btnPrevious3" android:layout_width="15dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#0D47A1" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="&lt;" android:textColor="#FFFFFF" android:textSize="8sp" />
-                    <Button android:id="@+id/btnNext3" android:layout_width="1dp" android:layout_height="20dp"
+                    <Button android:id="@+id/btnNext3" android:layout_width="15dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#0D47A1" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="&gt;" android:textColor="#FFFFFF" android:textSize="8sp" />
                 </LinearLayout>
@@ -314,10 +314,10 @@
                     <Button android:id="@+id/btnZoomOut4" android:layout_width="17dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#6A1B9A" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="Z-" android:textColor="#FFFFFF" android:textSize="8sp" />
-                    <Button android:id="@+id/btnPrevious4" android:layout_width="1dp" android:layout_height="20dp"
+                    <Button android:id="@+id/btnPrevious4" android:layout_width="15dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#4A148C" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="&lt;" android:textColor="#FFFFFF" android:textSize="8sp" />
-                    <Button android:id="@+id/btnNext4" android:layout_width="1dp" android:layout_height="20dp"
+                    <Button android:id="@+id/btnNext4" android:layout_width="15dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#4A148C" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="&gt;" android:textColor="#FFFFFF" android:textSize="8sp" />
                 </LinearLayout>
@@ -325,7 +325,7 @@
                 <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
                 <TextView android:id="@+id/tvFocusedBox"
-                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
                     android:text=" " android:textColor="#FF9800" android:textSize="8sp"
                     android:layout_marginStart="4dp" android:focusable="false" />
             </LinearLayout>
