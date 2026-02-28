@@ -162,7 +162,7 @@
         android:descendantFocusability="blocksDescendants">
 
         <Button android:id="@+id/btnToggleBottomBar"
-            android:layout_width="30dp" android:layout_height="20dp" android:layout_marginEnd="2dp"
+            android:layout_width="25dp" android:layout_height="20dp" android:layout_marginEnd="2dp"
             android:background="#1565C0" android:focusable="true" android:focusableInTouchMode="true"
             android:text="&lt;" android:textColor="#FFFFFF" android:textSize="8sp" />
 
@@ -200,7 +200,7 @@
                     <CheckBox android:id="@+id/checkBox1" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="1" android:textColor="#64B5F6"
                         android:textSize="8sp" android:checked="true" android:focusable="true" android:focusableInTouchMode="true" />
-                    <CheckBox android:id="@+id/checkBoxKeepActive1" android:layout_width="wrap_content"
+                    <CheckBox android:id="@+id/checkBoxKeepActive1" android:layout_width="1dp"
                         android:layout_height="wrap_content" android:text="K" android:textColor="#64B5F6"
                         android:textSize="8sp" android:checked="false" android:focusable="true"
                         android:focusableInTouchMode="true" android:layout_marginStart="1dp" />
@@ -232,7 +232,7 @@
                     <CheckBox android:id="@+id/checkBox2" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="2" android:textColor="#CE93D8"
                         android:textSize="8sp" android:checked="true" android:focusable="true" android:focusableInTouchMode="true" />
-                    <CheckBox android:id="@+id/checkBoxKeepActive2" android:layout_width="wrap_content"
+                    <CheckBox android:id="@+id/checkBoxKeepActive2" android:layout_width="1dp"
                         android:layout_height="wrap_content" android:text="K" android:textColor="#CE93D8"
                         android:textSize="8sp" android:checked="false" android:focusable="true"
                         android:focusableInTouchMode="true" android:layout_marginStart="1dp" />
@@ -264,7 +264,7 @@
                     <CheckBox android:id="@+id/checkBox3" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="3" android:textColor="#64B5F6"
                         android:textSize="8sp" android:checked="true" android:focusable="true" android:focusableInTouchMode="true" />
-                    <CheckBox android:id="@+id/checkBoxKeepActive3" android:layout_width="wrap_content"
+                    <CheckBox android:id="@+id/checkBoxKeepActive3" android:layout_width="1dp"
                         android:layout_height="wrap_content" android:text="K" android:textColor="#64B5F6"
                         android:textSize="8sp" android:checked="false" android:focusable="true"
                         android:focusableInTouchMode="true" android:layout_marginStart="1dp" />
@@ -296,7 +296,7 @@
                     <CheckBox android:id="@+id/checkBox4" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="4" android:textColor="#CE93D8"
                         android:textSize="8sp" android:checked="true" android:focusable="true" android:focusableInTouchMode="true" />
-                    <CheckBox android:id="@+id/checkBoxKeepActive4" android:layout_width="wrap_content"
+                    <CheckBox android:id="@+id/checkBoxKeepActive4" android:layout_width="1dp"
                         android:layout_height="wrap_content" android:text="K" android:textColor="#CE93D8"
                         android:textSize="8sp" android:checked="false" android:focusable="true"
                         android:focusableInTouchMode="true" android:layout_marginStart="1dp" />
@@ -324,15 +324,12 @@
 
                 <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
-                <TextView android:id="@+id/tvFocusedBox"
-                    android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="Foco:1" android:textColor="#FF9800" android:textSize="8sp"
-                    android:layout_marginStart="4dp" android:focusable="false" />
+
             </LinearLayout>
         </HorizontalScrollView>
 
         <Button android:id="@+id/btnToggleSidebar"
-            android:layout_width="30dp" android:layout_height="20dp" android:layout_marginStart="6dp"
+            android:layout_width="25dp" android:layout_height="20dp" android:layout_marginStart="3dp"
             android:background="#C0392B" android:focusable="true" android:focusableInTouchMode="true"
             android:text="&gt;" android:textColor="#FFFFFF" android:textSize="8sp" />
     </LinearLayout>
