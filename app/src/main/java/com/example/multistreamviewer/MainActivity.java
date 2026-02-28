@@ -396,92 +396,37 @@ public class MainActivity extends AppCompatActivity {
 
     // NOVOS MÉTODOS PARA FULLBOX
     private void enableFullBox(WebView webView) {
-    if (webView == null) return;
-    String script =
-        "javascript:(function() {" +
-        "   var injectCSS = function() {" +
-        "       var style = document.createElement('style');" +
-        "       style.type = 'text/css';" +
-        "       style.innerHTML = '" +
-        "           video {" +
-        "               position: fixed !important;" +
-        "               top: 0 !important;" +
-        "               left: 0 !important;" +
-        "// DEPOIS (correcto)
-"width: 100vw !important;"  
-"height: 100vh !important;"
-"object-fit: contain !important;" 
-        "               z-index: 9999 !important;" +
-        "               background: black;" +
-        "           }" +
-        "           body { overflow: hidden !important; }" +
-        "       ';" +
-        "       document.head.appendChild(style);" +
-        "   };" +
-        "" +
-        "   // Aplica a todos os vídeos existentes" +
-        "   var applyToAllVideos = function() {" +
-        "       var videos = document.querySelectorAll('video');" +
-        "       for (var i = 0; i < videos.length; i++) {" +
-        "           videos[i].style.setProperty('position', 'fixed', 'important');" +
-        "           videos[i].style.setProperty('top', '0', 'important');" +
-        "           videos[i].style.setProperty('left', '0', 'important');" +
-        "           videos[i].style.setProperty('width', '100%', 'important');" +
-        "           videos[i].style.setProperty('height', '100%', 'important');" +
-        "           videos[i].style.setProperty('object-fit', 'contain', 'important');" +
-        "           videos[i].style.setProperty('z-index', '9999', 'important');" +
-        "       }" +
-        "   };" +
-        "" +
-        "   // Injeta CSS global" +
-        "   injectCSS();" +
-        "   applyToAllVideos();" +
-        "" +
-        "   // Observa novos vídeos" +
-        "   var observer = new MutationObserver(function(mutations) {" +
-        "       mutations.forEach(function(mutation) {" +
-        "           if (mutation.addedNodes) {" +
-        "               for (var i = 0; i < mutation.addedNodes.length; i++) {" +
-        "                   var node = mutation.addedNodes[i];" +
-        "                   if (node.nodeName === 'VIDEO') {" +
-        "                       applyToAllVideos();" +
-        "                   } else if (node.querySelectorAll) {" +
-        "                       if (node.querySelectorAll('video').length > 0) applyToAllVideos();" +
-        "                   }" +
-        "               }" +
-        "           }" +
-        "       });" +
-        "   });" +
-        "   observer.observe(document.body, { childList: true, subtree: true });" +
-        "" +
-        "   // Tenta estilizar vídeos dentro de iframes do mesmo domínio" +
-        "   var iframes = document.querySelectorAll('iframe');" +
-        "   for (var i = 0; i < iframes.length; i++) {" +
-        "       try {" +
-        "           var iframeDoc = iframes[i].contentDocument || iframes[i].contentWindow.document;" +
-        "           if (iframeDoc) {" +
-        "               var styleIframe = document.createElement('style');" +
-        "               styleIframe.innerHTML = 'video { position: fixed !important; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; z-index: 9999; } body { overflow: hidden; }';" +
-        "               iframeDoc.head.appendChild(styleIframe);" +
-        "           }" +
-        "       } catch(e) { /* ignora cross-origin */ }" +
-        "   }" +
-        "" +
-        "   // Reaplica ao redimensionar a janela (mudança de tamanho da box)" +
-        "   window.addEventListener('resize', function() {" +
-        "       applyToAllVideos();" +
-        "   });" +
-        "})();";
-    
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-        webView.evaluateJavascript(script, null);
-    } else {
-        webView.loadUrl(script);
+        if (webView == null) return;
+        String script =
+                "javascript:(function() {" +
+                        "   var style = document.createElement('style');" +
+                        "   style.type = 'text/css';" +
+                        "   style.innerHTML = '" +
+                        "       video {" +
+                        "           position: fixed !important;" +
+                        "           top: 0 !important;" +
+                        "           left: 0 !important;" +
+                        "           width: 100vw !important;" +
+                        "           height: 100vw !important;" +
+                        "           object-fit: cover !important;" +
+                        "           z-index: 9999 !important;" +
+                        "           background: black;" +
+                        "       }" +
+                        "       body { overflow: hidden !important; }" +
+                        "   ';" +
+                        "   document.head.appendChild(style);" +
+                        "   var elements = document.querySelectorAll('header, footer, nav, aside');" +
+                        "   for (var i = 0; i < elements.length; i++) {" +
+                        "       elements[i].style.display = 'none';" +
+                        "   }" +
+                        "})();";
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(script, null);
+        } else {
+            webView.loadUrl(script);
+        }
     }
-}
-
-
-
 
     private void disableFullBox(WebView webView) {
         if (webView == null) return;
