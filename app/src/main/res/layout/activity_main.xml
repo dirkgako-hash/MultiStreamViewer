@@ -153,7 +153,7 @@
     <LinearLayout
         android:id="@+id/bottomControls"
         android:layout_width="match_parent"
-        android:layout_height="24dp"
+        android:layout_height="30dp"
         android:layout_alignParentBottom="true"
         android:background="#1A1A2E"
         android:gravity="center_vertical"
@@ -162,7 +162,7 @@
         android:descendantFocusability="blocksDescendants">
 
         <Button android:id="@+id/btnToggleBottomBar"
-            android:layout_width="30dp" android:layout_height="20dp" android:layout_marginEnd="2dp"
+                   android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="2dp"
             android:background="#1565C0" android:focusable="true" android:focusableInTouchMode="true"
             android:text="&lt;" android:textColor="#FFFFFF" android:textSize="8sp" />
 
@@ -175,12 +175,12 @@
             android:layout_marginEnd="6dp">
 
             <Button android:id="@+id/btnSetPortrait"
-                android:layout_width="30dp" android:layout_height="20dp"
+                       android:layout_width="20dp" android:layout_height="20dp"
                 android:background="#1B5E20" android:focusable="true" android:focusableInTouchMode="true"
                 android:text="P" android:textColor="#FFFFFF" android:textSize="8sp" />
 
             <Button android:id="@+id/btnSetLandscape"
-                android:layout_width="30dp" android:layout_height="20dp"
+                       android:layout_width="20dp" android:layout_height="20dp"
                 android:layout_marginStart="2dp" android:background="#1B5E20"
                 android:focusable="true" android:focusableInTouchMode="true"
                 android:text="L" android:textColor="#FFFFFF" android:textSize="8sp" />
@@ -196,14 +196,14 @@
 
                 <!-- BOX 1 -->
                 <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:orientation="horizontal" android:layout_marginEnd="4dp">
+                    android:orientation="horizontal" android:layout_marginEnd="2dp">
                     <CheckBox android:id="@+id/checkBox1" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="1" android:textColor="#64B5F6"
                         android:textSize="8sp" android:checked="true" android:focusable="true" android:focusableInTouchMode="true" />
                     <CheckBox android:id="@+id/checkBoxKeepActive1" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="K" android:textColor="#64B5F6"
-                        android:textSize="8sp" android:checked="false" android:focusable="true"
-                        android:focusableInTouchMode="true" android:layout_marginStart="2dp" />
+                        android:textSize="4sp" android:checked="false" android:focusable="true"
+                        android:focusableInTouchMode="true" android:layout_marginStart="1dp" />
                     <!-- NOVO CHECKBOX FULL VIDEO -->
                     <CheckBox android:id="@+id/checkBoxFullVideo1" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="F" android:textColor="#FF9800"
@@ -228,7 +228,7 @@
 
                 <!-- BOX 2 -->
                 <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:orientation="horizontal" android:layout_marginEnd="4dp">
+                    android:orientation="horizontal" android:layout_marginEnd="2dp">
                     <CheckBox android:id="@+id/checkBox2" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="2" android:textColor="#CE93D8"
                         android:textSize="8sp" android:checked="true" android:focusable="true" android:focusableInTouchMode="true" />
@@ -250,17 +250,17 @@
                     <Button android:id="@+id/btnZoomOut2" android:layout_width="20dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#6A1B9A" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="Z-" android:textColor="#FFFFFF" android:textSize="8sp" />
-                    <Button android:id="@+id/btnPrevious2" android:layout_width="20dp" android:layout_height="20dp"
+                    <Button android:id="@+id/btnPrevious2" android:layout_width="18dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#4A148C" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="&lt;" android:textColor="#FFFFFF" android:textSize="8sp" />
-                    <Button android:id="@+id/btnNext2" android:layout_width="20dp" android:layout_height="20dp"
+                    <Button android:id="@+id/btnNext2" android:layout_width="18dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#4A148C" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="&gt;" android:textColor="#FFFFFF" android:textSize="8sp" />
                 </LinearLayout>
 
                 <!-- BOX 3 -->
                 <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:orientation="horizontal" android:layout_marginEnd="4dp">
+                    android:orientation="horizontal" android:layout_marginEnd="2dp">
                     <CheckBox android:id="@+id/checkBox3" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="3" android:textColor="#64B5F6"
                         android:textSize="8sp" android:checked="true" android:focusable="true" android:focusableInTouchMode="true" />
@@ -282,10 +282,10 @@
                     <Button android:id="@+id/btnZoomOut3" android:layout_width="20dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#1565C0" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="Z-" android:textColor="#FFFFFF" android:textSize="8sp" />
-                    <Button android:id="@+id/btnPrevious3" android:layout_width="20dp" android:layout_height="20dp"
+                    <Button android:id="@+id/btnPrevious3" android:layout_width="18dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#0D47A1" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="&lt;" android:textColor="#FFFFFF" android:textSize="8sp" />
-                    <Button android:id="@+id/btnNext3" android:layout_width="20dp" android:layout_height="20dp"
+                    <Button android:id="@+id/btnNext3" android:layout_width="18dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#0D47A1" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="&gt;" android:textColor="#FFFFFF" android:textSize="8sp" />
                 </LinearLayout>
@@ -314,10 +314,10 @@
                     <Button android:id="@+id/btnZoomOut4" android:layout_width="20dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#6A1B9A" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="Z-" android:textColor="#FFFFFF" android:textSize="8sp" />
-                    <Button android:id="@+id/btnPrevious4" android:layout_width="20dp" android:layout_height="20dp"
+                    <Button android:id="@+id/btnPrevious4" android:layout_width="18dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#4A148C" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="&lt;" android:textColor="#FFFFFF" android:textSize="8sp" />
-                    <Button android:id="@+id/btnNext4" android:layout_width="20dp" android:layout_height="20dp"
+                    <Button android:id="@+id/btnNext4" android:layout_width="18dp" android:layout_height="20dp"
                         android:layout_marginStart="1dp" android:background="#4A148C" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="&gt;" android:textColor="#FFFFFF" android:textSize="8sp" />
                 </LinearLayout>
@@ -332,7 +332,7 @@
         </HorizontalScrollView>
 
         <Button android:id="@+id/btnToggleSidebar"
-            android:layout_width="30dp" android:layout_height="20dp" android:layout_marginStart="6dp"
+                   android:layout_width="20dp" android:layout_height="20dp" android:layout_marginStart="6dp"
             android:background="#C0392B" android:focusable="true" android:focusableInTouchMode="true"
             android:text="&gt;" android:textColor="#FFFFFF" android:textSize="8sp" />
     </LinearLayout>
