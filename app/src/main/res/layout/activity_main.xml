@@ -204,6 +204,11 @@
                         android:layout_height="wrap_content" android:text="K" android:textColor="#64B5F6"
                         android:textSize="8sp" android:checked="false" android:focusable="true"
                         android:focusableInTouchMode="true" android:layout_marginStart="2dp" />
+                    <!-- NOVO CHECKBOX FULL VIDEO -->
+                    <CheckBox android:id="@+id/checkBoxFullVideo1" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="F" android:textColor="#FF9800"
+                        android:textSize="8sp" android:checked="false" android:focusable="true"
+                        android:focusableInTouchMode="true" android:layout_marginStart="2dp" />
                     <Button android:id="@+id/btnRefresh1" android:layout_width="20dp" android:layout_height="20dp"
                         android:layout_marginStart="2dp" android:background="#0D47A1" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="R" android:textColor="#FFFFFF" android:textSize="8sp" />
@@ -229,6 +234,11 @@
                         android:textSize="8sp" android:checked="true" android:focusable="true" android:focusableInTouchMode="true" />
                     <CheckBox android:id="@+id/checkBoxKeepActive2" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="K" android:textColor="#CE93D8"
+                        android:textSize="8sp" android:checked="false" android:focusable="true"
+                        android:focusableInTouchMode="true" android:layout_marginStart="2dp" />
+                    <!-- NOVO CHECKBOX FULL VIDEO -->
+                    <CheckBox android:id="@+id/checkBoxFullVideo2" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="F" android:textColor="#FF9800"
                         android:textSize="8sp" android:checked="false" android:focusable="true"
                         android:focusableInTouchMode="true" android:layout_marginStart="2dp" />
                     <Button android:id="@+id/btnRefresh2" android:layout_width="20dp" android:layout_height="20dp"
@@ -258,6 +268,11 @@
                         android:layout_height="wrap_content" android:text="K" android:textColor="#64B5F6"
                         android:textSize="8sp" android:checked="false" android:focusable="true"
                         android:focusableInTouchMode="true" android:layout_marginStart="2dp" />
+                    <!-- NOVO CHECKBOX FULL VIDEO -->
+                    <CheckBox android:id="@+id/checkBoxFullVideo3" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="F" android:textColor="#FF9800"
+                        android:textSize="8sp" android:checked="false" android:focusable="true"
+                        android:focusableInTouchMode="true" android:layout_marginStart="2dp" />
                     <Button android:id="@+id/btnRefresh3" android:layout_width="20dp" android:layout_height="20dp"
                         android:layout_marginStart="2dp" android:background="#0D47A1" android:focusable="true"
                         android:focusableInTouchMode="true" android:text="R" android:textColor="#FFFFFF" android:textSize="8sp" />
@@ -283,6 +298,11 @@
                         android:textSize="8sp" android:checked="true" android:focusable="true" android:focusableInTouchMode="true" />
                     <CheckBox android:id="@+id/checkBoxKeepActive4" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="K" android:textColor="#CE93D8"
+                        android:textSize="8sp" android:checked="false" android:focusable="true"
+                        android:focusableInTouchMode="true" android:layout_marginStart="2dp" />
+                    <!-- NOVO CHECKBOX FULL VIDEO -->
+                    <CheckBox android:id="@+id/checkBoxFullVideo4" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="F" android:textColor="#FF9800"
                         android:textSize="8sp" android:checked="false" android:focusable="true"
                         android:focusableInTouchMode="true" android:layout_marginStart="2dp" />
                     <Button android:id="@+id/btnRefresh4" android:layout_width="20dp" android:layout_height="20dp"

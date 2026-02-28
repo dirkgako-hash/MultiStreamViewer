@@ -71,8 +71,6 @@ public class MainActivity extends AppCompatActivity {
     private EditText[] urlInputs = new EditText[4];
     private CheckBox[] checkBoxes = new CheckBox[4];
     private CheckBox[] checkBoxesKeepActive = new CheckBox[4];
-    // NOVO ARRAY PARA CHECKBOX FULL VIDEO
-    private CheckBox[] checkBoxFullVideo = new CheckBox[4];
     private boolean[] fullscreenActive = new boolean[4];
 
     private EditText[] urlInputsSidebar = new EditText[4];
@@ -204,13 +202,6 @@ public class MainActivity extends AppCompatActivity {
         int[] cbIds = {R.id.checkBox1, R.id.checkBox2, R.id.checkBox3, R.id.checkBox4};
         int[] kaIds = {R.id.checkBoxKeepActive1, R.id.checkBoxKeepActive2,
                 R.id.checkBoxKeepActive3, R.id.checkBoxKeepActive4};
-        // NOVOS IDs para os checkboxes Full Video
-        int[] fullIds = {
-                R.id.checkBoxFullVideo1,
-                R.id.checkBoxFullVideo2,
-                R.id.checkBoxFullVideo3,
-                R.id.checkBoxFullVideo4
-        };
         int[] rfIds = {R.id.btnRefresh1, R.id.btnRefresh2, R.id.btnRefresh3, R.id.btnRefresh4};
         int[] ziIds = {R.id.btnZoomIn1, R.id.btnZoomIn2, R.id.btnZoomIn3, R.id.btnZoomIn4};
         int[] zoIds = {R.id.btnZoomOut1, R.id.btnZoomOut2, R.id.btnZoomOut3, R.id.btnZoomOut4};
@@ -227,9 +218,6 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < 4; i++) {
             checkBoxes[i] = findViewById(cbIds[i]);
             checkBoxesKeepActive[i] = findViewById(kaIds[i]);
-            // NOVO: inicializa checkBoxFullVideo
-            checkBoxFullVideo[i] = findViewById(fullIds[i]);
-
             btnRefresh[i] = findViewById(rfIds[i]);
             btnZoomIn[i] = findViewById(ziIds[i]);
             btnZoomOut[i] = findViewById(zoIds[i]);
@@ -330,6 +318,7 @@ public class MainActivity extends AppCompatActivity {
             s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         s.setUserAgentString(buildUserAgent());
         s.setTextZoom((int) (zoomLevels[idx] * 100));
+        // Removido setInitialScale fixo – agora usa 0 para respeitar a viewport da página
         wv.setInitialScale(0);
         wv.setBackgroundColor(Color.BLACK);
         wv.setVerticalScrollBarEnabled(true);
@@ -357,13 +346,9 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onPageFinished(WebView view, String url) {
+            public void onPageFinished(WebView v, String url) {
                 applyZoom(idx);
-                if (cbBlockAds != null && cbBlockAds.isChecked()) injectAdBlocker(view);
-                // NOVO: reaplica fullbox se o checkbox estiver marcado
-                if (checkBoxFullVideo[idx] != null && checkBoxFullVideo[idx].isChecked()) {
-                    enableFullBox(view);
-                }
+                if (cbBlockAds != null && cbBlockAds.isChecked()) injectAdBlocker(v);
             }
         });
 
@@ -394,52 +379,13 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // NOVOS MÉTODOS PARA FULLBOX
-    private void enableFullBox(WebView webView) {
-        if (webView == null) return;
-        String script =
-                "javascript:(function() {" +
-                        "   var style = document.createElement('style');" +
-                        "   style.type = 'text/css';" +
-                        "   style.innerHTML = '" +
-                        "       video {" +
-                        "           position: fixed !important;" +
-                        "           top: 0 !important;" +
-                        "           left: 0 !important;" +
-                        "           width: 100% !important;" +
-                        "           height: 100% !important;" +
-                        "           object-fit: cover !important;" +
-                        "           z-index: 9999 !important;" +
-                        "           background: black;" +
-                        "       }" +
-                        "       body { overflow: hidden !important; }" +
-                        "   ';" +
-                        "   document.head.appendChild(style);" +
-                        "   var elements = document.querySelectorAll('header, footer, nav, aside');" +
-                        "   for (var i = 0; i < elements.length; i++) {" +
-                        "       elements[i].style.display = 'none';" +
-                        "   }" +
-                        "})();";
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.evaluateJavascript(script, null);
-        } else {
-            webView.loadUrl(script);
-        }
-    }
-
-    private void disableFullBox(WebView webView) {
-        if (webView == null) return;
-        webView.reload();
-    }
-
     private String buildUserAgent() {
         return isFireTVorTablet()
                 ? "Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/91.0.4472.120 Mobile Safari/537.36"
                 : "Mozilla/5.0 (Linux; Android 11; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36";
     }
 
-    // ================== MÉTODO updateLayout ==================
+    // ================== MÉTODO CORRIGIDO updateLayout ==================
     private void updateLayout() {
         int visibleCount = 0;
         for (boolean e : boxEnabled) if (e) visibleCount++;
@@ -496,6 +442,7 @@ public class MainActivity extends AppCompatActivity {
         final int fRows = rows;
         final int fCols = cols;
 
+        // Define a visibilidade dos containers
         for (int i = 0; i < 4; i++) {
             if (boxContainers[i] == null) continue;
             if (boxEnabled[i]) {
@@ -512,13 +459,16 @@ public class MainActivity extends AppCompatActivity {
             int gridH = gridLayout.getMeasuredHeight();
             if (gridW <= 0 || gridH <= 0) return;
 
+            // Converte a margem de 2dp para pixels, garantindo consistência em todas as telas
             float density = getResources().getDisplayMetrics().density;
             int margin = (fVisibleCount == 1) ? 0 : (int) (2 * density);
 
+            // Largura total disponível para as células (descontando as margens laterais)
             int totalCellWidth = gridW - margin * 2 * fCols;
             int baseCellWidth = totalCellWidth / fCols;
-            int remainderWidth = totalCellWidth % fCols;
+            int remainderWidth = totalCellWidth % fCols; // pixels extras a distribuir
 
+            // Altura total disponível para as células (descontando as margens superior/inferior)
             int totalCellHeight = gridH - margin * 2 * fRows;
             int baseCellHeight = totalCellHeight / fRows;
             int remainderHeight = totalCellHeight % fRows;
@@ -534,6 +484,7 @@ public class MainActivity extends AppCompatActivity {
                 int row = pos / fCols;
                 int col = pos % fCols;
 
+                // A largura da célula recebe +1 se houver resto e esta coluna estiver entre as primeiras 'remainderWidth' colunas
                 int cellW = baseCellWidth + (col < remainderWidth ? 1 : 0);
                 int cellH = baseCellHeight + (row < remainderHeight ? 1 : 0);
 
@@ -626,19 +577,6 @@ public class MainActivity extends AppCompatActivity {
                     if (isSyncingUI) return;
                     boxKeepActive[idx] = checked;
                     updateLayout();
-                });
-            }
-
-            // NOVO: listener para o checkbox Full Video
-            if (checkBoxFullVideo[i] != null) {
-                checkBoxFullVideo[i].setOnCheckedChangeListener((buttonView, isChecked) -> {
-                    if (webViews[idx] != null) {
-                        if (isChecked) {
-                            enableFullBox(webViews[idx]);
-                        } else {
-                            disableFullBox(webViews[idx]);
-                        }
-                    }
                 });
             }
         }
@@ -740,8 +678,6 @@ public class MainActivity extends AppCompatActivity {
                 ed.putBoolean("box_enabled_" + i, boxEnabled[i]);
                 ed.putBoolean("box_keep_active_" + i, boxKeepActive[i]);
                 ed.putFloat("zoom_level_" + i, zoomLevels[i]);
-                // NOVO: salva estado do fullbox
-                ed.putBoolean("fullbox_" + i, checkBoxFullVideo[i] != null && checkBoxFullVideo[i].isChecked());
             }
             if (cbAllowScripts != null) ed.putBoolean("allow_scripts", cbAllowScripts.isChecked());
             if (cbAllowForms != null) ed.putBoolean("allow_forms", cbAllowForms.isChecked());
@@ -762,14 +698,8 @@ public class MainActivity extends AppCompatActivity {
                 boxEnabled[i] = preferences.getBoolean("box_enabled_" + i, true);
                 boxKeepActive[i] = preferences.getBoolean("box_keep_active_" + i, true);
                 zoomLevels[i] = preferences.getFloat("zoom_level_" + i, 1.0f);
-                // NOVO: carrega estado do fullbox
-                boolean fullboxChecked = preferences.getBoolean("fullbox_" + i, false);
-
                 if (checkBoxes[i] != null) checkBoxes[i].setChecked(boxEnabled[i]);
                 if (checkBoxesKeepActive[i] != null) checkBoxesKeepActive[i].setChecked(boxKeepActive[i]);
-                if (checkBoxFullVideo[i] != null) {
-                    checkBoxFullVideo[i].setChecked(fullboxChecked);
-                }
                 applyZoom(i);
             }
             boolean hasUrls = false;
@@ -779,14 +709,7 @@ public class MainActivity extends AppCompatActivity {
                     hasUrls = true;
                     if (urlInputs[i] != null) urlInputs[i].setText(url);
                     syncToSidebar(i, url);
-                    if ((boxEnabled[i] || boxKeepActive[i]) && webViews[i] != null) {
-                        loadURL(i, url);
-                        // Se fullbox ativo, aplica após um pequeno delay
-                        if (checkBoxFullVideo[i] != null && checkBoxFullVideo[i].isChecked()) {
-                            int finalI = i;
-                            webViews[i].postDelayed(() -> enableFullBox(webViews[finalI]), 500);
-                        }
-                    }
+                    if ((boxEnabled[i] || boxKeepActive[i]) && webViews[i] != null) loadURL(i, url);
                 }
             }
             if (!hasUrls) {
