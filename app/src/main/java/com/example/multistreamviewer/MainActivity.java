@@ -396,38 +396,37 @@ public class MainActivity extends AppCompatActivity {
 
     // NOVOS MÉTODOS PARA FULLBOX
     private void enableFullBox(WebView webView) {
-        if (webView == null) return;
-        String script =
-                "javascript:(function() {" +
-                        "   var style = document.createElement('style');" +
-                        "   style.type = 'text/css';" +
-                        "   style.innerHTML = '" +
-                        "       video {" +
-                        "           position: fixed !important;" +
-                        "           top: 0 !important;" +
-                        "           left: 0 !important;" +
-                        "           width: 100% !important;" +
-                        "           height: 100% !important;" +
-                        "           object-fit: cover !important;" +
-                        "           z-index: 9999 !important;" +
-                        "           background: black;" +
-                        "       }" +
-                        "       body { overflow: hidden !important; }" +
-                        "   ';" +
-                        "   document.head.appendChild(style);" +
-                        "   var elements = document.querySelectorAll('header, footer, nav, aside');" +
-                        "   for (var i = 0; i < elements.length; i++) {" +
-                        "       elements[i].style.display = 'none';" +
-                        "   }" +
-                        "})();";
+    if (webView == null) return;
+    String script =
+            "javascript:(function() {" +
+                    "   var style = document.createElement('style');" +
+                    "   style.type = 'text/css';" +
+                    "   style.innerHTML = '" +
+                    "       video {" +
+                    "           position: fixed !important;" +
+                    "           top: 0 !important;" +
+                    "           left: 0 !important;" +
+                    "           width: 100% !important;" +
+                    "           height: 100% !important;" +
+                    "           object-fit: contain !important;" + // <-- alterado para contain
+                    "           z-index: 9999 !important;" +
+                    "           background: black;" +
+                    "       }" +
+                    "       body { overflow: hidden !important; }" +
+                    "   ';" +
+                    "   document.head.appendChild(style);" +
+                    "   var elements = document.querySelectorAll('header, footer, nav, aside');" +
+                    "   for (var i = 0; i < elements.length; i++) {" +
+                    "       elements[i].style.display = 'none';" +
+                    "   }" +
+                    "})();";
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.evaluateJavascript(script, null);
-        } else {
-            webView.loadUrl(script);
-        }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        webView.evaluateJavascript(script, null);
+    } else {
+        webView.loadUrl(script);
     }
-
+}
     private void disableFullBox(WebView webView) {
         if (webView == null) return;
         webView.reload();
