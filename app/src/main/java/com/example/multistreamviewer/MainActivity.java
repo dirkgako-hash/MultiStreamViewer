@@ -406,8 +406,8 @@ public class MainActivity extends AppCompatActivity {
                         "           position: fixed !important;" +
                         "           top: 0 !important;" +
                         "           left: 0 !important;" +
-                        "           width: 100vw !important;" +
-                        "           height: 100vw !important;" +
+                        "           width: 100% !important;" +
+                        "           height: 100% !important;" +
                         "           object-fit: cover !important;" +
                         "           z-index: 9999 !important;" +
                         "           background: black;" +
