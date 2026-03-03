@@ -27,6 +27,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
@@ -51,9 +52,9 @@ public class MainActivity extends AppCompatActivity {
     private WebChromeClient.CustomViewCallback[] customCallbacks = new WebChromeClient.CustomViewCallback[4];
 
     private LinearLayout bottomControls;
-    private RelativeLayout bottomBarContainer;
     private FrameLayout sidebarContainer;
     private RelativeLayout mainLayout;
+    private TextView tvFocusedBox;
 
     private Button btnToggleBottomBar, btnToggleSidebar;
     private Button btnSetPortrait, btnSetLandscape;
@@ -119,6 +120,7 @@ public class MainActivity extends AppCompatActivity {
 
         gridLayout.post(() -> {
             updateLayout();
+            updateFocusedBoxIndicator();
             if (!hasSavedState())
                 new Handler().postDelayed(this::loadInitialURLs, 500);
         });
@@ -163,9 +165,9 @@ public class MainActivity extends AppCompatActivity {
     private void initViews() {
         gridLayout = findViewById(R.id.gridLayout);
         bottomControls = findViewById(R.id.bottomControls);
-        bottomBarContainer = findViewById(R.id.bottomBarContainer);
         sidebarContainer = findViewById(R.id.sidebarContainer);
         mainLayout = findViewById(R.id.main_layout);
+        tvFocusedBox = findViewById(R.id.tvFocusedBox);
 
         btnToggleBottomBar = findViewById(R.id.btnToggleBottomBar);
         btnToggleSidebar = findViewById(R.id.btnToggleSidebar);
@@ -283,6 +285,7 @@ public class MainActivity extends AppCompatActivity {
             boxContainers[i].setOnFocusChangeListener((v, hasFocus) -> {
                 if (hasFocus && !isSidebarVisible) {
                     focusedBoxIndex = idx;
+                    updateFocusedBoxIndicator();
                     setFocusBorder(idx, true);
                 } else if (!hasFocus) {
                     setFocusBorder(idx, false);
@@ -487,12 +490,12 @@ public class MainActivity extends AppCompatActivity {
         if (n == 1) return boxContainers[idx.get(0)];
 
         if (!portrait) {
-            // LANDSCAPE
+            // Landscape
             if (n == 2) return buildLandscape2(idx, W, H);
             if (n == 3) return buildLandscape3(idx, W, H, divPx, minPx);
-            return buildLandscape4(idx, W, H); // 4
+            return buildLandscape4(idx, W, H); // 4 → 2×2
         } else {
-            // PORTRAIT : single column, draggable H-dividers
+            // Portrait: single column, draggable H-dividers
             return buildPortraitStack(idx, W, H, divPx, minPx);
         }
     }
@@ -514,6 +517,7 @@ public class MainActivity extends AppCompatActivity {
 
         LinearLayout leftCol = new LinearLayout(this);
         leftCol.setOrientation(LinearLayout.VERTICAL);
+
         leftCol.addView(boxContainers[idx.get(0)],
                 new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, topH));
 
@@ -653,7 +657,6 @@ public class MainActivity extends AppCompatActivity {
     // ================== FIM DO UPDATE LAYOUT ==================
 
     private void initEventListeners() {
-        // Botão esquerdo: alterna visibilidade da bottomControls
         if (btnToggleBottomBar != null) {
             btnToggleBottomBar.setOnClickListener(v -> {
                 if (bottomControls.getVisibility() == View.VISIBLE) {
@@ -663,25 +666,15 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
-
-        // Botões de orientação
-        if (btnSetPortrait != null) {
-            btnSetPortrait.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT));
-        }
-        if (btnSetLandscape != null) {
-            btnSetLandscape.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE));
-        }
-
-        // Botão direito: alterna sidebar
         if (btnToggleSidebar != null)
             btnToggleSidebar.setOnClickListener(v -> {
                 if (isSidebarVisible) closeSidebar();
                 else openSidebar();
             });
-
+        if (btnSetPortrait != null) btnSetPortrait.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT));
+        if (btnSetLandscape != null) btnSetLandscape.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE));
         if (btnCloseSidebar != null) btnCloseSidebar.setOnClickListener(v -> closeSidebar());
 
-        // Botões de ação (LOAD, RELOAD, etc.)
         if (btnLoadAll != null) btnLoadAll.setOnClickListener(v -> loadAllURLs());
         if (btnReloadAll != null) btnReloadAll.setOnClickListener(v -> reloadAll());
         if (btnClearAll != null) btnClearAll.setOnClickListener(v -> clearAll());
@@ -975,7 +968,7 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "Carregando favorito: " + name + ", target=" + target + ", urls=" + urls);
 
             if (target == -1) {
-                // Carregar em todas as boxes ativas
+                // Carregar em todas as boxes
                 for (int i = 0; i < 4 && i < urls.length(); i++) {
                     String u = urls.getString(i);
                     if (urlInputs[i] != null) {
@@ -1108,7 +1101,11 @@ public class MainActivity extends AppCompatActivity {
         RelativeLayout.LayoutParams p = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
         p.rightMargin = sidebarWidth;
         gridLayout.setLayoutParams(p);
-        gridLayout.post(this::updateLayout);
+        // Não precisa chamar updateLayout aqui porque a margem já será considerada no próximo layout pass
+    }
+
+    private void updateFocusedBoxIndicator() {
+        if (tvFocusedBox != null) tvFocusedBox.setText("Foco: " + (focusedBoxIndex + 1));
     }
 
     private void setFocusBorder(int idx, boolean focused) {
