@@ -59,21 +59,19 @@ public class MainActivity extends AppCompatActivity {
     private Button btnToggleBottomBar, btnToggleSidebar;
     private Button btnSetPortrait, btnSetLandscape;
     private Button btnCloseSidebar;
-    private Button btnLoadAll, btnReloadAll, btnClearAll;
-    private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
 
+    // Botões de controle por box (mantidos)
     private Button[] btnRefresh = new Button[4];
     private Button[] btnZoomIn = new Button[4];
     private Button[] btnZoomOut = new Button[4];
     private Button[] btnPrevious = new Button[4];
     private Button[] btnNext = new Button[4];
-    private Button[] btnLoadUrl = new Button[4];
-    private EditText[] urlInputs = new EditText[4];
     private CheckBox[] checkBoxes = new CheckBox[4];
     private CheckBox[] checkBoxesKeepActive = new CheckBox[4];
     private CheckBox[] checkBoxFullVideo = new CheckBox[4];
     private boolean[] fullscreenActive = new boolean[4];
 
+    // Sidebar views (URL inputs e botões de ação global)
     private EditText[] urlInputsSidebar = new EditText[4];
     private Button[] btnLoadUrlSidebar = new Button[4];
     private Button btnLoadAllSidebar, btnReloadAllSidebar, btnClearAllSidebar;
@@ -175,14 +173,7 @@ public class MainActivity extends AppCompatActivity {
         btnSetLandscape = findViewById(R.id.btnSetLandscape);
         btnCloseSidebar = findViewById(R.id.btnCloseSidebar);
 
-        btnLoadAll = findViewById(R.id.btnLoadAll);
-        btnReloadAll = findViewById(R.id.btnReloadAll);
-        btnClearAll = findViewById(R.id.btnClearAll);
-        btnSaveState = findViewById(R.id.btnSaveState);
-        btnLoadState = findViewById(R.id.btnLoadState);
-        btnSaveFavorites = findViewById(R.id.btnSaveFavorites);
-        btnLoadFavorites = findViewById(R.id.btnLoadFavorites);
-
+        // Sidebar buttons
         btnSaveStateSidebar = findViewById(R.id.btnSaveStateSidebar);
         btnLoadStateSidebar = findViewById(R.id.btnLoadStateSidebar);
         btnSaveFavoritesSidebar = findViewById(R.id.btnSaveFavoritesSidebar);
@@ -197,6 +188,7 @@ public class MainActivity extends AppCompatActivity {
         cbBlockRedirects = findViewById(R.id.cbBlockRedirects);
         cbBlockAds = findViewById(R.id.cbBlockAds);
 
+        // Arrays de IDs para per-box controls (checkboxes e botões)
         int[] cbIds = {R.id.checkBox1, R.id.checkBox2, R.id.checkBox3, R.id.checkBox4};
         int[] kaIds = {R.id.checkBoxKeepActive1, R.id.checkBoxKeepActive2,
                 R.id.checkBoxKeepActive3, R.id.checkBoxKeepActive4};
@@ -211,14 +203,13 @@ public class MainActivity extends AppCompatActivity {
         int[] zoIds = {R.id.btnZoomOut1, R.id.btnZoomOut2, R.id.btnZoomOut3, R.id.btnZoomOut4};
         int[] pvIds = {R.id.btnPrevious1, R.id.btnPrevious2, R.id.btnPrevious3, R.id.btnPrevious4};
         int[] nxIds = {R.id.btnNext1, R.id.btnNext2, R.id.btnNext3, R.id.btnNext4};
-        int[] goIds = {R.id.btnLoadUrl1, R.id.btnLoadUrl2, R.id.btnLoadUrl3, R.id.btnLoadUrl4};
-        int[] ulIds = {R.id.urlInput1, R.id.urlInput2, R.id.urlInput3, R.id.urlInput4};
+
+        // Sidebar URL inputs
         int[] usbIds = {R.id.urlInputSidebar1, R.id.urlInputSidebar2,
                 R.id.urlInputSidebar3, R.id.urlInputSidebar4};
         int[] gsbIds = {R.id.btnLoadUrlSidebar1, R.id.btnLoadUrlSidebar2,
                 R.id.btnLoadUrlSidebar3, R.id.btnLoadUrlSidebar4};
 
-        String def = "https://dzritv.com/sport/football/";
         for (int i = 0; i < 4; i++) {
             checkBoxes[i] = findViewById(cbIds[i]);
             checkBoxesKeepActive[i] = findViewById(kaIds[i]);
@@ -229,18 +220,16 @@ public class MainActivity extends AppCompatActivity {
             btnZoomOut[i] = findViewById(zoIds[i]);
             btnPrevious[i] = findViewById(pvIds[i]);
             btnNext[i] = findViewById(nxIds[i]);
-            btnLoadUrl[i] = findViewById(goIds[i]);
-            urlInputs[i] = findViewById(ulIds[i]);
+
             urlInputsSidebar[i] = findViewById(usbIds[i]);
             btnLoadUrlSidebar[i] = findViewById(gsbIds[i]);
-            setupUrlInput(urlInputs[i], def, i, false);
-            setupUrlInput(urlInputsSidebar[i], def, i, true);
+            setupUrlInputSidebar(i);
         }
     }
 
-    private void setupUrlInput(EditText et, String def, final int idx, final boolean sidebar) {
+    private void setupUrlInputSidebar(final int idx) {
+        EditText et = urlInputsSidebar[idx];
         if (et == null) return;
-        et.setText(def);
         et.setCursorVisible(true);
         et.setSelectAllOnFocus(true);
         et.setOnFocusChangeListener((v, focus) -> {
@@ -253,8 +242,6 @@ public class MainActivity extends AppCompatActivity {
             if (actionId == EditorInfo.IME_ACTION_DONE) {
                 String url = et.getText().toString().trim();
                 if (!url.isEmpty()) {
-                    if (sidebar) syncToBottomBar(idx, url);
-                    else syncToSidebar(idx, url);
                     loadURL(idx, url);
                     hideKeyboard();
                 }
@@ -262,14 +249,6 @@ public class MainActivity extends AppCompatActivity {
             }
             return false;
         });
-    }
-
-    private void syncToSidebar(int i, String url) {
-        if (urlInputsSidebar[i] != null) urlInputsSidebar[i].setText(url);
-    }
-
-    private void syncToBottomBar(int i, String url) {
-        if (urlInputs[i] != null) urlInputs[i].setText(url);
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -387,6 +366,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    // Fullbox methods
     private void enableFullBox(WebView webView) {
         if (webView == null) return;
         String script =
@@ -431,7 +411,7 @@ public class MainActivity extends AppCompatActivity {
                 : "Mozilla/5.0 (Linux; Android 11; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36";
     }
 
-    // ================== UPDATE LAYOUT ==================
+    // ================== UPDATE LAYOUT (com divisores) ==================
     private void updateLayout() {
         List<Integer> enabledIdx = new ArrayList<>();
         for (int i = 0; i < 4; i++) if (boxEnabled[i]) enabledIdx.add(i);
@@ -490,12 +470,10 @@ public class MainActivity extends AppCompatActivity {
         if (n == 1) return boxContainers[idx.get(0)];
 
         if (!portrait) {
-            // Landscape
             if (n == 2) return buildLandscape2(idx, W, H);
             if (n == 3) return buildLandscape3(idx, W, H, divPx, minPx);
-            return buildLandscape4(idx, W, H); // 4 → 2×2
+            return buildLandscape4(idx, W, H);
         } else {
-            // Portrait: single column, draggable H-dividers
             return buildPortraitStack(idx, W, H, divPx, minPx);
         }
     }
@@ -654,16 +632,12 @@ public class MainActivity extends AppCompatActivity {
             return false;
         };
     }
-    // ================== FIM DO UPDATE LAYOUT ==================
+    // ================== FIM DO LAYOUT ==================
 
     private void initEventListeners() {
         if (btnToggleBottomBar != null) {
             btnToggleBottomBar.setOnClickListener(v -> {
-                if (bottomControls.getVisibility() == View.VISIBLE) {
-                    bottomControls.setVisibility(View.GONE);
-                } else {
-                    bottomControls.setVisibility(View.VISIBLE);
-                }
+                bottomControls.setVisibility(bottomControls.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
             });
         }
         if (btnToggleSidebar != null)
@@ -675,37 +649,22 @@ public class MainActivity extends AppCompatActivity {
         if (btnSetLandscape != null) btnSetLandscape.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE));
         if (btnCloseSidebar != null) btnCloseSidebar.setOnClickListener(v -> closeSidebar());
 
-        if (btnLoadAll != null) btnLoadAll.setOnClickListener(v -> loadAllURLs());
-        if (btnReloadAll != null) btnReloadAll.setOnClickListener(v -> reloadAll());
-        if (btnClearAll != null) btnClearAll.setOnClickListener(v -> clearAll());
-        if (btnSaveState != null) btnSaveState.setOnClickListener(v -> saveCurrentState());
-        if (btnLoadState != null) btnLoadState.setOnClickListener(v -> loadSavedState(false));
-        if (btnSaveFavorites != null) btnSaveFavorites.setOnClickListener(v -> showSaveFavoriteDialog());
-        if (btnLoadFavorites != null) btnLoadFavorites.setOnClickListener(v -> showLoadFavoritesDialog());
-
+        // Sidebar global buttons
+        if (btnLoadAllSidebar != null) btnLoadAllSidebar.setOnClickListener(v -> loadAllURLs());
+        if (btnReloadAllSidebar != null) btnReloadAllSidebar.setOnClickListener(v -> reloadAll());
+        if (btnClearAllSidebar != null) btnClearAllSidebar.setOnClickListener(v -> clearAll());
         if (btnSaveStateSidebar != null) btnSaveStateSidebar.setOnClickListener(v -> saveCurrentState());
         if (btnLoadStateSidebar != null) btnLoadStateSidebar.setOnClickListener(v -> loadSavedState(false));
         if (btnSaveFavoritesSidebar != null) btnSaveFavoritesSidebar.setOnClickListener(v -> showSaveFavoriteDialog());
         if (btnLoadFavoritesSidebar != null) btnLoadFavoritesSidebar.setOnClickListener(v -> showLoadFavoritesDialog());
-        if (btnLoadAllSidebar != null) btnLoadAllSidebar.setOnClickListener(v -> loadAllURLs());
-        if (btnReloadAllSidebar != null) btnReloadAllSidebar.setOnClickListener(v -> reloadAll());
-        if (btnClearAllSidebar != null) btnClearAllSidebar.setOnClickListener(v -> clearAll());
 
+        // Per-box controls
         for (int i = 0; i < 4; i++) {
             final int idx = i;
-            if (btnLoadUrl[i] != null)
-                btnLoadUrl[i].setOnClickListener(v -> {
-                    String u = urlInputs[idx].getText().toString().trim();
-                    if (!u.isEmpty()) {
-                        syncToSidebar(idx, u);
-                        loadURL(idx, u);
-                    }
-                });
             if (btnLoadUrlSidebar[i] != null)
                 btnLoadUrlSidebar[i].setOnClickListener(v -> {
                     String u = urlInputsSidebar[idx].getText().toString().trim();
                     if (!u.isEmpty()) {
-                        syncToBottomBar(idx, u);
                         loadURL(idx, u);
                     }
                 });
@@ -779,12 +738,11 @@ public class MainActivity extends AppCompatActivity {
     private void loadAllURLs() {
         for (int i = 0; i < 4; i++) {
             if (!boxEnabled[i] && !boxKeepActive[i]) continue;
-            String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
+            String url = urlInputsSidebar[i] != null ? urlInputsSidebar[i].getText().toString().trim() : "";
             if (url.isEmpty()) {
                 url = defaultUrl();
-                if (urlInputs[i] != null) urlInputs[i].setText(url);
+                if (urlInputsSidebar[i] != null) urlInputsSidebar[i].setText(url);
             }
-            syncToSidebar(i, url);
             loadURL(i, url);
         }
         Toast.makeText(this, "Carregando todas as URLs", Toast.LENGTH_SHORT).show();
@@ -793,12 +751,11 @@ public class MainActivity extends AppCompatActivity {
     private void loadInitialURLs() {
         for (int i = 0; i < 4; i++) {
             if (!boxEnabled[i] && !boxKeepActive[i]) continue;
-            String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
+            String url = urlInputsSidebar[i] != null ? urlInputsSidebar[i].getText().toString().trim() : "";
             if (url.isEmpty()) {
                 url = defaultUrl();
-                if (urlInputs[i] != null) urlInputs[i].setText(url);
+                if (urlInputsSidebar[i] != null) urlInputsSidebar[i].setText(url);
             }
-            syncToSidebar(i, url);
             loadURL(i, url);
         }
     }
@@ -845,7 +802,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             SharedPreferences.Editor ed = preferences.edit();
             for (int i = 0; i < 4; i++) {
-                String url = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
+                String url = urlInputsSidebar[i] != null ? urlInputsSidebar[i].getText().toString().trim() : "";
                 ed.putString("url_" + i, url.isEmpty() ? defaultUrl() : url);
                 ed.putBoolean("box_enabled_" + i, boxEnabled[i]);
                 ed.putBoolean("box_keep_active_" + i, boxKeepActive[i]);
@@ -885,8 +842,7 @@ public class MainActivity extends AppCompatActivity {
                 String url = preferences.getString("url_" + i, "");
                 if (!url.isEmpty()) {
                     hasUrls = true;
-                    if (urlInputs[i] != null) urlInputs[i].setText(url);
-                    syncToSidebar(i, url);
+                    if (urlInputsSidebar[i] != null) urlInputsSidebar[i].setText(url);
                     if ((boxEnabled[i] || boxKeepActive[i]) && webViews[i] != null) {
                         loadURL(i, url);
                         if (checkBoxFullVideo[i] != null && checkBoxFullVideo[i].isChecked()) {
@@ -899,8 +855,7 @@ public class MainActivity extends AppCompatActivity {
             if (!hasUrls) {
                 String d = defaultUrl();
                 for (int i = 0; i < 4; i++) {
-                    if (urlInputs[i] != null) urlInputs[i].setText(d);
-                    syncToSidebar(i, d);
+                    if (urlInputsSidebar[i] != null) urlInputsSidebar[i].setText(d);
                 }
             }
             if (cbAllowScripts != null) cbAllowScripts.setChecked(preferences.getBoolean("allow_scripts", true));
@@ -942,7 +897,7 @@ public class MainActivity extends AppCompatActivity {
             }
             JSONArray urls = new JSONArray();
             for (int i = 0; i < 4; i++) {
-                String u = urlInputs[i] != null ? urlInputs[i].getText().toString().trim() : "";
+                String u = urlInputsSidebar[i] != null ? urlInputsSidebar[i].getText().toString().trim() : "";
                 urls.put(u.isEmpty() ? defaultUrl() : u);
             }
             JSONObject obj = new JSONObject();
@@ -968,25 +923,20 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "Carregando favorito: " + name + ", target=" + target + ", urls=" + urls);
 
             if (target == -1) {
-                // Carregar em todas as boxes
                 for (int i = 0; i < 4 && i < urls.length(); i++) {
                     String u = urls.getString(i);
-                    if (urlInputs[i] != null) {
-                        urlInputs[i].setText(u);
-                        syncToSidebar(i, u);
+                    if (urlInputsSidebar[i] != null) {
+                        urlInputsSidebar[i].setText(u);
                     }
                     if ((boxEnabled[i] || boxKeepActive[i]) && webViews[i] != null) {
                         loadURL(i, u);
-                    } else {
-                        Log.d(TAG, "Box " + i + " não ativa, URL salva mas não carregada no WebView");
                     }
                 }
                 Toast.makeText(this, "✅ Carregado em todas!", Toast.LENGTH_SHORT).show();
             } else if (target >= 0 && target < urls.length()) {
                 String u = urls.getString(target);
-                if (urlInputs[target] != null) {
-                    urlInputs[target].setText(u);
-                    syncToSidebar(target, u);
+                if (urlInputsSidebar[target] != null) {
+                    urlInputsSidebar[target].setText(u);
                 }
                 if (webViews[target] != null) {
                     loadURL(target, u);
@@ -1086,8 +1036,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onAnimationEnd(android.animation.Animator an) {
                 for (int i = 0; i < 4; i++)
-                    if (urlInputs[i] != null && urlInputsSidebar[i] != null)
-                        urlInputsSidebar[i].setText(urlInputs[i].getText());
+                    if (urlInputsSidebar[i] != null)
+                        urlInputsSidebar[i].setText(urlInputsSidebar[i].getText());
                 if (btnCloseSidebar != null) btnCloseSidebar.requestFocus();
             }
         });
@@ -1101,7 +1051,7 @@ public class MainActivity extends AppCompatActivity {
         RelativeLayout.LayoutParams p = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
         p.rightMargin = sidebarWidth;
         gridLayout.setLayoutParams(p);
-        // Não precisa chamar updateLayout aqui porque a margem já será considerada no próximo layout pass
+        gridLayout.post(this::updateLayout);
     }
 
     private void updateFocusedBoxIndicator() {
