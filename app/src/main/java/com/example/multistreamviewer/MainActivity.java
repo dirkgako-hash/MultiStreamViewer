@@ -97,7 +97,6 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MSV";
 
     // Constante para altura da bottomControls (40dp em pixels)
-    private int bottomControlsHeightPx;
 
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
@@ -109,8 +108,6 @@ public class MainActivity extends AppCompatActivity {
         preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
 
         // Calcular altura em pixels
-        bottomControlsHeightPx = (int) (40 * getResources().getDisplayMetrics().density);
-        Log.d(TAG, "bottomControlsHeightPx: " + bottomControlsHeightPx);
 
         initViews();
         initWebViewsOnce();
@@ -132,24 +129,33 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // Método centralizado para aplicar as margens
-    private void applyMargins() {
+    // ── applyGridSize ─────────────────────────────────────────────────────────
+    //  Sets EXPLICIT pixel dimensions on gridLayout so it fills exactly
+    //  the available space: full screen minus bottomControls (if open)
+    //  and minus sidebar (if open). No margins, no ABOVE rules.
+    private void applyGridSize() {
         if (gridLayout == null) return;
-        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
-        int rightMargin = isSidebarVisible ? (int) (200 * getResources().getDisplayMetrics().density) : 0;
-        int bottomMargin = isBottomControlsVisible ? bottomControlsHeightPx : 0;
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        int screenW = dm.widthPixels;
+        int screenH = dm.heightPixels;
 
-        // Só altera se realmente mudou para evitar loops
-        if (params.rightMargin != rightMargin || params.bottomMargin != bottomMargin) {
-            params.rightMargin = rightMargin;
-            params.bottomMargin = bottomMargin;
-            gridLayout.setLayoutParams(params);
-            // Força o redesenho
-            gridLayout.requestLayout();
-            ((View) gridLayout.getParent()).requestLayout();
-            gridLayout.invalidate();
-        }
+        float density = dm.density;
+        int barH  = isBottomControlsVisible ? (int)(40 * density) : 0;
+        int sideW = isSidebarVisible        ? (int)(200 * density) : 0;
 
-        Log.d(TAG, "applyMargins: bottomMargin=" + bottomMargin + ", rightMargin=" + rightMargin);
+        RelativeLayout.LayoutParams p = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
+        p.width        = screenW - sideW;
+        p.height       = screenH - barH;
+        p.leftMargin   = 0;
+        p.topMargin    = 0;
+        p.rightMargin  = 0;
+        p.bottomMargin = 0;
+        p.removeRule(RelativeLayout.ABOVE);
+        p.removeRule(RelativeLayout.ALIGN_PARENT_END);
+        gridLayout.setLayoutParams(p);
+        Log.d(TAG, "applyGridSize: " + p.width + "x" + p.height
+                + " barH=" + barH + " sideW=" + sideW);
+        gridLayout.post(this::updateLayout);
     }
 
     private boolean isFireTVorTablet() {
@@ -483,7 +489,7 @@ public class MainActivity extends AppCompatActivity {
                     + (portrait ? "P" : "L") + " " + W + "x" + H);
 
             // Reaplica as margens após reconstruir o layout
-            applyMargins();
+            applyGridSize();
         });
     }
 
@@ -671,7 +677,7 @@ public class MainActivity extends AppCompatActivity {
                     isBottomControlsVisible = true;
                 }
                 Log.d(TAG, "bottomControls visibility changed to: " + (isBottomControlsVisible ? "VISIBLE" : "GONE"));
-                applyMargins(); // Aplica a margem imediatamente
+                applyGridSize(); // Aplica a margem imediatamente
             });
         }
         if (btnToggleSidebar != null)
@@ -1051,7 +1057,7 @@ public class MainActivity extends AppCompatActivity {
             public void onAnimationEnd(android.animation.Animator an) {
                 sidebarContainer.setVisibility(View.GONE);
                 isSidebarVisible = false;
-                applyMargins(); // Aplica a margem
+                applyGridSize(); // Aplica a margem
                 hideKeyboard();
                 if (btnToggleSidebar != null) btnToggleSidebar.requestFocus();
             }
@@ -1063,7 +1069,7 @@ public class MainActivity extends AppCompatActivity {
         sidebarContainer.setVisibility(View.VISIBLE);
         sidebarContainer.setAlpha(0f);
         isSidebarVisible = true;
-        applyMargins(); // Aplica a margem
+        applyGridSize(); // Aplica a margem
         android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(sidebarContainer, "alpha", 0f, 1f);
         a.setDuration(250);
         a.addListener(new android.animation.AnimatorListenerAdapter() {
