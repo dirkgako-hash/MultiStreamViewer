@@ -30,7 +30,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import android.view.MotionEvent;
+import androidx.gridlayout.widget.GridLayout;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -42,7 +42,7 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     // Views
-    private FrameLayout gridLayout; // was GridLayout
+    private GridLayout gridLayout;
     private FrameLayout[] boxContainers = new FrameLayout[4];
     private WebView[] webViews = new WebView[4];
 
@@ -438,281 +438,118 @@ public class MainActivity extends AppCompatActivity {
                 : "Mozilla/5.0 (Linux; Android 11; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36";
     }
 
-    // ================== UPDATE LAYOUT ==================
-    //
-    //  Builds the view hierarchy inside gridLayout (a FrameLayout).
-    //  RULES:
-    //   - Landscape 1 box  : full screen
-    //   - Landscape 2 boxes: side by side, no divider
-    //   - Landscape 3 boxes: left column (Box0+Box1, draggable H-divider 50/50)
-    //                        + draggable V-divider + right (Box2 full height)
-    //   - Landscape 4 boxes: 2x2 grid
-    //   - Portrait  1 box  : full screen
-    //   - Portrait  2-4    : single column, draggable H-dividers between boxes
-    //
+    // ================== MÉTODO updateLayout ==================
     private void updateLayout() {
-        List<Integer> enabledIdx = new ArrayList<>();
-        for (int i = 0; i < 4; i++) if (boxEnabled[i]) enabledIdx.add(i);
+        int visibleCount = 0;
+        for (boolean e : boxEnabled) if (e) visibleCount++;
 
-        if (enabledIdx.isEmpty()) {
+        if (visibleCount == 0) {
             boxEnabled[0] = true;
-            if (checkBoxes[0] != null) checkBoxes[0].setChecked(true);
-            enabledIdx.add(0);
-        }
-
-        // Visibility for all containers (keepActive stays alive off-screen)
-        for (int i = 0; i < 4; i++) {
-            if (boxContainers[i] == null) continue;
-            if      (boxEnabled[i])    boxContainers[i].setVisibility(View.VISIBLE);
-            else if (boxKeepActive[i]) boxContainers[i].setVisibility(View.INVISIBLE);
-            else                       boxContainers[i].setVisibility(View.GONE);
+            visibleCount = 1;
         }
 
         final boolean portrait = (currentOrientation == Configuration.ORIENTATION_PORTRAIT);
-        final List<Integer> idx = new ArrayList<>(enabledIdx);
+        int rows, cols;
 
-        gridLayout.post(() -> {
-            gridLayout.removeAllViews();
-            int W = gridLayout.getMeasuredWidth();
-            int H = gridLayout.getMeasuredHeight();
-            if (W <= 0 || H <= 0) return;
-
-            View root = buildGrid(portrait, idx, W, H);
-            if (root != null) {
-                gridLayout.addView(root, new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT));
-            }
-            Log.d(TAG, "updateLayout " + idx.size() + "boxes "
-                    + (portrait ? "P" : "L") + " " + W + "x" + H);
-        });
-    }
-
-    private View buildGrid(boolean portrait, List<Integer> idx, int W, int H) {
-        float dp = getResources().getDisplayMetrics().density;
-        int divPx = (int)(8 * dp);   // divider thickness in px
-        int minPx = (int)(60 * dp);  // minimum box size in px
-
-        int n = idx.size();
-        if (n == 1) return boxContainers[idx.get(0)];
-
-        if (!portrait) {
-            // ── LANDSCAPE ────────────────────────────────────────────────
-            switch (n) {
+        if (portrait) {
+            switch (visibleCount) {
+                case 1:
+                    rows = 1;
+                    cols = 1;
+                    break;
                 case 2:
-                    return buildLandscape2(idx, W, H);
+                    rows = 2;
+                    cols = 1;
+                    break;
                 case 3:
-                    return buildLandscape3(idx, W, H, divPx, minPx);
-                default: // 4
-                    return buildLandscape4(idx, W, H);
+                    rows = 3;
+                    cols = 1;
+                    break;
+                default:
+                    rows = 2;
+                    cols = 2;
+                    break;
             }
         } else {
-            // ── PORTRAIT: single column with draggable H-dividers ────────
-            return buildPortraitStack(idx, W, H, divPx, minPx);
-        }
-    }
-
-    /** Landscape 2: side-by-side equal halves */
-    private View buildLandscape2(List<Integer> idx, int W, int H) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        int half = W / 2;
-        row.addView(boxContainers[idx.get(0)],
-                new LinearLayout.LayoutParams(half, H));
-        row.addView(boxContainers[idx.get(1)],
-                new LinearLayout.LayoutParams(W - half, H));
-        return row;
-    }
-
-    /**
-     * Landscape 3:
-     *   [Left col: Box0 / H-divider / Box1]  |V-divider|  [Box2]
-     * Left starts at 50% width, both halves draggable.
-     */
-    private View buildLandscape3(List<Integer> idx, int W, int H, int divPx, int minPx) {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.HORIZONTAL);
-
-        int leftW  = W / 2 - divPx / 2;
-        int rightW = W - leftW - divPx;
-        int topH   = H / 2 - divPx / 2;
-        int botH   = H - topH - divPx;
-
-        // ── Left column ─────────────────────────────────────────────────
-        LinearLayout leftCol = new LinearLayout(this);
-        leftCol.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams leftColLp =
-                new LinearLayout.LayoutParams(leftW, LinearLayout.LayoutParams.MATCH_PARENT);
-
-        // Box top-left
-        LinearLayout.LayoutParams tlLp =
-                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, topH);
-        leftCol.addView(boxContainers[idx.get(0)], tlLp);
-
-        // Horizontal divider (drag up/down to resize top vs bottom)
-        View hDiv = makeDivider(true, divPx);
-        hDiv.setOnTouchListener(makeHorizResizeListener(
-                boxContainers[idx.get(0)], boxContainers[idx.get(1)], minPx));
-        leftCol.addView(hDiv);
-
-        // Box bottom-left
-        LinearLayout.LayoutParams blLp =
-                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, botH);
-        leftCol.addView(boxContainers[idx.get(1)], blLp);
-
-        root.addView(leftCol, leftColLp);
-
-        // ── Vertical divider (drag left/right to resize columns) ─────────
-        View vDiv = makeDivider(false, divPx);
-        vDiv.setOnTouchListener(makeVertResizeListener(leftCol, boxContainers[idx.get(2)], minPx));
-        root.addView(vDiv);
-
-        // ── Right box ────────────────────────────────────────────────────
-        LinearLayout.LayoutParams rightLp =
-                new LinearLayout.LayoutParams(rightW, LinearLayout.LayoutParams.MATCH_PARENT);
-        root.addView(boxContainers[idx.get(2)], rightLp);
-
-        return root;
-    }
-
-    /** Landscape 4: 2x2 grid */
-    private View buildLandscape4(List<Integer> idx, int W, int H) {
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        int hw = W / 2, rw = W - hw;
-        int hh = H / 2, rh = H - hh;
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.addView(boxContainers[idx.get(0)], new LinearLayout.LayoutParams(hw, hh));
-        top.addView(boxContainers[idx.get(1)], new LinearLayout.LayoutParams(rw, hh));
-        col.addView(top, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, hh));
-
-        LinearLayout bot = new LinearLayout(this);
-        bot.setOrientation(LinearLayout.HORIZONTAL);
-        bot.addView(boxContainers[idx.get(2)], new LinearLayout.LayoutParams(hw, rh));
-        bot.addView(boxContainers[idx.get(3)], new LinearLayout.LayoutParams(rw, rh));
-        col.addView(bot, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, rh));
-
-        return col;
-    }
-
-    /**
-     * Portrait: N boxes stacked vertically with draggable H-dividers.
-     * Works for 2, 3, and 4 boxes.
-     */
-    private View buildPortraitStack(List<Integer> idx, int W, int H, int divPx, int minPx) {
-        int n = idx.size();
-        int totalDivH = divPx * (n - 1);
-        int usable = H - totalDivH;
-        int baseH = usable / n;
-        int extra = usable - baseH * n; // distribute remainder to last
-
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-
-        for (int i = 0; i < n; i++) {
-            int cellH = (i == n - 1) ? (baseH + extra) : baseH;
-            col.addView(boxContainers[idx.get(i)],
-                    new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
-                            Math.max(cellH, 1)));
-            if (i < n - 1) {
-                View div = makeDivider(true, divPx);
-                View viewA = boxContainers[idx.get(i)];
-                View viewB = boxContainers[idx.get(i + 1)];
-                div.setOnTouchListener(makeHorizResizeListener(viewA, viewB, minPx));
-                col.addView(div);
+            switch (visibleCount) {
+                case 1:
+                    rows = 1;
+                    cols = 1;
+                    break;
+                case 2:
+                    rows = 1;
+                    cols = 2;
+                    break;
+                case 3:
+                    rows = 1;
+                    cols = 3;
+                    break;
+                default:
+                    rows = 2;
+                    cols = 2;
+                    break;
             }
         }
-        return col;
-    }
 
-    // ── Divider factory ──────────────────────────────────────────────────────
+        final int fVisibleCount = visibleCount;
+        final int fRows = rows;
+        final int fCols = cols;
 
-    /** Creates a grey divider View. horizontal=true → full-width, fixed height. */
-    private View makeDivider(boolean horizontal, int sizePx) {
-        View v = new View(this);
-        LinearLayout.LayoutParams lp = horizontal
-                ? new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, sizePx)
-                : new LinearLayout.LayoutParams(sizePx, LinearLayout.LayoutParams.MATCH_PARENT);
-        v.setLayoutParams(lp);
-        v.setBackgroundColor(Color.parseColor("#555555"));
-        return v;
-    }
-
-    // ── Touch listeners for resize ────────────────────────────────────────────
-
-    /**
-     * Horizontal divider: drag up/down to resize viewTop (above) and viewBot (below).
-     */
-    @SuppressLint("ClickableViewAccessibility")
-    private View.OnTouchListener makeHorizResizeListener(View viewTop, View viewBot, int minPx) {
-        final float[] startY   = {0};
-        final int[]   startTopH = {0};
-        final int[]   startBotH = {0};
-
-        return (v, ev) -> {
-            switch (ev.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    startY[0]    = ev.getRawY();
-                    startTopH[0] = viewTop.getHeight();
-                    startBotH[0] = viewBot.getHeight();
-                    return true;
-
-                case MotionEvent.ACTION_MOVE:
-                    int dy     = (int)(ev.getRawY() - startY[0]);
-                    int total  = startTopH[0] + startBotH[0];
-                    int newTop = Math.min(total - minPx, Math.max(minPx, startTopH[0] + dy));
-                    int newBot = total - newTop;
-
-                    LinearLayout.LayoutParams pTop = (LinearLayout.LayoutParams) viewTop.getLayoutParams();
-                    LinearLayout.LayoutParams pBot = (LinearLayout.LayoutParams) viewBot.getLayoutParams();
-                    pTop.height = newTop; pTop.weight = 0;
-                    pBot.height = newBot; pBot.weight = 0;
-                    viewTop.setLayoutParams(pTop);
-                    viewBot.setLayoutParams(pBot);
-                    return true;
+        for (int i = 0; i < 4; i++) {
+            if (boxContainers[i] == null) continue;
+            if (boxEnabled[i]) {
+                boxContainers[i].setVisibility(View.VISIBLE);
+            } else if (boxKeepActive[i]) {
+                boxContainers[i].setVisibility(View.INVISIBLE);
+            } else {
+                boxContainers[i].setVisibility(View.GONE);
             }
-            return false;
-        };
-    }
+        }
 
-    /**
-     * Vertical divider: drag left/right to resize viewLeft and viewRight.
-     */
-    @SuppressLint("ClickableViewAccessibility")
-    private View.OnTouchListener makeVertResizeListener(View viewLeft, View viewRight, int minPx) {
-        final float[] startX    = {0};
-        final int[]   startLW   = {0};
-        final int[]   startRW   = {0};
+        gridLayout.post(() -> {
+            int gridW = gridLayout.getMeasuredWidth();
+            int gridH = gridLayout.getMeasuredHeight();
+            if (gridW <= 0 || gridH <= 0) return;
 
-        return (v, ev) -> {
-            switch (ev.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    startX[0]  = ev.getRawX();
-                    startLW[0] = viewLeft.getWidth();
-                    startRW[0] = viewRight.getWidth();
-                    return true;
+            float density = getResources().getDisplayMetrics().density;
+            int margin = (fVisibleCount == 1) ? 0 : (int) (2 * density);
 
-                case MotionEvent.ACTION_MOVE:
-                    int dx     = (int)(ev.getRawX() - startX[0]);
-                    int total  = startLW[0] + startRW[0];
-                    int newL   = Math.min(total - minPx, Math.max(minPx, startLW[0] + dx));
-                    int newR   = total - newL;
+            int totalCellWidth = gridW - margin * 2 * fCols;
+            int baseCellWidth = totalCellWidth / fCols;
+            int remainderWidth = totalCellWidth % fCols;
 
-                    LinearLayout.LayoutParams pL = (LinearLayout.LayoutParams) viewLeft.getLayoutParams();
-                    LinearLayout.LayoutParams pR = (LinearLayout.LayoutParams) viewRight.getLayoutParams();
-                    pL.width = newL; pL.weight = 0;
-                    pR.width = newR; pR.weight = 0;
-                    viewLeft.setLayoutParams(pL);
-                    viewRight.setLayoutParams(pR);
-                    return true;
+            int totalCellHeight = gridH - margin * 2 * fRows;
+            int baseCellHeight = totalCellHeight / fRows;
+            int remainderHeight = totalCellHeight % fRows;
+
+            gridLayout.removeAllViews();
+            gridLayout.setRowCount(fRows);
+            gridLayout.setColumnCount(fCols);
+
+            int pos = 0;
+            for (int i = 0; i < 4; i++) {
+                if (!boxEnabled[i]) continue;
+
+                int row = pos / fCols;
+                int col = pos % fCols;
+
+                int cellW = baseCellWidth + (col < remainderWidth ? 1 : 0);
+                int cellH = baseCellHeight + (row < remainderHeight ? 1 : 0);
+
+                GridLayout.Spec rowSpec = GridLayout.spec(row, 1f);
+                GridLayout.Spec colSpec = GridLayout.spec(col, 1f);
+                GridLayout.LayoutParams p = new GridLayout.LayoutParams(rowSpec, colSpec);
+                p.width = cellW;
+                p.height = cellH;
+                p.setMargins(margin, margin, margin, margin);
+
+                gridLayout.addView(boxContainers[i], p);
+                pos++;
             }
-            return false;
-        };
+            gridLayout.requestLayout();
+        });
     }
     // ================== FIM DA CORREÇÃO ==================
-
 
     private void initEventListeners() {
         if (btnToggleBottomBar != null) btnToggleBottomBar.setOnClickListener(v -> toggleBottomBar());
