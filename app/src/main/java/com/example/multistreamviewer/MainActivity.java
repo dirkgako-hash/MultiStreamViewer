@@ -11,7 +11,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.WebChromeClient;
@@ -30,8 +32,6 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import android.view.MotionEvent;
-import android.view.ViewGroup;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -52,14 +52,14 @@ public class MainActivity extends AppCompatActivity {
     private WebChromeClient.CustomViewCallback[] customCallbacks = new WebChromeClient.CustomViewCallback[4];
 
     private LinearLayout bottomControls;
-    private LinearLayout expandedBottomBar;
+    private RelativeLayout bottomBarContainer;
     private FrameLayout sidebarContainer;
     private RelativeLayout mainLayout;
     private TextView tvFocusedBox;
 
     private Button btnToggleBottomBar, btnToggleSidebar;
-    private Button btnSetPortrait, btnSetLandscape;
-    private Button btnCloseMenu, btnCloseSidebar;
+    private Button btnSetPortrait, btnSetLandscape; // ainda existem? No XML atual, não estão. Mas vamos manter se necessário.
+    private Button btnCloseSidebar;
     private Button btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
 
@@ -72,7 +72,6 @@ public class MainActivity extends AppCompatActivity {
     private EditText[] urlInputs = new EditText[4];
     private CheckBox[] checkBoxes = new CheckBox[4];
     private CheckBox[] checkBoxesKeepActive = new CheckBox[4];
-    // NOVO ARRAY PARA CHECKBOX FULL VIDEO
     private CheckBox[] checkBoxFullVideo = new CheckBox[4];
     private boolean[] fullscreenActive = new boolean[4];
 
@@ -88,7 +87,6 @@ public class MainActivity extends AppCompatActivity {
     private boolean[] boxKeepActive = {true, true, true, true};
 
     private boolean isSidebarVisible = false;
-    private boolean isBottomBarExpanded = false;
     private boolean isSyncingUI = false;
     private int focusedBoxIndex = 0;
     private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -168,17 +166,19 @@ public class MainActivity extends AppCompatActivity {
     private void initViews() {
         gridLayout = findViewById(R.id.gridLayout);
         bottomControls = findViewById(R.id.bottomControls);
-        expandedBottomBar = findViewById(R.id.expandedBottomBar);
+        bottomBarContainer = findViewById(R.id.bottomBarContainer);
         sidebarContainer = findViewById(R.id.sidebarContainer);
         mainLayout = findViewById(R.id.main_layout);
         tvFocusedBox = findViewById(R.id.tvFocusedBox);
 
         btnToggleBottomBar = findViewById(R.id.btnToggleBottomBar);
         btnToggleSidebar = findViewById(R.id.btnToggleSidebar);
-        btnSetPortrait = findViewById(R.id.btnSetPortrait);
-        btnSetLandscape = findViewById(R.id.btnSetLandscape);
-        btnCloseMenu = findViewById(R.id.btnCloseMenu);
         btnCloseSidebar = findViewById(R.id.btnCloseSidebar);
+
+        // Os botões de orientação P/L não estão no novo XML, mas podem ser adicionados se necessário.
+        // Por enquanto, vamos comentar ou remover.
+        // btnSetPortrait = findViewById(R.id.btnSetPortrait);
+        // btnSetLandscape = findViewById(R.id.btnSetLandscape);
 
         btnLoadAll = findViewById(R.id.btnLoadAll);
         btnReloadAll = findViewById(R.id.btnReloadAll);
@@ -205,7 +205,6 @@ public class MainActivity extends AppCompatActivity {
         int[] cbIds = {R.id.checkBox1, R.id.checkBox2, R.id.checkBox3, R.id.checkBox4};
         int[] kaIds = {R.id.checkBoxKeepActive1, R.id.checkBoxKeepActive2,
                 R.id.checkBoxKeepActive3, R.id.checkBoxKeepActive4};
-        // NOVOS IDs para os checkboxes Full Video
         int[] fullIds = {
                 R.id.checkBoxFullVideo1,
                 R.id.checkBoxFullVideo2,
@@ -228,7 +227,6 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < 4; i++) {
             checkBoxes[i] = findViewById(cbIds[i]);
             checkBoxesKeepActive[i] = findViewById(kaIds[i]);
-            // NOVO: inicializa checkBoxFullVideo
             checkBoxFullVideo[i] = findViewById(fullIds[i]);
 
             btnRefresh[i] = findViewById(rfIds[i]);
@@ -361,7 +359,6 @@ public class MainActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 applyZoom(idx);
                 if (cbBlockAds != null && cbBlockAds.isChecked()) injectAdBlocker(view);
-                // NOVO: reaplica fullbox se o checkbox estiver marcado
                 if (checkBoxFullVideo[idx] != null && checkBoxFullVideo[idx].isChecked()) {
                     enableFullBox(view);
                 }
@@ -395,39 +392,39 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // NOVOS MÉTODOS PARA FULLBOX
     private void enableFullBox(WebView webView) {
-    if (webView == null) return;
-    String script =
-            "javascript:(function() {" +
-                    "   var style = document.createElement('style');" +
-                    "   style.type = 'text/css';" +
-                    "   style.innerHTML = '" +
-                    "       video {" +
-                    "           position: fixed !important;" +
-                    "           top: 0 !important;" +
-                    "           left: 0 !important;" +
-                    "           width: 100% !important;" +
-                    "           height: 100% !important;" +
-                    "           object-fit: contain !important;" + // <-- alterado para contain
-                    "           z-index: 9999 !important;" +
-                    "           background: black;" +
-                    "       }" +
-                    "       body { overflow: hidden !important; }" +
-                    "   ';" +
-                    "   document.head.appendChild(style);" +
-                    "   var elements = document.querySelectorAll('header, footer, nav, aside');" +
-                    "   for (var i = 0; i < elements.length; i++) {" +
-                    "       elements[i].style.display = 'none';" +
-                    "   }" +
-                    "})();";
+        if (webView == null) return;
+        String script =
+                "javascript:(function() {" +
+                        "   var style = document.createElement('style');" +
+                        "   style.type = 'text/css';" +
+                        "   style.innerHTML = '" +
+                        "       video {" +
+                        "           position: fixed !important;" +
+                        "           top: 0 !important;" +
+                        "           left: 0 !important;" +
+                        "           width: 100% !important;" +
+                        "           height: 100% !important;" +
+                        "           object-fit: contain !important;" +
+                        "           z-index: 9999 !important;" +
+                        "           background: black;" +
+                        "       }" +
+                        "       body { overflow: hidden !important; }" +
+                        "   ';" +
+                        "   document.head.appendChild(style);" +
+                        "   var elements = document.querySelectorAll('header, footer, nav, aside');" +
+                        "   for (var i = 0; i < elements.length; i++) {" +
+                        "       elements[i].style.display = 'none';" +
+                        "   }" +
+                        "})();";
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-        webView.evaluateJavascript(script, null);
-    } else {
-        webView.loadUrl(script);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(script, null);
+        } else {
+            webView.loadUrl(script);
+        }
     }
-}
+
     private void disableFullBox(WebView webView) {
         if (webView == null) return;
         webView.reload();
@@ -440,11 +437,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ================== UPDATE LAYOUT ==================
-    //
-    //  Portraits 2/3/4 boxes : single column, draggable H-dividers
-    //  Landscape 3 boxes     : left col (Box0+Box1, H-divider) | V-divider | Box2
-    //  Landscape 4 boxes     : 2×2 grid
-    //
     private void updateLayout() {
         List<Integer> enabledIdx = new ArrayList<>();
         for (int i = 0; i < 4; i++) if (boxEnabled[i]) enabledIdx.add(i);
@@ -467,8 +459,7 @@ public class MainActivity extends AppCompatActivity {
         final List<Integer> idx = new ArrayList<>(enabledIdx);
 
         gridLayout.post(() -> {
-            // ── CRITICAL: detach containers from previous parent ──────────
-            // Without this, Android throws IllegalStateException on 2nd call
+            // Detach containers from previous parent
             for (int i = 0; i < 4; i++) {
                 if (boxContainers[i] != null && boxContainers[i].getParent() != null
                         && boxContainers[i].getParent() != gridLayout) {
@@ -480,7 +471,6 @@ public class MainActivity extends AppCompatActivity {
             int W = gridLayout.getMeasuredWidth();
             int H = gridLayout.getMeasuredHeight();
             if (W <= 0 || H <= 0) {
-                // Retry once after next layout pass
                 gridLayout.post(() -> updateLayout());
                 return;
             }
@@ -505,17 +495,16 @@ public class MainActivity extends AppCompatActivity {
         if (n == 1) return boxContainers[idx.get(0)];
 
         if (!portrait) {
-            // ── LANDSCAPE ────────────────────────────────────────────────
+            // LANDSCAPE
             if (n == 2) return buildLandscape2(idx, W, H);
             if (n == 3) return buildLandscape3(idx, W, H, divPx, minPx);
-            return buildLandscape4(idx, W, H);          // 4 → 2×2
+            return buildLandscape4(idx, W, H); // 4
         } else {
-            // ── PORTRAIT : single column, draggable H-dividers ───────────
+            // PORTRAIT : single column, draggable H-dividers
             return buildPortraitStack(idx, W, H, divPx, minPx);
         }
     }
 
-    /** Landscape 2: two equal halves side by side */
     private View buildLandscape2(List<Integer> idx, int W, int H) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -525,24 +514,14 @@ public class MainActivity extends AppCompatActivity {
         return row;
     }
 
-    /**
-     * Landscape 3:
-     *   [ Box0 ] ‖ [ Box2         ]
-     *   [------] ‖ [              ]
-     *   [ Box1 ] ‖ [              ]
-     * V-divider between columns (drag left/right).
-     * H-divider between Box0 and Box1 (drag up/down).
-     */
     private View buildLandscape3(List<Integer> idx, int W, int H, int divPx, int minPx) {
         int leftW  = W / 2 - divPx / 2;
         int rightW = W - leftW - divPx;
         int topH   = H / 2 - divPx / 2;
         int botH   = H - topH - divPx;
 
-        // Left column: Box0 / H-divider / Box1
         LinearLayout leftCol = new LinearLayout(this);
         leftCol.setOrientation(LinearLayout.VERTICAL);
-
         leftCol.addView(boxContainers[idx.get(0)],
                 new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, topH));
 
@@ -554,7 +533,6 @@ public class MainActivity extends AppCompatActivity {
         leftCol.addView(boxContainers[idx.get(1)],
                 new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, botH));
 
-        // Root row: leftCol | V-divider | Box2
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.HORIZONTAL);
         root.addView(leftCol,
@@ -570,7 +548,6 @@ public class MainActivity extends AppCompatActivity {
         return root;
     }
 
-    /** Landscape 4: 2×2 grid */
     private View buildLandscape4(List<Integer> idx, int W, int H) {
         int hw = W / 2, rw = W - hw;
         int hh = H / 2, rh = H - hh;
@@ -592,9 +569,6 @@ public class MainActivity extends AppCompatActivity {
         return col;
     }
 
-    /**
-     * Portrait 2/3/4: single column, equal heights, draggable H-dividers.
-     */
     private View buildPortraitStack(List<Integer> idx, int W, int H, int divPx, int minPx) {
         int n         = idx.size();
         int totalDiv  = divPx * (n - 1);
@@ -684,21 +658,30 @@ public class MainActivity extends AppCompatActivity {
             return false;
         };
     }
-    // ================== FIM DA CORREÇÃO ==================
-
+    // ================== FIM DO UPDATE LAYOUT ==================
 
     private void initEventListeners() {
-        if (btnToggleBottomBar != null) btnToggleBottomBar.setOnClickListener(v -> toggleBottomBar());
+        // Botão esquerdo: alterna visibilidade da bottomControls
+        if (btnToggleBottomBar != null) {
+            btnToggleBottomBar.setOnClickListener(v -> {
+                if (bottomControls.getVisibility() == View.VISIBLE) {
+                    bottomControls.setVisibility(View.GONE);
+                } else {
+                    bottomControls.setVisibility(View.VISIBLE);
+                }
+            });
+        }
+
+        // Botão direito: alterna sidebar
         if (btnToggleSidebar != null)
             btnToggleSidebar.setOnClickListener(v -> {
                 if (isSidebarVisible) closeSidebar();
                 else openSidebar();
             });
-        if (btnSetPortrait != null) btnSetPortrait.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT));
-        if (btnSetLandscape != null) btnSetLandscape.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE));
-        if (btnCloseSidebar != null) btnCloseSidebar.setOnClickListener(v -> closeSidebar());
-        if (btnCloseMenu != null) btnCloseMenu.setOnClickListener(v -> closeBottomBar());
 
+        if (btnCloseSidebar != null) btnCloseSidebar.setOnClickListener(v -> closeSidebar());
+
+        // Botões de ação (LOAD, RELOAD, etc.)
         if (btnLoadAll != null) btnLoadAll.setOnClickListener(v -> loadAllURLs());
         if (btnReloadAll != null) btnReloadAll.setOnClickListener(v -> reloadAll());
         if (btnClearAll != null) btnClearAll.setOnClickListener(v -> clearAll());
@@ -764,7 +747,6 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
 
-            // NOVO: listener para o checkbox Full Video
             if (checkBoxFullVideo[i] != null) {
                 checkBoxFullVideo[i].setOnCheckedChangeListener((buttonView, isChecked) -> {
                     if (webViews[idx] != null) {
@@ -875,7 +857,6 @@ public class MainActivity extends AppCompatActivity {
                 ed.putBoolean("box_enabled_" + i, boxEnabled[i]);
                 ed.putBoolean("box_keep_active_" + i, boxKeepActive[i]);
                 ed.putFloat("zoom_level_" + i, zoomLevels[i]);
-                // NOVO: salva estado do fullbox
                 ed.putBoolean("fullbox_" + i, checkBoxFullVideo[i] != null && checkBoxFullVideo[i].isChecked());
             }
             if (cbAllowScripts != null) ed.putBoolean("allow_scripts", cbAllowScripts.isChecked());
@@ -897,7 +878,6 @@ public class MainActivity extends AppCompatActivity {
                 boxEnabled[i] = preferences.getBoolean("box_enabled_" + i, true);
                 boxKeepActive[i] = preferences.getBoolean("box_keep_active_" + i, true);
                 zoomLevels[i] = preferences.getFloat("zoom_level_" + i, 1.0f);
-                // NOVO: carrega estado do fullbox
                 boolean fullboxChecked = preferences.getBoolean("fullbox_" + i, false);
 
                 if (checkBoxes[i] != null) checkBoxes[i].setChecked(boxEnabled[i]);
@@ -916,7 +896,6 @@ public class MainActivity extends AppCompatActivity {
                     syncToSidebar(i, url);
                     if ((boxEnabled[i] || boxKeepActive[i]) && webViews[i] != null) {
                         loadURL(i, url);
-                        // Se fullbox ativo, aplica após um pequeno delay
                         if (checkBoxFullVideo[i] != null && checkBoxFullVideo[i].isChecked()) {
                             int finalI = i;
                             webViews[i].postDelayed(() -> enableFullBox(webViews[finalI]), 500);
@@ -993,22 +972,38 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             JSONArray urls = new JSONObject(json).getJSONArray("urls");
+            Log.d(TAG, "Carregando favorito: " + name + ", target=" + target + ", urls=" + urls);
+
             if (target == -1) {
+                // Carregar em todas as boxes ativas
                 for (int i = 0; i < 4 && i < urls.length(); i++) {
                     String u = urls.getString(i);
-                    if (urlInputs[i] != null) urlInputs[i].setText(u);
-                    syncToSidebar(i, u);
-                    if ((boxEnabled[i] || boxKeepActive[i]) && webViews[i] != null) loadURL(i, u);
+                    if (urlInputs[i] != null) {
+                        urlInputs[i].setText(u);
+                        syncToSidebar(i, u);
+                    }
+                    // Carrega a URL mesmo se a box não estiver ativa? Vou considerar que sim, para atualizar o campo
+                    // Mas só carrega no WebView se a box estiver ativa ou em keep active
+                    if ((boxEnabled[i] || boxKeepActive[i]) && webViews[i] != null) {
+                        loadURL(i, u);
+                    } else {
+                        Log.d(TAG, "Box " + i + " não ativa, URL salva mas não carregada no WebView");
+                    }
                 }
                 Toast.makeText(this, "✅ Carregado em todas!", Toast.LENGTH_SHORT).show();
-            } else if (target < urls.length()) {
+            } else if (target >= 0 && target < urls.length()) {
                 String u = urls.getString(target);
-                if (urlInputs[target] != null) urlInputs[target].setText(u);
-                syncToSidebar(target, u);
-                if (webViews[target] != null) loadURL(target, u);
+                if (urlInputs[target] != null) {
+                    urlInputs[target].setText(u);
+                    syncToSidebar(target, u);
+                }
+                if (webViews[target] != null) {
+                    loadURL(target, u);
+                }
                 Toast.makeText(this, "✅ Box " + (target + 1), Toast.LENGTH_SHORT).show();
             }
         } catch (Exception e) {
+            Log.e(TAG, "Erro ao carregar favorito", e);
             Toast.makeText(this, "❌ Erro ao carregar favorito", Toast.LENGTH_SHORT).show();
         }
     }
@@ -1116,55 +1111,6 @@ public class MainActivity extends AppCompatActivity {
         p.rightMargin = sidebarWidth;
         gridLayout.setLayoutParams(p);
         gridLayout.post(this::updateLayout);
-    }
-
-    private void toggleBottomBar() {
-        if (isBottomBarExpanded) closeBottomBar();
-        else openBottomBar();
-    }
-
-    private void closeBottomBar() {
-        if (expandedBottomBar == null) return;
-        android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(expandedBottomBar, "translationY", 0f, expandedBottomBar.getHeight());
-        a.setDuration(250);
-        a.setInterpolator(new android.view.animation.AccelerateInterpolator());
-        a.addListener(new android.animation.AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(android.animation.Animator an) {
-                expandedBottomBar.setVisibility(View.GONE);
-                isBottomBarExpanded = false;
-                updateLayoutForBottomBar();
-                hideKeyboard();
-                if (btnToggleBottomBar != null) btnToggleBottomBar.requestFocus();
-            }
-        });
-        a.start();
-    }
-
-    private void openBottomBar() {
-        if (expandedBottomBar == null) return;
-        expandedBottomBar.setVisibility(View.VISIBLE);
-        expandedBottomBar.setTranslationY(expandedBottomBar.getHeight());
-        isBottomBarExpanded = true;
-        updateLayoutForBottomBar();
-        android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(expandedBottomBar, "translationY", expandedBottomBar.getHeight(), 0f);
-        a.setDuration(250);
-        a.setInterpolator(new android.view.animation.DecelerateInterpolator());
-        a.addListener(new android.animation.AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(android.animation.Animator an) {
-                if (btnCloseMenu != null) btnCloseMenu.requestFocus();
-            }
-        });
-        a.start();
-    }
-
-    private void updateLayoutForBottomBar() {
-        if (gridLayout == null) return;
-        RelativeLayout.LayoutParams p = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
-        p.removeRule(RelativeLayout.ABOVE);
-        p.addRule(RelativeLayout.ABOVE, isBottomBarExpanded ? R.id.expandedBottomBar : R.id.bottomControls);
-        gridLayout.setLayoutParams(p);
     }
 
     private void updateFocusedBoxIndicator() {
