@@ -130,32 +130,36 @@ public class MainActivity extends AppCompatActivity {
 
     // Método centralizado para aplicar as margens
     // ── applyGridSize ─────────────────────────────────────────────────────────
-    //  Sets EXPLICIT pixel dimensions on gridLayout so it fills exactly
-    //  the available space: full screen minus bottomControls (if open)
-    //  and minus sidebar (if open). No margins, no ABOVE rules.
+    //  Uses mainLayout actual dimensions (excludes system bars).
+    //  Guard flag prevents re-entrant calls (no flicker loop).
+    private boolean applyGridSizeRunning = false;
     private void applyGridSize() {
-        if (gridLayout == null) return;
-        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
-        int screenW = dm.widthPixels;
-        int screenH = dm.heightPixels;
-
-        float density = dm.density;
+        if (gridLayout == null || applyGridSizeRunning) return;
+        // Use mainLayout dimensions = real available space after system UI
+        int rootW = mainLayout.getWidth();
+        int rootH = mainLayout.getHeight();
+        if (rootW <= 0 || rootH <= 0) {
+            // Not laid out yet — wait for next frame
+            mainLayout.post(this::applyGridSize);
+            return;
+        }
+        float density = getResources().getDisplayMetrics().density;
         int barH  = isBottomControlsVisible ? (int)(40 * density) : 0;
         int sideW = isSidebarVisible        ? (int)(200 * density) : 0;
+        int W     = rootW - sideW;
+        int H     = rootH - barH;
 
+        applyGridSizeRunning = true;
         RelativeLayout.LayoutParams p = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
-        p.width        = screenW - sideW;
-        p.height       = screenH - barH;
-        p.leftMargin   = 0;
-        p.topMargin    = 0;
-        p.rightMargin  = 0;
-        p.bottomMargin = 0;
+        p.width = W; p.height = H;
+        p.leftMargin = 0; p.topMargin = 0; p.rightMargin = 0; p.bottomMargin = 0;
         p.removeRule(RelativeLayout.ABOVE);
         p.removeRule(RelativeLayout.ALIGN_PARENT_END);
         gridLayout.setLayoutParams(p);
-        Log.d(TAG, "applyGridSize: " + p.width + "x" + p.height
-                + " barH=" + barH + " sideW=" + sideW);
-        gridLayout.post(this::updateLayout);
+        Log.d(TAG, "applyGridSize: " + W + "x" + H + " barH=" + barH + " sideW=" + sideW);
+
+        rebuildGrid(W, H);
+        applyGridSizeRunning = false;
     }
 
     private boolean isFireTVorTablet() {
@@ -444,6 +448,12 @@ public class MainActivity extends AppCompatActivity {
 
     // ================== UPDATE LAYOUT (com divisores) ==================
     private void updateLayout() {
+        // Post ensures mainLayout is measured before applyGridSize reads its dimensions
+        if (mainLayout != null) mainLayout.post(this::applyGridSize);
+    }
+
+    // rebuildGrid() — called only from applyGridSize() with known W and H
+    private void rebuildGrid(int W, int H) {
         List<Integer> enabledIdx = new ArrayList<>();
         for (int i = 0; i < 4; i++) if (boxEnabled[i]) enabledIdx.add(i);
 
@@ -462,8 +472,10 @@ public class MainActivity extends AppCompatActivity {
 
         final boolean portrait = (currentOrientation == Configuration.ORIENTATION_PORTRAIT);
         final List<Integer> idx = new ArrayList<>(enabledIdx);
+        final int fW = W, fH = H;
 
         gridLayout.post(() -> {
+            // Detach containers from any previous parent
             for (int i = 0; i < 4; i++) {
                 if (boxContainers[i] != null && boxContainers[i].getParent() != null
                         && boxContainers[i].getParent() != gridLayout) {
@@ -472,24 +484,16 @@ public class MainActivity extends AppCompatActivity {
             }
             gridLayout.removeAllViews();
 
-            int W = gridLayout.getMeasuredWidth();
-            int H = gridLayout.getMeasuredHeight();
-            if (W <= 0 || H <= 0) {
-                gridLayout.post(() -> updateLayout());
-                return;
-            }
+            if (fW <= 0 || fH <= 0) return;  // safety — should not happen
 
-            View root = buildGrid(portrait, idx, W, H);
+            View root = buildGrid(portrait, idx, fW, fH);
             if (root != null) {
                 gridLayout.addView(root, new FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT));
             }
-            Log.d(TAG, "updateLayout " + idx.size() + "boxes "
-                    + (portrait ? "P" : "L") + " " + W + "x" + H);
-
-            // Reaplica as margens após reconstruir o layout
-            applyGridSize();
+            Log.d(TAG, "rebuildGrid " + idx.size() + "boxes "
+                    + (portrait ? "P" : "L") + " " + fW + "x" + fH);
         });
     }
 
