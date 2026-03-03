@@ -60,7 +60,6 @@ public class MainActivity extends AppCompatActivity {
     private Button btnSetPortrait, btnSetLandscape;
     private Button btnCloseSidebar;
 
-    // Botões de controle por box (mantidos)
     private Button[] btnRefresh = new Button[4];
     private Button[] btnZoomIn = new Button[4];
     private Button[] btnZoomOut = new Button[4];
@@ -71,7 +70,6 @@ public class MainActivity extends AppCompatActivity {
     private CheckBox[] checkBoxFullVideo = new CheckBox[4];
     private boolean[] fullscreenActive = new boolean[4];
 
-    // Sidebar views (URL inputs e botões de ação global)
     private EditText[] urlInputsSidebar = new EditText[4];
     private Button[] btnLoadUrlSidebar = new Button[4];
     private Button btnLoadAllSidebar, btnReloadAllSidebar, btnClearAllSidebar;
@@ -97,6 +95,9 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MSV";
 
+    // Constante para altura da bottomControls (40dp em pixels)
+    private int bottomControlsHeightPx;
+
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -105,6 +106,10 @@ public class MainActivity extends AppCompatActivity {
         currentOrientation = getResources().getConfiguration().orientation;
         applyDefaultOrientation();
         preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
+
+        // Calcular altura em pixels
+        bottomControlsHeightPx = (int) (40 * getResources().getDisplayMetrics().density);
+
         initViews();
         initWebViewsOnce();
         initEventListeners();
@@ -173,7 +178,6 @@ public class MainActivity extends AppCompatActivity {
         btnSetLandscape = findViewById(R.id.btnSetLandscape);
         btnCloseSidebar = findViewById(R.id.btnCloseSidebar);
 
-        // Sidebar buttons
         btnSaveStateSidebar = findViewById(R.id.btnSaveStateSidebar);
         btnLoadStateSidebar = findViewById(R.id.btnLoadStateSidebar);
         btnSaveFavoritesSidebar = findViewById(R.id.btnSaveFavoritesSidebar);
@@ -188,7 +192,6 @@ public class MainActivity extends AppCompatActivity {
         cbBlockRedirects = findViewById(R.id.cbBlockRedirects);
         cbBlockAds = findViewById(R.id.cbBlockAds);
 
-        // Arrays de IDs para per-box controls (checkboxes e botões)
         int[] cbIds = {R.id.checkBox1, R.id.checkBox2, R.id.checkBox3, R.id.checkBox4};
         int[] kaIds = {R.id.checkBoxKeepActive1, R.id.checkBoxKeepActive2,
                 R.id.checkBoxKeepActive3, R.id.checkBoxKeepActive4};
@@ -204,7 +207,6 @@ public class MainActivity extends AppCompatActivity {
         int[] pvIds = {R.id.btnPrevious1, R.id.btnPrevious2, R.id.btnPrevious3, R.id.btnPrevious4};
         int[] nxIds = {R.id.btnNext1, R.id.btnNext2, R.id.btnNext3, R.id.btnNext4};
 
-        // Sidebar URL inputs
         int[] usbIds = {R.id.urlInputSidebar1, R.id.urlInputSidebar2,
                 R.id.urlInputSidebar3, R.id.urlInputSidebar4};
         int[] gsbIds = {R.id.btnLoadUrlSidebar1, R.id.btnLoadUrlSidebar2,
@@ -422,7 +424,6 @@ public class MainActivity extends AppCompatActivity {
             enabledIdx.add(0);
         }
 
-        // Visibility
         for (int i = 0; i < 4; i++) {
             if (boxContainers[i] == null) continue;
             if      (boxEnabled[i])    boxContainers[i].setVisibility(View.VISIBLE);
@@ -434,7 +435,6 @@ public class MainActivity extends AppCompatActivity {
         final List<Integer> idx = new ArrayList<>(enabledIdx);
 
         gridLayout.post(() -> {
-            // Detach containers from previous parent
             for (int i = 0; i < 4; i++) {
                 if (boxContainers[i] != null && boxContainers[i].getParent() != null
                         && boxContainers[i].getParent() != gridLayout) {
@@ -637,7 +637,19 @@ public class MainActivity extends AppCompatActivity {
     private void initEventListeners() {
         if (btnToggleBottomBar != null) {
             btnToggleBottomBar.setOnClickListener(v -> {
-                bottomControls.setVisibility(bottomControls.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+                if (bottomControls.getVisibility() == View.VISIBLE) {
+                    bottomControls.setVisibility(View.GONE);
+                    // Remove margem inferior do grid
+                    RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
+                    params.bottomMargin = 0;
+                    gridLayout.setLayoutParams(params);
+                } else {
+                    bottomControls.setVisibility(View.VISIBLE);
+                    // Adiciona margem inferior para dar espaço à barra
+                    RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
+                    params.bottomMargin = bottomControlsHeightPx;
+                    gridLayout.setLayoutParams(params);
+                }
             });
         }
         if (btnToggleSidebar != null)
@@ -1048,10 +1060,9 @@ public class MainActivity extends AppCompatActivity {
         if (gridLayout == null) return;
         android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
         int sidebarWidth = sidebarOpen ? (int) (200 * dm.density) : 0;
-        RelativeLayout.LayoutParams p = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
-        p.rightMargin = sidebarWidth;
-        gridLayout.setLayoutParams(p);
-        gridLayout.post(this::updateLayout);
+        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
+        params.rightMargin = sidebarWidth;
+        gridLayout.setLayoutParams(params);
     }
 
     private void updateFocusedBoxIndicator() {

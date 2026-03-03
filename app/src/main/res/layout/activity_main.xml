@@ -7,22 +7,21 @@
     android:focusable="true"
     android:focusableInTouchMode="true">
 
-    <!-- Grid principal onde as boxes são exibidas -->
+    <!-- Grid principal que ocupa toda a tela inicialmente -->
     <FrameLayout
         android:id="@+id/gridLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_above="@id/bottomBarContainer"
         android:background="#000000"
         android:focusable="false" />
 
-    <!-- Container inferior com 40dp de altura, sempre visível -->
+    <!-- Container flutuante inferior com os botões e a barra de controles -->
     <RelativeLayout
-        android:id="@+id/bottomBarContainer"
+        android:id="@+id/bottomFloatingContainer"
         android:layout_width="match_parent"
         android:layout_height="40dp"
         android:layout_alignParentBottom="true"
-        android:background="#00000000"
+        android:background="@android:color/transparent"
         android:elevation="10dp">
 
         <!-- Botão esquerdo (toggle da bottomControls) -->
@@ -53,7 +52,7 @@
             android:textColor="#FFFFFF"
             android:textSize="8sp" />
 
-        <!-- Barra de controles (bottomControls) – ocupa o espaço entre os botões -->
+        <!-- Barra de controles (bottomControls) – aparece entre os botões quando visível -->
         <LinearLayout
             android:id="@+id/bottomControls"
             android:layout_width="match_parent"
@@ -63,8 +62,8 @@
             android:background="#1A1A2E"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:padding="2dp"
             android:visibility="gone"
+            android:padding="2dp"
             android:descendantFocusability="blocksDescendants">
 
             <!-- Botões de orientação P / L -->
@@ -539,13 +538,12 @@
         </LinearLayout>
     </RelativeLayout>
 
-    <!-- SIDEBAR (inalterado, mantém todos os botões de ação global e inputs de URL) -->
+    <!-- SIDEBAR (inalterado) -->
     <FrameLayout
         android:id="@+id/sidebarContainer"
         android:layout_width="200dp"
         android:layout_height="match_parent"
         android:layout_alignParentEnd="true"
-        android:layout_above="@id/bottomBarContainer"
         android:background="#1A1A2E"
         android:visibility="gone"
         android:elevation="100dp">
@@ -726,7 +724,7 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Inputs de URL para cada box (apenas no sidebar) -->
+            <!-- Inputs de URL para cada box -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
