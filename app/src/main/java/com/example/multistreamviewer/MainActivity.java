@@ -31,6 +31,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import android.view.MotionEvent;
+import android.view.ViewGroup;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -42,7 +43,7 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     // Views
-    private FrameLayout gridLayout; // was GridLayout
+    private FrameLayout gridLayout;
     private FrameLayout[] boxContainers = new FrameLayout[4];
     private WebView[] webViews = new WebView[4];
 
@@ -440,15 +441,9 @@ public class MainActivity extends AppCompatActivity {
 
     // ================== UPDATE LAYOUT ==================
     //
-    //  Builds the view hierarchy inside gridLayout (a FrameLayout).
-    //  RULES:
-    //   - Landscape 1 box  : full screen
-    //   - Landscape 2 boxes: side by side, no divider
-    //   - Landscape 3 boxes: left column (Box0+Box1, draggable H-divider 50/50)
-    //                        + draggable V-divider + right (Box2 full height)
-    //   - Landscape 4 boxes: 2x2 grid
-    //   - Portrait  1 box  : full screen
-    //   - Portrait  2-4    : single column, draggable H-dividers between boxes
+    //  Portraits 2/3/4 boxes : single column, draggable H-dividers
+    //  Landscape 3 boxes     : left col (Box0+Box1, H-divider) | V-divider | Box2
+    //  Landscape 4 boxes     : 2×2 grid
     //
     private void updateLayout() {
         List<Integer> enabledIdx = new ArrayList<>();
@@ -460,7 +455,7 @@ public class MainActivity extends AppCompatActivity {
             enabledIdx.add(0);
         }
 
-        // Visibility for all containers (keepActive stays alive off-screen)
+        // Visibility
         for (int i = 0; i < 4; i++) {
             if (boxContainers[i] == null) continue;
             if      (boxEnabled[i])    boxContainers[i].setVisibility(View.VISIBLE);
@@ -472,10 +467,23 @@ public class MainActivity extends AppCompatActivity {
         final List<Integer> idx = new ArrayList<>(enabledIdx);
 
         gridLayout.post(() -> {
+            // ── CRITICAL: detach containers from previous parent ──────────
+            // Without this, Android throws IllegalStateException on 2nd call
+            for (int i = 0; i < 4; i++) {
+                if (boxContainers[i] != null && boxContainers[i].getParent() != null
+                        && boxContainers[i].getParent() != gridLayout) {
+                    ((ViewGroup) boxContainers[i].getParent()).removeView(boxContainers[i]);
+                }
+            }
             gridLayout.removeAllViews();
+
             int W = gridLayout.getMeasuredWidth();
             int H = gridLayout.getMeasuredHeight();
-            if (W <= 0 || H <= 0) return;
+            if (W <= 0 || H <= 0) {
+                // Retry once after next layout pass
+                gridLayout.post(() -> updateLayout());
+                return;
+            }
 
             View root = buildGrid(portrait, idx, W, H);
             if (root != null) {
@@ -489,96 +497,81 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private View buildGrid(boolean portrait, List<Integer> idx, int W, int H) {
-        float dp = getResources().getDisplayMetrics().density;
-        int divPx = (int)(8 * dp);   // divider thickness in px
-        int minPx = (int)(60 * dp);  // minimum box size in px
+        float dp   = getResources().getDisplayMetrics().density;
+        int divPx  = (int)(8  * dp);
+        int minPx  = (int)(60 * dp);
+        int n      = idx.size();
 
-        int n = idx.size();
         if (n == 1) return boxContainers[idx.get(0)];
 
         if (!portrait) {
             // ── LANDSCAPE ────────────────────────────────────────────────
-            switch (n) {
-                case 2:
-                    return buildLandscape2(idx, W, H);
-                case 3:
-                    return buildLandscape3(idx, W, H, divPx, minPx);
-                default: // 4
-                    return buildLandscape4(idx, W, H);
-            }
+            if (n == 2) return buildLandscape2(idx, W, H);
+            if (n == 3) return buildLandscape3(idx, W, H, divPx, minPx);
+            return buildLandscape4(idx, W, H);          // 4 → 2×2
         } else {
-            // ── PORTRAIT: single column with draggable H-dividers ────────
+            // ── PORTRAIT : single column, draggable H-dividers ───────────
             return buildPortraitStack(idx, W, H, divPx, minPx);
         }
     }
 
-    /** Landscape 2: side-by-side equal halves */
+    /** Landscape 2: two equal halves side by side */
     private View buildLandscape2(List<Integer> idx, int W, int H) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         int half = W / 2;
-        row.addView(boxContainers[idx.get(0)],
-                new LinearLayout.LayoutParams(half, H));
-        row.addView(boxContainers[idx.get(1)],
-                new LinearLayout.LayoutParams(W - half, H));
+        row.addView(boxContainers[idx.get(0)], new LinearLayout.LayoutParams(half, H));
+        row.addView(boxContainers[idx.get(1)], new LinearLayout.LayoutParams(W - half, H));
         return row;
     }
 
     /**
      * Landscape 3:
-     *   [Left col: Box0 / H-divider / Box1]  |V-divider|  [Box2]
-     * Left starts at 50% width, both halves draggable.
+     *   [ Box0 ] ‖ [ Box2         ]
+     *   [------] ‖ [              ]
+     *   [ Box1 ] ‖ [              ]
+     * V-divider between columns (drag left/right).
+     * H-divider between Box0 and Box1 (drag up/down).
      */
     private View buildLandscape3(List<Integer> idx, int W, int H, int divPx, int minPx) {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.HORIZONTAL);
-
         int leftW  = W / 2 - divPx / 2;
         int rightW = W - leftW - divPx;
         int topH   = H / 2 - divPx / 2;
         int botH   = H - topH - divPx;
 
-        // ── Left column ─────────────────────────────────────────────────
+        // Left column: Box0 / H-divider / Box1
         LinearLayout leftCol = new LinearLayout(this);
         leftCol.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams leftColLp =
-                new LinearLayout.LayoutParams(leftW, LinearLayout.LayoutParams.MATCH_PARENT);
 
-        // Box top-left
-        LinearLayout.LayoutParams tlLp =
-                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, topH);
-        leftCol.addView(boxContainers[idx.get(0)], tlLp);
+        leftCol.addView(boxContainers[idx.get(0)],
+                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, topH));
 
-        // Horizontal divider (drag up/down to resize top vs bottom)
         View hDiv = makeDivider(true, divPx);
         hDiv.setOnTouchListener(makeHorizResizeListener(
                 boxContainers[idx.get(0)], boxContainers[idx.get(1)], minPx));
         leftCol.addView(hDiv);
 
-        // Box bottom-left
-        LinearLayout.LayoutParams blLp =
-                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, botH);
-        leftCol.addView(boxContainers[idx.get(1)], blLp);
+        leftCol.addView(boxContainers[idx.get(1)],
+                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, botH));
 
-        root.addView(leftCol, leftColLp);
+        // Root row: leftCol | V-divider | Box2
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.HORIZONTAL);
+        root.addView(leftCol,
+                new LinearLayout.LayoutParams(leftW, LinearLayout.LayoutParams.MATCH_PARENT));
 
-        // ── Vertical divider (drag left/right to resize columns) ─────────
         View vDiv = makeDivider(false, divPx);
         vDiv.setOnTouchListener(makeVertResizeListener(leftCol, boxContainers[idx.get(2)], minPx));
         root.addView(vDiv);
 
-        // ── Right box ────────────────────────────────────────────────────
-        LinearLayout.LayoutParams rightLp =
-                new LinearLayout.LayoutParams(rightW, LinearLayout.LayoutParams.MATCH_PARENT);
-        root.addView(boxContainers[idx.get(2)], rightLp);
+        root.addView(boxContainers[idx.get(2)],
+                new LinearLayout.LayoutParams(rightW, LinearLayout.LayoutParams.MATCH_PARENT));
 
         return root;
     }
 
-    /** Landscape 4: 2x2 grid */
+    /** Landscape 4: 2×2 grid */
     private View buildLandscape4(List<Integer> idx, int W, int H) {
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
         int hw = W / 2, rw = W - hw;
         int hh = H / 2, rh = H - hh;
 
@@ -586,127 +579,107 @@ public class MainActivity extends AppCompatActivity {
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.addView(boxContainers[idx.get(0)], new LinearLayout.LayoutParams(hw, hh));
         top.addView(boxContainers[idx.get(1)], new LinearLayout.LayoutParams(rw, hh));
-        col.addView(top, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, hh));
 
         LinearLayout bot = new LinearLayout(this);
         bot.setOrientation(LinearLayout.HORIZONTAL);
         bot.addView(boxContainers[idx.get(2)], new LinearLayout.LayoutParams(hw, rh));
         bot.addView(boxContainers[idx.get(3)], new LinearLayout.LayoutParams(rw, rh));
-        col.addView(bot, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, rh));
 
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.addView(top, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, hh));
+        col.addView(bot, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, rh));
         return col;
     }
 
     /**
-     * Portrait: N boxes stacked vertically with draggable H-dividers.
-     * Works for 2, 3, and 4 boxes.
+     * Portrait 2/3/4: single column, equal heights, draggable H-dividers.
      */
     private View buildPortraitStack(List<Integer> idx, int W, int H, int divPx, int minPx) {
-        int n = idx.size();
-        int totalDivH = divPx * (n - 1);
-        int usable = H - totalDivH;
-        int baseH = usable / n;
-        int extra = usable - baseH * n; // distribute remainder to last
+        int n         = idx.size();
+        int totalDiv  = divPx * (n - 1);
+        int usable    = H - totalDiv;
+        int baseH     = usable / n;
+        int extra     = usable - baseH * n;
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
 
         for (int i = 0; i < n; i++) {
-            int cellH = (i == n - 1) ? (baseH + extra) : baseH;
+            int cellH = baseH + (i == n - 1 ? extra : 0);
             col.addView(boxContainers[idx.get(i)],
                     new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
                             Math.max(cellH, 1)));
             if (i < n - 1) {
                 View div = makeDivider(true, divPx);
-                View viewA = boxContainers[idx.get(i)];
-                View viewB = boxContainers[idx.get(i + 1)];
-                div.setOnTouchListener(makeHorizResizeListener(viewA, viewB, minPx));
+                div.setOnTouchListener(makeHorizResizeListener(
+                        boxContainers[idx.get(i)],
+                        boxContainers[idx.get(i + 1)],
+                        minPx));
                 col.addView(div);
             }
         }
         return col;
     }
 
-    // ── Divider factory ──────────────────────────────────────────────────────
-
-    /** Creates a grey divider View. horizontal=true → full-width, fixed height. */
     private View makeDivider(boolean horizontal, int sizePx) {
         View v = new View(this);
-        LinearLayout.LayoutParams lp = horizontal
+        v.setLayoutParams(horizontal
                 ? new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, sizePx)
-                : new LinearLayout.LayoutParams(sizePx, LinearLayout.LayoutParams.MATCH_PARENT);
-        v.setLayoutParams(lp);
+                : new LinearLayout.LayoutParams(sizePx, LinearLayout.LayoutParams.MATCH_PARENT));
         v.setBackgroundColor(Color.parseColor("#555555"));
         return v;
     }
 
-    // ── Touch listeners for resize ────────────────────────────────────────────
-
-    /**
-     * Horizontal divider: drag up/down to resize viewTop (above) and viewBot (below).
-     */
     @SuppressLint("ClickableViewAccessibility")
-    private View.OnTouchListener makeHorizResizeListener(View viewTop, View viewBot, int minPx) {
-        final float[] startY   = {0};
-        final int[]   startTopH = {0};
-        final int[]   startBotH = {0};
-
+    private View.OnTouchListener makeHorizResizeListener(View top, View bot, int minPx) {
+        final float[] startY  = {0};
+        final int[]   startTH = {0}, startBH = {0};
         return (v, ev) -> {
-            switch (ev.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    startY[0]    = ev.getRawY();
-                    startTopH[0] = viewTop.getHeight();
-                    startBotH[0] = viewBot.getHeight();
-                    return true;
-
-                case MotionEvent.ACTION_MOVE:
-                    int dy     = (int)(ev.getRawY() - startY[0]);
-                    int total  = startTopH[0] + startBotH[0];
-                    int newTop = Math.min(total - minPx, Math.max(minPx, startTopH[0] + dy));
-                    int newBot = total - newTop;
-
-                    LinearLayout.LayoutParams pTop = (LinearLayout.LayoutParams) viewTop.getLayoutParams();
-                    LinearLayout.LayoutParams pBot = (LinearLayout.LayoutParams) viewBot.getLayoutParams();
-                    pTop.height = newTop; pTop.weight = 0;
-                    pBot.height = newBot; pBot.weight = 0;
-                    viewTop.setLayoutParams(pTop);
-                    viewBot.setLayoutParams(pBot);
-                    return true;
+            if (ev.getAction() == MotionEvent.ACTION_DOWN) {
+                startY[0]  = ev.getRawY();
+                startTH[0] = top.getHeight();
+                startBH[0] = bot.getHeight();
+                return true;
+            }
+            if (ev.getAction() == MotionEvent.ACTION_MOVE) {
+                int dy    = (int)(ev.getRawY() - startY[0]);
+                int total = startTH[0] + startBH[0];
+                int newT  = Math.max(minPx, Math.min(total - minPx, startTH[0] + dy));
+                LinearLayout.LayoutParams pT = (LinearLayout.LayoutParams) top.getLayoutParams();
+                LinearLayout.LayoutParams pB = (LinearLayout.LayoutParams) bot.getLayoutParams();
+                pT.height = newT; pT.weight = 0;
+                pB.height = total - newT; pB.weight = 0;
+                top.setLayoutParams(pT);
+                bot.setLayoutParams(pB);
+                return true;
             }
             return false;
         };
     }
 
-    /**
-     * Vertical divider: drag left/right to resize viewLeft and viewRight.
-     */
     @SuppressLint("ClickableViewAccessibility")
-    private View.OnTouchListener makeVertResizeListener(View viewLeft, View viewRight, int minPx) {
-        final float[] startX    = {0};
-        final int[]   startLW   = {0};
-        final int[]   startRW   = {0};
-
+    private View.OnTouchListener makeVertResizeListener(View left, View right, int minPx) {
+        final float[] startX  = {0};
+        final int[]   startLW = {0}, startRW = {0};
         return (v, ev) -> {
-            switch (ev.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    startX[0]  = ev.getRawX();
-                    startLW[0] = viewLeft.getWidth();
-                    startRW[0] = viewRight.getWidth();
-                    return true;
-
-                case MotionEvent.ACTION_MOVE:
-                    int dx     = (int)(ev.getRawX() - startX[0]);
-                    int total  = startLW[0] + startRW[0];
-                    int newL   = Math.min(total - minPx, Math.max(minPx, startLW[0] + dx));
-                    int newR   = total - newL;
-
-                    LinearLayout.LayoutParams pL = (LinearLayout.LayoutParams) viewLeft.getLayoutParams();
-                    LinearLayout.LayoutParams pR = (LinearLayout.LayoutParams) viewRight.getLayoutParams();
-                    pL.width = newL; pL.weight = 0;
-                    pR.width = newR; pR.weight = 0;
-                    viewLeft.setLayoutParams(pL);
-                    viewRight.setLayoutParams(pR);
-                    return true;
+            if (ev.getAction() == MotionEvent.ACTION_DOWN) {
+                startX[0]  = ev.getRawX();
+                startLW[0] = left.getWidth();
+                startRW[0] = right.getWidth();
+                return true;
+            }
+            if (ev.getAction() == MotionEvent.ACTION_MOVE) {
+                int dx    = (int)(ev.getRawX() - startX[0]);
+                int total = startLW[0] + startRW[0];
+                int newL  = Math.max(minPx, Math.min(total - minPx, startLW[0] + dx));
+                LinearLayout.LayoutParams pL = (LinearLayout.LayoutParams) left.getLayoutParams();
+                LinearLayout.LayoutParams pR = (LinearLayout.LayoutParams) right.getLayoutParams();
+                pL.width = newL; pL.weight = 0;
+                pR.width = total - newL; pR.weight = 0;
+                left.setLayoutParams(pL);
+                right.setLayoutParams(pR);
+                return true;
             }
             return false;
         };
