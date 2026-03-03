@@ -82,6 +82,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean[] boxKeepActive = {true, true, true, true};
 
     private boolean isSidebarVisible = false;
+    private boolean isBottomControlsVisible = false; // CORREÇÃO: novo estado
     private boolean isSyncingUI = false;
     private int focusedBoxIndex = 0;
     private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -127,6 +128,20 @@ public class MainActivity extends AppCompatActivity {
             if (!hasSavedState())
                 new Handler().postDelayed(this::loadInitialURLs, 500);
         });
+    }
+
+    // CORREÇÃO: método para aplicar as margens de acordo com os estados atuais
+    private void applyMargins() {
+        if (gridLayout == null) return;
+        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
+        // Margem direita conforme sidebar
+        int rightMargin = isSidebarVisible ? (int) (200 * getResources().getDisplayMetrics().density) : 0;
+        // Margem inferior conforme bottomControls
+        int bottomMargin = isBottomControlsVisible ? bottomControlsHeightPx : 0;
+        params.rightMargin = rightMargin;
+        params.bottomMargin = bottomMargin;
+        gridLayout.setLayoutParams(params);
+        Log.d(TAG, "applyMargins: bottomMargin=" + bottomMargin + ", rightMargin=" + rightMargin);
     }
 
     private boolean isFireTVorTablet() {
@@ -458,6 +473,9 @@ public class MainActivity extends AppCompatActivity {
             }
             Log.d(TAG, "updateLayout " + idx.size() + "boxes "
                     + (portrait ? "P" : "L") + " " + W + "x" + H);
+
+            // CORREÇÃO: reaplicar margens após reconstruir o layout
+            applyMargins();
         });
     }
 
@@ -639,17 +657,12 @@ public class MainActivity extends AppCompatActivity {
             btnToggleBottomBar.setOnClickListener(v -> {
                 if (bottomControls.getVisibility() == View.VISIBLE) {
                     bottomControls.setVisibility(View.GONE);
-                    // Remove margem inferior do grid
-                    RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
-                    params.bottomMargin = 0;
-                    gridLayout.setLayoutParams(params);
+                    isBottomControlsVisible = false; // CORREÇÃO: atualiza estado
                 } else {
                     bottomControls.setVisibility(View.VISIBLE);
-                    // Adiciona margem inferior para dar espaço à barra
-                    RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
-                    params.bottomMargin = bottomControlsHeightPx;
-                    gridLayout.setLayoutParams(params);
+                    isBottomControlsVisible = true; // CORREÇÃO: atualiza estado
                 }
+                applyMargins(); // CORREÇÃO: aplica margem imediatamente
             });
         }
         if (btnToggleSidebar != null)
@@ -1029,7 +1042,7 @@ public class MainActivity extends AppCompatActivity {
             public void onAnimationEnd(android.animation.Animator an) {
                 sidebarContainer.setVisibility(View.GONE);
                 isSidebarVisible = false;
-                adjustGridLayoutForSidebar(false);
+                applyMargins(); // CORREÇÃO: usa applyMargins em vez de adjustGridLayoutForSidebar
                 hideKeyboard();
                 if (btnToggleSidebar != null) btnToggleSidebar.requestFocus();
             }
@@ -1041,7 +1054,7 @@ public class MainActivity extends AppCompatActivity {
         sidebarContainer.setVisibility(View.VISIBLE);
         sidebarContainer.setAlpha(0f);
         isSidebarVisible = true;
-        adjustGridLayoutForSidebar(true);
+        applyMargins(); // CORREÇÃO: usa applyMargins em vez de adjustGridLayoutForSidebar
         android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(sidebarContainer, "alpha", 0f, 1f);
         a.setDuration(250);
         a.addListener(new android.animation.AnimatorListenerAdapter() {
@@ -1056,14 +1069,7 @@ public class MainActivity extends AppCompatActivity {
         a.start();
     }
 
-    private void adjustGridLayoutForSidebar(boolean sidebarOpen) {
-        if (gridLayout == null) return;
-        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
-        int sidebarWidth = sidebarOpen ? (int) (200 * dm.density) : 0;
-        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
-        params.rightMargin = sidebarWidth;
-        gridLayout.setLayoutParams(params);
-    }
+    // CORREÇÃO: removido adjustGridLayoutForSidebar, agora usa applyMargins
 
     private void updateFocusedBoxIndicator() {
         if (tvFocusedBox != null) tvFocusedBox.setText("Foco: " + (focusedBoxIndex + 1));
