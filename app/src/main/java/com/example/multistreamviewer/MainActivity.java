@@ -30,8 +30,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import android.view.MotionEvent;
-import android.view.ViewGroup;
+import androidx.gridlayout.widget.GridLayout;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -43,7 +42,7 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     // Views
-    private FrameLayout gridLayout;
+    private GridLayout gridLayout;
     private FrameLayout[] boxContainers = new FrameLayout[4];
     private WebView[] webViews = new WebView[4];
 
@@ -52,24 +51,18 @@ public class MainActivity extends AppCompatActivity {
     private WebChromeClient.CustomViewCallback[] customCallbacks = new WebChromeClient.CustomViewCallback[4];
 
     private LinearLayout bottomControls;
-    private LinearLayout expandedBottomBar;
     private FrameLayout sidebarContainer;
     private RelativeLayout mainLayout;
     private TextView tvFocusedBox;
 
     private Button btnToggleBottomBar, btnToggleSidebar;
     private Button btnSetPortrait, btnSetLandscape;
-    private Button btnCloseMenu, btnCloseSidebar;
-    private Button btnLoadAll, btnReloadAll, btnClearAll;
-    private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
 
     private Button[] btnRefresh = new Button[4];
     private Button[] btnZoomIn = new Button[4];
     private Button[] btnZoomOut = new Button[4];
     private Button[] btnPrevious = new Button[4];
     private Button[] btnNext = new Button[4];
-    private Button[] btnLoadUrl = new Button[4];
-    private EditText[] urlInputs = new EditText[4];
     private CheckBox[] checkBoxes = new CheckBox[4];
     private CheckBox[] checkBoxesKeepActive = new CheckBox[4];
     // NOVO ARRAY PARA CHECKBOX FULL VIDEO
@@ -88,7 +81,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean[] boxKeepActive = {true, true, true, true};
 
     private boolean isSidebarVisible = false;
-    private boolean isBottomBarExpanded = false;
+    private boolean isBottomControlsVisible = false;
     private boolean isSyncingUI = false;
     private int focusedBoxIndex = 0;
     private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -101,6 +94,7 @@ public class MainActivity extends AppCompatActivity {
             "doubleclick.net", "googleadservices.com", "googlesyndication.com");
 
     private static final String TAG = "MSV";
+    private int bottomControlsHeightPx;
 
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
@@ -110,6 +104,7 @@ public class MainActivity extends AppCompatActivity {
         currentOrientation = getResources().getConfiguration().orientation;
         applyDefaultOrientation();
         preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
+        bottomControlsHeightPx = (int)(40 * getResources().getDisplayMetrics().density);
         initViews();
         initWebViewsOnce();
         initEventListeners();
@@ -168,7 +163,6 @@ public class MainActivity extends AppCompatActivity {
     private void initViews() {
         gridLayout = findViewById(R.id.gridLayout);
         bottomControls = findViewById(R.id.bottomControls);
-        expandedBottomBar = findViewById(R.id.expandedBottomBar);
         sidebarContainer = findViewById(R.id.sidebarContainer);
         mainLayout = findViewById(R.id.main_layout);
         tvFocusedBox = findViewById(R.id.tvFocusedBox);
@@ -177,16 +171,8 @@ public class MainActivity extends AppCompatActivity {
         btnToggleSidebar = findViewById(R.id.btnToggleSidebar);
         btnSetPortrait = findViewById(R.id.btnSetPortrait);
         btnSetLandscape = findViewById(R.id.btnSetLandscape);
-        btnCloseMenu = findViewById(R.id.btnCloseMenu);
         btnCloseSidebar = findViewById(R.id.btnCloseSidebar);
 
-        btnLoadAll = findViewById(R.id.btnLoadAll);
-        btnReloadAll = findViewById(R.id.btnReloadAll);
-        btnClearAll = findViewById(R.id.btnClearAll);
-        btnSaveState = findViewById(R.id.btnSaveState);
-        btnLoadState = findViewById(R.id.btnLoadState);
-        btnSaveFavorites = findViewById(R.id.btnSaveFavorites);
-        btnLoadFavorites = findViewById(R.id.btnLoadFavorites);
 
         btnSaveStateSidebar = findViewById(R.id.btnSaveStateSidebar);
         btnLoadStateSidebar = findViewById(R.id.btnLoadStateSidebar);
@@ -217,8 +203,6 @@ public class MainActivity extends AppCompatActivity {
         int[] zoIds = {R.id.btnZoomOut1, R.id.btnZoomOut2, R.id.btnZoomOut3, R.id.btnZoomOut4};
         int[] pvIds = {R.id.btnPrevious1, R.id.btnPrevious2, R.id.btnPrevious3, R.id.btnPrevious4};
         int[] nxIds = {R.id.btnNext1, R.id.btnNext2, R.id.btnNext3, R.id.btnNext4};
-        int[] goIds = {R.id.btnLoadUrl1, R.id.btnLoadUrl2, R.id.btnLoadUrl3, R.id.btnLoadUrl4};
-        int[] ulIds = {R.id.urlInput1, R.id.urlInput2, R.id.urlInput3, R.id.urlInput4};
         int[] usbIds = {R.id.urlInputSidebar1, R.id.urlInputSidebar2,
                 R.id.urlInputSidebar3, R.id.urlInputSidebar4};
         int[] gsbIds = {R.id.btnLoadUrlSidebar1, R.id.btnLoadUrlSidebar2,
@@ -236,11 +220,8 @@ public class MainActivity extends AppCompatActivity {
             btnZoomOut[i] = findViewById(zoIds[i]);
             btnPrevious[i] = findViewById(pvIds[i]);
             btnNext[i] = findViewById(nxIds[i]);
-            btnLoadUrl[i] = findViewById(goIds[i]);
-            urlInputs[i] = findViewById(ulIds[i]);
             urlInputsSidebar[i] = findViewById(usbIds[i]);
             btnLoadUrlSidebar[i] = findViewById(gsbIds[i]);
-            setupUrlInput(urlInputs[i], def, i, false);
             setupUrlInput(urlInputsSidebar[i], def, i, true);
         }
     }
@@ -439,256 +420,130 @@ public class MainActivity extends AppCompatActivity {
                 : "Mozilla/5.0 (Linux; Android 11; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36";
     }
 
-    // ================== UPDATE LAYOUT ==================
-    //
-    //  Portraits 2/3/4 boxes : single column, draggable H-dividers
-    //  Landscape 3 boxes     : left col (Box0+Box1, H-divider) | V-divider | Box2
-    //  Landscape 4 boxes     : 2×2 grid
-    //
+    // ================== MÉTODO updateLayout ==================
     private void updateLayout() {
-        List<Integer> enabledIdx = new ArrayList<>();
-        for (int i = 0; i < 4; i++) if (boxEnabled[i]) enabledIdx.add(i);
+        int visibleCount = 0;
+        for (boolean e : boxEnabled) if (e) visibleCount++;
 
-        if (enabledIdx.isEmpty()) {
+        if (visibleCount == 0) {
             boxEnabled[0] = true;
-            if (checkBoxes[0] != null) checkBoxes[0].setChecked(true);
-            enabledIdx.add(0);
-        }
-
-        // Visibility
-        for (int i = 0; i < 4; i++) {
-            if (boxContainers[i] == null) continue;
-            if      (boxEnabled[i])    boxContainers[i].setVisibility(View.VISIBLE);
-            else if (boxKeepActive[i]) boxContainers[i].setVisibility(View.INVISIBLE);
-            else                       boxContainers[i].setVisibility(View.GONE);
+            visibleCount = 1;
         }
 
         final boolean portrait = (currentOrientation == Configuration.ORIENTATION_PORTRAIT);
-        final List<Integer> idx = new ArrayList<>(enabledIdx);
+        int rows, cols;
+
+        if (portrait) {
+            switch (visibleCount) {
+                case 1:
+                    rows = 1;
+                    cols = 1;
+                    break;
+                case 2:
+                    rows = 2;
+                    cols = 1;
+                    break;
+                case 3:
+                    rows = 3;
+                    cols = 1;
+                    break;
+                default:
+                    rows = 2;
+                    cols = 2;
+                    break;
+            }
+        } else {
+            switch (visibleCount) {
+                case 1:
+                    rows = 1;
+                    cols = 1;
+                    break;
+                case 2:
+                    rows = 1;
+                    cols = 2;
+                    break;
+                case 3:
+                    rows = 1;
+                    cols = 3;
+                    break;
+                default:
+                    rows = 2;
+                    cols = 2;
+                    break;
+            }
+        }
+
+        final int fVisibleCount = visibleCount;
+        final int fRows = rows;
+        final int fCols = cols;
+
+        for (int i = 0; i < 4; i++) {
+            if (boxContainers[i] == null) continue;
+            if (boxEnabled[i]) {
+                boxContainers[i].setVisibility(View.VISIBLE);
+            } else if (boxKeepActive[i]) {
+                boxContainers[i].setVisibility(View.INVISIBLE);
+            } else {
+                boxContainers[i].setVisibility(View.GONE);
+            }
+        }
 
         gridLayout.post(() -> {
-            // ── CRITICAL: detach containers from previous parent ──────────
-            // Without this, Android throws IllegalStateException on 2nd call
-            for (int i = 0; i < 4; i++) {
-                if (boxContainers[i] != null && boxContainers[i].getParent() != null
-                        && boxContainers[i].getParent() != gridLayout) {
-                    ((ViewGroup) boxContainers[i].getParent()).removeView(boxContainers[i]);
-                }
-            }
+            int gridW = gridLayout.getMeasuredWidth();
+            int gridH = gridLayout.getMeasuredHeight();
+            if (gridW <= 0 || gridH <= 0) return;
+
+            float density = getResources().getDisplayMetrics().density;
+            int margin = (fVisibleCount == 1) ? 0 : (int) (2 * density);
+
+            int totalCellWidth = gridW - margin * 2 * fCols;
+            int baseCellWidth = totalCellWidth / fCols;
+            int remainderWidth = totalCellWidth % fCols;
+
+            int totalCellHeight = gridH - margin * 2 * fRows;
+            int baseCellHeight = totalCellHeight / fRows;
+            int remainderHeight = totalCellHeight % fRows;
+
             gridLayout.removeAllViews();
+            gridLayout.setRowCount(fRows);
+            gridLayout.setColumnCount(fCols);
 
-            int W = gridLayout.getMeasuredWidth();
-            int H = gridLayout.getMeasuredHeight();
-            if (W <= 0 || H <= 0) {
-                // Retry once after next layout pass
-                gridLayout.post(() -> updateLayout());
-                return;
-            }
+            int pos = 0;
+            for (int i = 0; i < 4; i++) {
+                if (!boxEnabled[i]) continue;
 
-            View root = buildGrid(portrait, idx, W, H);
-            if (root != null) {
-                gridLayout.addView(root, new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT));
+                int row = pos / fCols;
+                int col = pos % fCols;
+
+                int cellW = baseCellWidth + (col < remainderWidth ? 1 : 0);
+                int cellH = baseCellHeight + (row < remainderHeight ? 1 : 0);
+
+                GridLayout.Spec rowSpec = GridLayout.spec(row, 1f);
+                GridLayout.Spec colSpec = GridLayout.spec(col, 1f);
+                GridLayout.LayoutParams p = new GridLayout.LayoutParams(rowSpec, colSpec);
+                p.width = cellW;
+                p.height = cellH;
+                p.setMargins(margin, margin, margin, margin);
+
+                gridLayout.addView(boxContainers[i], p);
+                pos++;
             }
-            Log.d(TAG, "updateLayout " + idx.size() + "boxes "
-                    + (portrait ? "P" : "L") + " " + W + "x" + H);
+            gridLayout.requestLayout();
         });
-    }
-
-    private View buildGrid(boolean portrait, List<Integer> idx, int W, int H) {
-        float dp   = getResources().getDisplayMetrics().density;
-        int divPx  = (int)(8  * dp);
-        int minPx  = (int)(60 * dp);
-        int n      = idx.size();
-
-        if (n == 1) return boxContainers[idx.get(0)];
-
-        if (!portrait) {
-            // ── LANDSCAPE ────────────────────────────────────────────────
-            if (n == 2) return buildLandscape2(idx, W, H);
-            if (n == 3) return buildLandscape3(idx, W, H, divPx, minPx);
-            return buildLandscape4(idx, W, H);          // 4 → 2×2
-        } else {
-            // ── PORTRAIT : single column, draggable H-dividers ───────────
-            return buildPortraitStack(idx, W, H, divPx, minPx);
-        }
-    }
-
-    /** Landscape 2: two equal halves side by side */
-    private View buildLandscape2(List<Integer> idx, int W, int H) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        int half = W / 2;
-        row.addView(boxContainers[idx.get(0)], new LinearLayout.LayoutParams(half, H));
-        row.addView(boxContainers[idx.get(1)], new LinearLayout.LayoutParams(W - half, H));
-        return row;
-    }
-
-    /**
-     * Landscape 3:
-     *   [ Box0 ] ‖ [ Box2         ]
-     *   [------] ‖ [              ]
-     *   [ Box1 ] ‖ [              ]
-     * V-divider between columns (drag left/right).
-     * H-divider between Box0 and Box1 (drag up/down).
-     */
-    private View buildLandscape3(List<Integer> idx, int W, int H, int divPx, int minPx) {
-        int leftW  = W / 2 - divPx / 2;
-        int rightW = W - leftW - divPx;
-        int topH   = H / 2 - divPx / 2;
-        int botH   = H - topH - divPx;
-
-        // Left column: Box0 / H-divider / Box1
-        LinearLayout leftCol = new LinearLayout(this);
-        leftCol.setOrientation(LinearLayout.VERTICAL);
-
-        leftCol.addView(boxContainers[idx.get(0)],
-                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, topH));
-
-        View hDiv = makeDivider(true, divPx);
-        hDiv.setOnTouchListener(makeHorizResizeListener(
-                boxContainers[idx.get(0)], boxContainers[idx.get(1)], minPx));
-        leftCol.addView(hDiv);
-
-        leftCol.addView(boxContainers[idx.get(1)],
-                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, botH));
-
-        // Root row: leftCol | V-divider | Box2
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.HORIZONTAL);
-        root.addView(leftCol,
-                new LinearLayout.LayoutParams(leftW, LinearLayout.LayoutParams.MATCH_PARENT));
-
-        View vDiv = makeDivider(false, divPx);
-        vDiv.setOnTouchListener(makeVertResizeListener(leftCol, boxContainers[idx.get(2)], minPx));
-        root.addView(vDiv);
-
-        root.addView(boxContainers[idx.get(2)],
-                new LinearLayout.LayoutParams(rightW, LinearLayout.LayoutParams.MATCH_PARENT));
-
-        return root;
-    }
-
-    /** Landscape 4: 2×2 grid */
-    private View buildLandscape4(List<Integer> idx, int W, int H) {
-        int hw = W / 2, rw = W - hw;
-        int hh = H / 2, rh = H - hh;
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.addView(boxContainers[idx.get(0)], new LinearLayout.LayoutParams(hw, hh));
-        top.addView(boxContainers[idx.get(1)], new LinearLayout.LayoutParams(rw, hh));
-
-        LinearLayout bot = new LinearLayout(this);
-        bot.setOrientation(LinearLayout.HORIZONTAL);
-        bot.addView(boxContainers[idx.get(2)], new LinearLayout.LayoutParams(hw, rh));
-        bot.addView(boxContainers[idx.get(3)], new LinearLayout.LayoutParams(rw, rh));
-
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        col.addView(top, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, hh));
-        col.addView(bot, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, rh));
-        return col;
-    }
-
-    /**
-     * Portrait 2/3/4: single column, equal heights, draggable H-dividers.
-     */
-    private View buildPortraitStack(List<Integer> idx, int W, int H, int divPx, int minPx) {
-        int n         = idx.size();
-        int totalDiv  = divPx * (n - 1);
-        int usable    = H - totalDiv;
-        int baseH     = usable / n;
-        int extra     = usable - baseH * n;
-
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-
-        for (int i = 0; i < n; i++) {
-            int cellH = baseH + (i == n - 1 ? extra : 0);
-            col.addView(boxContainers[idx.get(i)],
-                    new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
-                            Math.max(cellH, 1)));
-            if (i < n - 1) {
-                View div = makeDivider(true, divPx);
-                div.setOnTouchListener(makeHorizResizeListener(
-                        boxContainers[idx.get(i)],
-                        boxContainers[idx.get(i + 1)],
-                        minPx));
-                col.addView(div);
-            }
-        }
-        return col;
-    }
-
-    private View makeDivider(boolean horizontal, int sizePx) {
-        View v = new View(this);
-        v.setLayoutParams(horizontal
-                ? new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, sizePx)
-                : new LinearLayout.LayoutParams(sizePx, LinearLayout.LayoutParams.MATCH_PARENT));
-        v.setBackgroundColor(Color.parseColor("#555555"));
-        return v;
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    private View.OnTouchListener makeHorizResizeListener(View top, View bot, int minPx) {
-        final float[] startY  = {0};
-        final int[]   startTH = {0}, startBH = {0};
-        return (v, ev) -> {
-            if (ev.getAction() == MotionEvent.ACTION_DOWN) {
-                startY[0]  = ev.getRawY();
-                startTH[0] = top.getHeight();
-                startBH[0] = bot.getHeight();
-                return true;
-            }
-            if (ev.getAction() == MotionEvent.ACTION_MOVE) {
-                int dy    = (int)(ev.getRawY() - startY[0]);
-                int total = startTH[0] + startBH[0];
-                int newT  = Math.max(minPx, Math.min(total - minPx, startTH[0] + dy));
-                LinearLayout.LayoutParams pT = (LinearLayout.LayoutParams) top.getLayoutParams();
-                LinearLayout.LayoutParams pB = (LinearLayout.LayoutParams) bot.getLayoutParams();
-                pT.height = newT; pT.weight = 0;
-                pB.height = total - newT; pB.weight = 0;
-                top.setLayoutParams(pT);
-                bot.setLayoutParams(pB);
-                return true;
-            }
-            return false;
-        };
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    private View.OnTouchListener makeVertResizeListener(View left, View right, int minPx) {
-        final float[] startX  = {0};
-        final int[]   startLW = {0}, startRW = {0};
-        return (v, ev) -> {
-            if (ev.getAction() == MotionEvent.ACTION_DOWN) {
-                startX[0]  = ev.getRawX();
-                startLW[0] = left.getWidth();
-                startRW[0] = right.getWidth();
-                return true;
-            }
-            if (ev.getAction() == MotionEvent.ACTION_MOVE) {
-                int dx    = (int)(ev.getRawX() - startX[0]);
-                int total = startLW[0] + startRW[0];
-                int newL  = Math.max(minPx, Math.min(total - minPx, startLW[0] + dx));
-                LinearLayout.LayoutParams pL = (LinearLayout.LayoutParams) left.getLayoutParams();
-                LinearLayout.LayoutParams pR = (LinearLayout.LayoutParams) right.getLayoutParams();
-                pL.width = newL; pL.weight = 0;
-                pR.width = total - newL; pR.weight = 0;
-                left.setLayoutParams(pL);
-                right.setLayoutParams(pR);
-                return true;
-            }
-            return false;
-        };
     }
     // ================== FIM DA CORREÇÃO ==================
 
-
     private void initEventListeners() {
-        if (btnToggleBottomBar != null) btnToggleBottomBar.setOnClickListener(v -> toggleBottomBar());
+        if (btnToggleBottomBar != null) btnToggleBottomBar.setOnClickListener(v -> {
+            if (bottomControls.getVisibility() == View.VISIBLE) {
+                bottomControls.setVisibility(View.GONE);
+                isBottomControlsVisible = false;
+            } else {
+                bottomControls.setVisibility(View.VISIBLE);
+                isBottomControlsVisible = true;
+            }
+            applyMargins();
+        });
         if (btnToggleSidebar != null)
             btnToggleSidebar.setOnClickListener(v -> {
                 if (isSidebarVisible) closeSidebar();
@@ -697,15 +552,7 @@ public class MainActivity extends AppCompatActivity {
         if (btnSetPortrait != null) btnSetPortrait.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT));
         if (btnSetLandscape != null) btnSetLandscape.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE));
         if (btnCloseSidebar != null) btnCloseSidebar.setOnClickListener(v -> closeSidebar());
-        if (btnCloseMenu != null) btnCloseMenu.setOnClickListener(v -> closeBottomBar());
 
-        if (btnLoadAll != null) btnLoadAll.setOnClickListener(v -> loadAllURLs());
-        if (btnReloadAll != null) btnReloadAll.setOnClickListener(v -> reloadAll());
-        if (btnClearAll != null) btnClearAll.setOnClickListener(v -> clearAll());
-        if (btnSaveState != null) btnSaveState.setOnClickListener(v -> saveCurrentState());
-        if (btnLoadState != null) btnLoadState.setOnClickListener(v -> loadSavedState(false));
-        if (btnSaveFavorites != null) btnSaveFavorites.setOnClickListener(v -> showSaveFavoriteDialog());
-        if (btnLoadFavorites != null) btnLoadFavorites.setOnClickListener(v -> showLoadFavoritesDialog());
 
         if (btnSaveStateSidebar != null) btnSaveStateSidebar.setOnClickListener(v -> saveCurrentState());
         if (btnLoadStateSidebar != null) btnLoadStateSidebar.setOnClickListener(v -> loadSavedState(false));
@@ -1081,7 +928,7 @@ public class MainActivity extends AppCompatActivity {
             public void onAnimationEnd(android.animation.Animator an) {
                 sidebarContainer.setVisibility(View.GONE);
                 isSidebarVisible = false;
-                adjustGridLayoutForSidebar(false);
+                isSidebarVisible = false; applyMargins();
                 hideKeyboard();
                 if (btnToggleSidebar != null) btnToggleSidebar.requestFocus();
             }
@@ -1093,7 +940,7 @@ public class MainActivity extends AppCompatActivity {
         sidebarContainer.setVisibility(View.VISIBLE);
         sidebarContainer.setAlpha(0f);
         isSidebarVisible = true;
-        adjustGridLayoutForSidebar(true);
+        applyMargins();
         android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(sidebarContainer, "alpha", 0f, 1f);
         a.setDuration(250);
         a.addListener(new android.animation.AnimatorListenerAdapter() {
@@ -1108,73 +955,19 @@ public class MainActivity extends AppCompatActivity {
         a.start();
     }
 
-    private void adjustGridLayoutForSidebar(boolean sidebarOpen) {
+
+    // ── applyMargins ──────────────────────────────────────────────────────────
+    private void applyMargins() {
         if (gridLayout == null) return;
-        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
-        int sidebarWidth = sidebarOpen ? (int) (200 * dm.density) : 0;
-        RelativeLayout.LayoutParams p = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
-        p.rightMargin = sidebarWidth;
-        gridLayout.setLayoutParams(p);
-        gridLayout.post(this::updateLayout);
-    }
-
-    private void toggleBottomBar() {
-        if (isBottomBarExpanded) closeBottomBar();
-        else openBottomBar();
-    }
-
-    private void closeBottomBar() {
-        if (expandedBottomBar == null) return;
-        android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(expandedBottomBar, "translationY", 0f, expandedBottomBar.getHeight());
-        a.setDuration(250);
-        a.setInterpolator(new android.view.animation.AccelerateInterpolator());
-        a.addListener(new android.animation.AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(android.animation.Animator an) {
-                expandedBottomBar.setVisibility(View.GONE);
-                isBottomBarExpanded = false;
-                updateLayoutForBottomBar();
-                hideKeyboard();
-                if (btnToggleBottomBar != null) btnToggleBottomBar.requestFocus();
-            }
-        });
-        a.start();
-    }
-
-    private void openBottomBar() {
-        if (expandedBottomBar == null) return;
-        expandedBottomBar.setVisibility(View.VISIBLE);
-        expandedBottomBar.setTranslationY(expandedBottomBar.getHeight());
-        isBottomBarExpanded = true;
-        updateLayoutForBottomBar();
-        android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(expandedBottomBar, "translationY", expandedBottomBar.getHeight(), 0f);
-        a.setDuration(250);
-        a.setInterpolator(new android.view.animation.DecelerateInterpolator());
-        a.addListener(new android.animation.AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(android.animation.Animator an) {
-                if (btnCloseMenu != null) btnCloseMenu.requestFocus();
-            }
-        });
-        a.start();
-    }
-
-    private void updateLayoutForBottomBar() {
-        if (gridLayout == null) return;
-        RelativeLayout.LayoutParams p = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
-        p.removeRule(RelativeLayout.ABOVE);
-        p.bottomMargin = 0;
-
-        if (isBottomBarExpanded) {
-            // Menu aberto: grid fica acima do expandedBottomBar
-            p.addRule(RelativeLayout.ABOVE, R.id.expandedBottomBar);
-            if (bottomControls != null) bottomControls.setVisibility(View.VISIBLE);
-        } else {
-            // Menu fechado: grid ocupa a tela toda, sem regra ABOVE
-            if (bottomControls != null) bottomControls.setVisibility(View.GONE);
+        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) gridLayout.getLayoutParams();
+        params.rightMargin  = isSidebarVisible
+                ? (int)(200 * getResources().getDisplayMetrics().density) : 0;
+        params.bottomMargin = 0;          // grid always reaches the bottom
+        params.removeRule(RelativeLayout.ABOVE);
+        if (isBottomControlsVisible) {
+            params.addRule(RelativeLayout.ABOVE, R.id.bottomControls);
         }
-
-        gridLayout.setLayoutParams(p);
+        gridLayout.setLayoutParams(params);
         gridLayout.post(this::updateLayout);
     }
 
