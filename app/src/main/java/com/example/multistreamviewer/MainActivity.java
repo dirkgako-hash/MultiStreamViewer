@@ -27,7 +27,6 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
@@ -55,10 +54,9 @@ public class MainActivity extends AppCompatActivity {
     private RelativeLayout bottomBarContainer;
     private FrameLayout sidebarContainer;
     private RelativeLayout mainLayout;
-    private TextView tvFocusedBox;
 
     private Button btnToggleBottomBar, btnToggleSidebar;
-    private Button btnSetPortrait, btnSetLandscape; // ainda existem? No XML atual, não estão. Mas vamos manter se necessário.
+    private Button btnSetPortrait, btnSetLandscape;
     private Button btnCloseSidebar;
     private Button btnLoadAll, btnReloadAll, btnClearAll;
     private Button btnSaveState, btnLoadState, btnSaveFavorites, btnLoadFavorites;
@@ -121,7 +119,6 @@ public class MainActivity extends AppCompatActivity {
 
         gridLayout.post(() -> {
             updateLayout();
-            updateFocusedBoxIndicator();
             if (!hasSavedState())
                 new Handler().postDelayed(this::loadInitialURLs, 500);
         });
@@ -169,16 +166,12 @@ public class MainActivity extends AppCompatActivity {
         bottomBarContainer = findViewById(R.id.bottomBarContainer);
         sidebarContainer = findViewById(R.id.sidebarContainer);
         mainLayout = findViewById(R.id.main_layout);
-        tvFocusedBox = findViewById(R.id.tvFocusedBox);
 
         btnToggleBottomBar = findViewById(R.id.btnToggleBottomBar);
         btnToggleSidebar = findViewById(R.id.btnToggleSidebar);
+        btnSetPortrait = findViewById(R.id.btnSetPortrait);
+        btnSetLandscape = findViewById(R.id.btnSetLandscape);
         btnCloseSidebar = findViewById(R.id.btnCloseSidebar);
-
-        // Os botões de orientação P/L não estão no novo XML, mas podem ser adicionados se necessário.
-        // Por enquanto, vamos comentar ou remover.
-        // btnSetPortrait = findViewById(R.id.btnSetPortrait);
-        // btnSetLandscape = findViewById(R.id.btnSetLandscape);
 
         btnLoadAll = findViewById(R.id.btnLoadAll);
         btnReloadAll = findViewById(R.id.btnReloadAll);
@@ -290,7 +283,6 @@ public class MainActivity extends AppCompatActivity {
             boxContainers[i].setOnFocusChangeListener((v, hasFocus) -> {
                 if (hasFocus && !isSidebarVisible) {
                     focusedBoxIndex = idx;
-                    updateFocusedBoxIndicator();
                     setFocusBorder(idx, true);
                 } else if (!hasFocus) {
                     setFocusBorder(idx, false);
@@ -672,6 +664,14 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
+        // Botões de orientação
+        if (btnSetPortrait != null) {
+            btnSetPortrait.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT));
+        }
+        if (btnSetLandscape != null) {
+            btnSetLandscape.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE));
+        }
+
         // Botão direito: alterna sidebar
         if (btnToggleSidebar != null)
             btnToggleSidebar.setOnClickListener(v -> {
@@ -982,8 +982,6 @@ public class MainActivity extends AppCompatActivity {
                         urlInputs[i].setText(u);
                         syncToSidebar(i, u);
                     }
-                    // Carrega a URL mesmo se a box não estiver ativa? Vou considerar que sim, para atualizar o campo
-                    // Mas só carrega no WebView se a box estiver ativa ou em keep active
                     if ((boxEnabled[i] || boxKeepActive[i]) && webViews[i] != null) {
                         loadURL(i, u);
                     } else {
@@ -1111,10 +1109,6 @@ public class MainActivity extends AppCompatActivity {
         p.rightMargin = sidebarWidth;
         gridLayout.setLayoutParams(p);
         gridLayout.post(this::updateLayout);
-    }
-
-    private void updateFocusedBoxIndicator() {
-        if (tvFocusedBox != null) tvFocusedBox.setText("Foco: " + (focusedBoxIndex + 1));
     }
 
     private void setFocusBorder(int idx, boolean focused) {
