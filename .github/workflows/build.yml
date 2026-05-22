@@ -108,7 +108,8 @@ jobs:
           fi
           
           # Create properties file with proper format
-          echo "storeFile=multistreamviewer.jks" > keystore.properties
+          # Path is relative to app/build.gradle, so use .. to go up one level
+          echo "storeFile=../multistreamviewer.jks" > keystore.properties
           echo "storePassword=$STORE_PASS" >> keystore.properties
           echo "keyAlias=$KEY_ALIAS" >> keystore.properties
           echo "keyPassword=$STORE_PASS" >> keystore.properties
