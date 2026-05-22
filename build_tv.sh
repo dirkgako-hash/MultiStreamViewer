@@ -23,23 +23,32 @@ fi
 
 if [ ! -f "multistreamviewer.jks" ]; then
     echo "Criando multistreamviewer.jks..."
+    if [ -z "$STORE_PASS" ]; then
+        read -s -p "Enter release keystore store password: " STORE_PASS
+        echo
+    fi
+    if [ -z "$KEY_PASS" ]; then
+        read -s -p "Enter release keystore key password: " KEY_PASS
+        echo
+    fi
+    KEY_ALIAS=${KEY_ALIAS:-key0}
     keytool -genkeypair \
       -keystore multistreamviewer.jks \
-      -alias key0 \
+      -alias "$KEY_ALIAS" \
       -keyalg RSA \
       -keysize 2048 \
       -validity 10000 \
-      -storepass 123456 \
-      -keypass 123456 \
+      -storepass "$STORE_PASS" \
+      -keypass "$KEY_PASS" \
       -dname "CN=MultiStreamViewer TV, O=Android TV, C=US" \
       -noprompt
 fi
 
 if [ ! -f "keystore.properties" ]; then
     echo "Criando keystore.properties..."
-    echo "storePassword=123456" > keystore.properties
-    echo "keyPassword=123456" >> keystore.properties
-    echo "keyAlias=key0" >> keystore.properties
+    echo "storePassword=${STORE_PASS}" > keystore.properties
+    echo "keyPassword=${KEY_PASS}" >> keystore.properties
+    echo "keyAlias=${KEY_ALIAS}" >> keystore.properties
     echo "storeFile=../multistreamviewer.jks" >> keystore.properties
 fi
 

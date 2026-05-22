@@ -324,9 +324,10 @@ public class MainActivity extends AppCompatActivity {
     private void setupWebView(WebView wv, final int idx) {
         WebSettings s = wv.getSettings();
         s.setJavaScriptEnabled(true);
+        Log.w(TAG, "WebView JavaScript enabled (ensure loaded content is trusted)");
         s.setDomStorageEnabled(true);
-        s.setAllowFileAccess(true);
-        s.setAllowContentAccess(true);
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(false);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setSupportZoom(true);
         s.setBuiltInZoomControls(true);
@@ -335,7 +336,7 @@ public class MainActivity extends AppCompatActivity {
         s.setUseWideViewPort(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
-            s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+            s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setUserAgentString(buildUserAgent());
         s.setTextZoom((int) (zoomLevels[idx] * 100));
         wv.setInitialScale(0);
@@ -405,28 +406,29 @@ public class MainActivity extends AppCompatActivity {
     private void enableFullBox(WebView webView) {
         if (webView == null) return;
         String script =
-                "javascript:(function() {" +
-                        "   var style = document.createElement('style');" +
-                        "   style.type = 'text/css';" +
-                        "   style.innerHTML = '" +
-                        "       video {" +
-                        "           position: fixed !important;" +
-                        "           top: 0 !important;" +
-                        "           left: 0 !important;" +
-                        "           width: 100% !important;" +
-                        "           height: 100% !important;" +
-                        "           object-fit: contain !important;" +
-                        "           z-index: 9999 !important;" +
-                        "           background: black;" +
-                        "       }" +
-                        "       body { overflow: hidden !important; }" +
-                        "   ';" +
-                        "   document.head.appendChild(style);" +
-                        "   var elements = document.querySelectorAll('header, footer, nav, aside');" +
-                        "   for (var i = 0; i < elements.length; i++) {" +
-                        "       elements[i].style.display = 'none';" +
-                        "   }" +
-                        "})();";
+            "javascript:(function() {" +
+                "   var style = document.getElementById('msv_fullbox_style');" +
+                "   if(!style){ style = document.createElement('style'); style.id='msv_fullbox_style'; }" +
+                "   style.type = 'text/css';" +
+                "   style.innerHTML = '" +
+                "       video {" +
+                "           position: fixed !important;" +
+                "           top: 0 !important;" +
+                "           left: 0 !important;" +
+                "           width: 100% !important;" +
+                "           height: 100% !important;" +
+                "           object-fit: contain !important;" +
+                "           z-index: 9999 !important;" +
+                "           background: black;" +
+                "       }" +
+                "       body { overflow: hidden !important; }" +
+                "   ';" +
+                "   document.head.appendChild(style);" +
+                "   var elements = document.querySelectorAll('header, footer, nav, aside');" +
+                "   for (var i = 0; i < elements.length; i++) {" +
+                "       elements[i].style.display = 'none';" +
+                "   }" +
+                "})();";
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             webView.evaluateJavascript(script, null);
@@ -437,7 +439,18 @@ public class MainActivity extends AppCompatActivity {
 
     private void disableFullBox(WebView webView) {
         if (webView == null) return;
-        webView.reload();
+        String script = "javascript:(function(){\n" +
+                "  var s = document.getElementById('msv_fullbox_style');\n" +
+                "  if(s) s.parentNode.removeChild(s);\n" +
+                "  var elems = document.querySelectorAll('header, footer, nav, aside');\n" +
+                "  for(var i=0;i<elems.length;i++){ elems[i].style.display=''; }\n" +
+                "  document.body.style.overflow='';\n" +
+                "})();";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.evaluateJavascript(script, null);
+        } else {
+            webView.loadUrl(script);
+        }
     }
 
     private String buildUserAgent() {
@@ -707,6 +720,11 @@ public class MainActivity extends AppCompatActivity {
             final int idx = i;
             if (btnLoadUrlSidebar[i] != null)
                 btnLoadUrlSidebar[i].setOnClickListener(v -> {
+                    // Ensure any active input focus is committed and keyboard hidden
+                    if (urlInputsSidebar[idx] != null) {
+                        urlInputsSidebar[idx].clearFocus();
+                        hideKeyboard();
+                    }
                     String u = urlInputsSidebar[idx].getText().toString().trim();
                     if (!u.isEmpty()) {
                         loadURL(idx, u);
@@ -759,6 +777,7 @@ public class MainActivity extends AppCompatActivity {
         if (cbAllowScripts != null)
             cbAllowScripts.setOnCheckedChangeListener((b, c) -> {
                 for (WebView wv : webViews) if (wv != null) wv.getSettings().setJavaScriptEnabled(c);
+                Log.w(TAG, "User toggled WebView JavaScript: " + c);
             });
         if (cbBlockAds != null)
             cbBlockAds.setOnCheckedChangeListener((b, c) -> {
@@ -1213,6 +1232,16 @@ public class MainActivity extends AppCompatActivity {
                     if (isSidebarVisible) closeSidebar();
                     else openSidebar();
                     return true;
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                    if (isSidebarVisible) {
+                        View focused = getCurrentFocus();
+                        if (focused != null) {
+                            focused.performClick();
+                            return true;
+                        }
+                    }
+                    break;
                 case KeyEvent.KEYCODE_DPAD_UP:
                     if (!isSidebarVisible) {
                         scrollWebView(focusedBoxIndex, -100);
