@@ -24,12 +24,26 @@ fi
 if [ ! -f "multistreamviewer.jks" ]; then
     echo "Criando multistreamviewer.jks..."
     if [ -z "$STORE_PASS" ]; then
-        read -s -p "Enter release keystore store password: " STORE_PASS
-        echo
+        while true; do
+            read -s -p "Enter release keystore store password (min 6 chars): " STORE_PASS
+            echo
+            if [ ${#STORE_PASS} -ge 6 ]; then
+                break
+            else
+                echo "❌ Password must be at least 6 characters long. Try again."
+            fi
+        done
     fi
     if [ -z "$KEY_PASS" ]; then
-        read -s -p "Enter release keystore key password: " KEY_PASS
-        echo
+        while true; do
+            read -s -p "Enter release keystore key password (min 6 chars): " KEY_PASS
+            echo
+            if [ ${#KEY_PASS} -ge 6 ]; then
+                break
+            else
+                echo "❌ Password must be at least 6 characters long. Try again."
+            fi
+        done
     fi
     KEY_ALIAS=${KEY_ALIAS:-key0}
     keytool -genkeypair \
