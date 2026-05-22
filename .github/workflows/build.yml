@@ -81,6 +81,10 @@ jobs:
             exit 1
           fi
           
+          # Remove old keystore if exists
+          rm -f multistreamviewer.jks keystore.properties
+          
+          # Create keystore with STORE_PASS as both store and key password
           keytool -genkeypair \
             -keystore multistreamviewer.jks \
             -alias "$KEY_ALIAS" \
@@ -88,13 +92,26 @@ jobs:
             -keysize 2048 \
             -validity 10000 \
             -storepass "$STORE_PASS" \
-            -keypass "$KEY_PASS" \
+            -keypass "$STORE_PASS" \
             -dname "CN=Android, OU=Android, O=Android, L=City, ST=State, C=US" \
-            -noprompt
-          echo "storePassword=${STORE_PASS}" > keystore.properties
-          echo "keyPassword=${KEY_PASS}" >> keystore.properties
-          echo "keyAlias=${KEY_ALIAS}" >> keystore.properties
-          echo "storeFile=../multistreamviewer.jks" >> keystore.properties
+            -noprompt 2>&1 || { echo "❌ Failed to create keystore"; exit 1; }
+          
+          echo "✓ Keystore created, verifying..."
+          
+          # Verify the keystore can be read back
+          keytool -list -v -keystore multistreamviewer.jks -storepass "$STORE_PASS" -alias "$KEY_ALIAS" > /dev/null 2>&1
+          if [ $? -eq 0 ]; then
+            echo "✓ Keystore verified successfully!"
+          else
+            echo "❌ Keystore verification failed!"
+            exit 1
+          fi
+          
+          # Create properties file with proper format
+          echo "storeFile=multistreamviewer.jks" > keystore.properties
+          echo "storePassword=$STORE_PASS" >> keystore.properties
+          echo "keyAlias=$KEY_ALIAS" >> keystore.properties
+          echo "keyPassword=$STORE_PASS" >> keystore.properties
           echo "✓ Release keystore and properties created!"
       
       - name: Verify Keystore Files
