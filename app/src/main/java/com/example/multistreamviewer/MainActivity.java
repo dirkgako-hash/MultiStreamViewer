@@ -5,19 +5,24 @@ import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.LayerDrawable;
+import android.graphics.drawable.StateListDrawable;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import android.view.KeyEvent;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -30,73 +35,104 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final int MAX = 6;
+
     // Views
     private FrameLayout gridLayout;
-    private FrameLayout[] boxContainers = new FrameLayout[4];
-    private WebView[] webViews = new WebView[4];
+    private FrameLayout[] boxContainers = new FrameLayout[MAX];
+    private WebView[] webViews = new WebView[MAX];
 
     // Fullscreen video tracking
-    private View[] customViews = new View[4];
-    private WebChromeClient.CustomViewCallback[] customCallbacks = new WebChromeClient.CustomViewCallback[4];
+    private View[] customViews = new View[MAX];
+    private WebChromeClient.CustomViewCallback[] customCallbacks = new WebChromeClient.CustomViewCallback[MAX];
 
     private LinearLayout bottomControls;
     private FrameLayout sidebarContainer;
     private RelativeLayout mainLayout;
     private TextView tvFocusedBox;
+    private TextView tvLayoutName;
 
     private Button btnToggleBottomBar, btnToggleSidebar;
     private Button btnSetPortrait, btnSetLandscape;
     private Button btnCloseSidebar;
+    private Button btnCycleLayout;
+    private Button btnExportSidebar, btnImportSidebar, btnClearCacheSidebar;
 
-    private Button[] btnRefresh = new Button[4];
-    private Button[] btnZoomIn = new Button[4];
-    private Button[] btnZoomOut = new Button[4];
-    private Button[] btnPrevious = new Button[4];
-    private Button[] btnNext = new Button[4];
-    private CheckBox[] checkBoxes = new CheckBox[4];
-    private CheckBox[] checkBoxesKeepActive = new CheckBox[4];
-    private CheckBox[] checkBoxFullVideo = new CheckBox[4];
-    private boolean[] fullscreenActive = new boolean[4];
+    private Button[] btnRefresh = new Button[MAX];
+    private Button[] btnZoomIn = new Button[MAX];
+    private Button[] btnZoomOut = new Button[MAX];
+    private Button[] btnPrevious = new Button[MAX];
+    private Button[] btnNext = new Button[MAX];
+    private CheckBox[] checkBoxes = new CheckBox[MAX];
+    private CheckBox[] checkBoxesKeepActive = new CheckBox[MAX];
+    private CheckBox[] checkBoxFullVideo = new CheckBox[MAX];
+    private boolean[] fullscreenActive = new boolean[MAX];
 
-    private EditText[] urlInputsSidebar = new EditText[4];
-    private Button[] btnLoadUrlSidebar = new Button[4];
+    private EditText[] urlInputsSidebar = new EditText[MAX];
+    private Button[] btnLoadUrlSidebar = new Button[MAX];
     private Button btnLoadAllSidebar, btnReloadAllSidebar, btnClearAllSidebar;
     private Button btnSaveStateSidebar, btnLoadStateSidebar;
     private Button btnSaveFavoritesSidebar, btnLoadFavoritesSidebar;
 
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
+    private CheckBox cbKeepScreenOn;
 
-    private boolean[] boxEnabled = {true, true, true, true};
-    private boolean[] boxKeepActive = {true, true, true, true};
+    private boolean[] boxEnabled = {true, true, true, true, false, false};
+    private boolean[] boxKeepActive = {false, false, false, false, false, false};
 
     private boolean isSidebarVisible = false;
     private boolean isBottomControlsVisible = false; // Estado da barra inferior
     private boolean isSyncingUI = false;
     private int focusedBoxIndex = 0;
-    private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f};
+    private float[] zoomLevels = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
     private int currentOrientation = Configuration.ORIENTATION_LANDSCAPE;
 
     private ArrayList<String> favoritesList = new ArrayList<>();
     private SharedPreferences preferences;
 
+    private GridLayoutEngine engine;
+
+    private static final String PREFS = "MultiStreamViewer";
+    private static final String KEY_WEIGHTS = "layout_weights";
+    private static final String KEY_PRESET_PREFIX = "layout_";
+
     private final List<String> adDomains = Arrays.asList(
-            "doubleclick.net", "googleadservices.com", "googlesyndication.com");
+            "doubleclick.net", "googleadservices.com", "googlesyndication.com",
+            "google-analytics.com", "googletagmanager.com", "adservice.google",
+            "amazon-adsystem.com", "taboola.com", "outbrain.com", "criteo.com",
+            "criteo.net", "adnxs.com", "rubiconproject.com", "pubmatic.com",
+            "openx.net", "smartadserver.com", "adform.net", "adcash.com",
+            "popads.net", "propellerads.com", "juicyads.com", "exoclick.com",
+            "onclickads.net", "directnavbt.com", "ntv.io", "zoneid.com");
 
     private static final String TAG = "MSV";
 
-    // Constante para altura da bottomControls (40dp em pixels)
+    // ── Export/Import JSON via SAF ────────────────────────────────────────────
+    private final ActivityResultLauncher<String> exportLauncher =
+            registerForActivityResult(new ActivityResultContracts.CreateDocument("application/json"),
+                    uri -> { if (uri != null) writeConfigTo(uri); });
+
+    private final ActivityResultLauncher<String[]> importLauncher =
+            registerForActivityResult(new ActivityResultContracts.OpenDocument(),
+                    uri -> { if (uri != null) readConfigFrom(uri); });
 
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
@@ -105,15 +141,19 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         currentOrientation = getResources().getConfiguration().orientation;
         applyDefaultOrientation();
-        preferences = getSharedPreferences("MultiStreamViewer", MODE_PRIVATE);
+        preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
 
-        // Calcular altura em pixels
+        float dp = getResources().getDisplayMetrics().density;
+        engine = new GridLayoutEngine(this, (int) (8 * dp), (int) (60 * dp));
 
         initViews();
         initWebViewsOnce();
         initEventListeners();
+        applyPressHighlights(bottomControls);
+        applyPressHighlights(sidebarContainer);
         loadSavedState(true);
         loadFavoritesList();
+        applyKeepScreenOn(cbKeepScreenOn == null || cbKeepScreenOn.isChecked());
 
         new Handler().postDelayed(() -> {
             if (!favoritesList.isEmpty())
@@ -128,18 +168,107 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // Método centralizado para aplicar as margens
-    // ── applyGridSize ─────────────────────────────────────────────────────────
-    //  Uses mainLayout actual dimensions (excludes system bars).
-    //  Guard flag prevents re-entrant calls (no flicker loop).
+    // ── keep screen on ────────────────────────────────────────────────────────
+    private void applyKeepScreenOn(boolean on) {
+        if (on) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+
+    // ── destaque do 1º clique (mantém o comportamento de 2 cliques do TV) ─────
+    private void applyPressHighlights(View root) {
+        if (root instanceof Button || root instanceof CheckBox) highlightable(root);
+        if (root instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) root;
+            for (int i = 0; i < vg.getChildCount(); i++) applyPressHighlights(vg.getChildAt(i));
+        }
+    }
+
+    private void highlightable(View v) {
+        Drawable base = v.getBackground();
+        if (base == null) base = new ColorDrawable(Color.TRANSPARENT);
+        StateListDrawable hl = new StateListDrawable();
+        hl.addState(new int[]{android.R.attr.state_pressed}, new ColorDrawable(0x8AFFC107));
+        hl.addState(new int[]{android.R.attr.state_focused}, new ColorDrawable(0x66FFC107));
+        hl.addState(new int[]{}, new ColorDrawable(0x00000000));
+        v.setBackground(new LayerDrawable(new Drawable[]{base, hl}));
+    }
+
+    // ── pesos por preset (persistidos como no protótipo desktop) ──────────────
+    private final GridLayoutEngine.WeightsStore weightsStore = new GridLayoutEngine.WeightsStore() {
+        @Override
+        public float[] get(String presetId, String path, int count) {
+            try {
+                JSONObject all = new JSONObject(preferences.getString(KEY_WEIGHTS, "{}"));
+                JSONObject perPreset = all.optJSONObject(presetId);
+                if (perPreset == null) return null;
+                JSONArray arr = perPreset.optJSONArray(path);
+                if (arr == null || arr.length() != count) return null;
+                float[] w = new float[count];
+                for (int i = 0; i < count; i++) w[i] = (float) arr.getDouble(i);
+                return w;
+            } catch (Exception e) {
+                return null;
+            }
+        }
+
+        @Override
+        public void save(String presetId, String path, float[] weights) {
+            try {
+                JSONObject all = new JSONObject(preferences.getString(KEY_WEIGHTS, "{}"));
+                JSONObject perPreset = all.optJSONObject(presetId);
+                if (perPreset == null) { perPreset = new JSONObject(); all.put(presetId, perPreset); }
+                JSONArray arr = new JSONArray();
+                for (float w : weights) arr.put(w);
+                perPreset.put(path, arr);
+                preferences.edit().putString(KEY_WEIGHTS, all.toString()).apply();
+            } catch (Exception ignored) {
+            }
+        }
+    };
+
+    private int enabledCount() {
+        int n = 0;
+        for (int i = 0; i < MAX; i++) if (boxEnabled[i]) n++;
+        return n;
+    }
+
+    private boolean isPortraitNow() {
+        return currentOrientation == Configuration.ORIENTATION_PORTRAIT;
+    }
+
+    private GridLayoutEngine.Preset currentPreset(int n) {
+        String id = preferences.getString(KEY_PRESET_PREFIX + n, null);
+        GridLayoutEngine.Preset p = GridLayoutEngine.byId(id);
+        if (p == null || p.n != n) p = GridLayoutEngine.byId(GridLayoutEngine.defaultPresetId(n, isPortraitNow()));
+        return p;
+    }
+
+    private void cycleLayout() {
+        int n = enabledCount();
+        List<GridLayoutEngine.Preset> list = GridLayoutEngine.presetsFor(n);
+        if (list.isEmpty()) return;
+        GridLayoutEngine.Preset cur = currentPreset(n);
+        int idx = 0;
+        for (int i = 0; i < list.size(); i++) if (list.get(i).id.equals(cur.id)) { idx = i; break; }
+        GridLayoutEngine.Preset next = list.get((idx + 1) % list.size());
+        preferences.edit().putString(KEY_PRESET_PREFIX + n, next.id).apply();
+        updateLayout();
+        Toast.makeText(this, "🗂 " + next.label, Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateLayoutNameLabel() {
+        if (tvLayoutName == null) return;
+        GridLayoutEngine.Preset p = currentPreset(enabledCount());
+        tvLayoutName.setText(p == null ? " " : p.label);
+    }
+
+    // ── applyGridSize: dimensões reais de mainLayout (exclui system bars) ─────
     private boolean applyGridSizeRunning = false;
     private void applyGridSize() {
         if (gridLayout == null || applyGridSizeRunning) return;
-        // Use mainLayout dimensions = real available space after system UI
         int rootW = mainLayout.getWidth();
         int rootH = mainLayout.getHeight();
         if (rootW <= 0 || rootH <= 0) {
-            // Not laid out yet — wait for next frame
             mainLayout.post(this::applyGridSize);
             return;
         }
@@ -158,7 +287,7 @@ public class MainActivity extends AppCompatActivity {
         gridLayout.setLayoutParams(p);
         Log.d(TAG, "applyGridSize: " + W + "x" + H + " barH=" + barH + " sideW=" + sideW);
 
-        rebuildGrid(W, H);
+        rebuildGrid();
         applyGridSizeRunning = false;
     }
 
@@ -204,12 +333,14 @@ public class MainActivity extends AppCompatActivity {
         sidebarContainer = findViewById(R.id.sidebarContainer);
         mainLayout = findViewById(R.id.main_layout);
         tvFocusedBox = findViewById(R.id.tvFocusedBox);
+        tvLayoutName = findViewById(R.id.tvLayoutName);
 
         btnToggleBottomBar = findViewById(R.id.btnToggleBottomBar);
         btnToggleSidebar = findViewById(R.id.btnToggleSidebar);
         btnSetPortrait = findViewById(R.id.btnSetPortrait);
         btnSetLandscape = findViewById(R.id.btnSetLandscape);
         btnCloseSidebar = findViewById(R.id.btnCloseSidebar);
+        btnCycleLayout = findViewById(R.id.btnCycleLayout);
 
         btnSaveStateSidebar = findViewById(R.id.btnSaveStateSidebar);
         btnLoadStateSidebar = findViewById(R.id.btnLoadStateSidebar);
@@ -218,34 +349,38 @@ public class MainActivity extends AppCompatActivity {
         btnLoadAllSidebar = findViewById(R.id.btnLoadAllSidebar);
         btnReloadAllSidebar = findViewById(R.id.btnReloadAllSidebar);
         btnClearAllSidebar = findViewById(R.id.btnClearAllSidebar);
+        btnExportSidebar = findViewById(R.id.btnExportSidebar);
+        btnImportSidebar = findViewById(R.id.btnImportSidebar);
+        btnClearCacheSidebar = findViewById(R.id.btnClearCacheSidebar);
 
         cbAllowScripts = findViewById(R.id.cbAllowScripts);
         cbAllowForms = findViewById(R.id.cbAllowForms);
         cbAllowPopups = findViewById(R.id.cbAllowPopups);
         cbBlockRedirects = findViewById(R.id.cbBlockRedirects);
         cbBlockAds = findViewById(R.id.cbBlockAds);
+        cbKeepScreenOn = findViewById(R.id.cbKeepScreenOn);
 
-        int[] cbIds = {R.id.checkBox1, R.id.checkBox2, R.id.checkBox3, R.id.checkBox4};
-        int[] kaIds = {R.id.checkBoxKeepActive1, R.id.checkBoxKeepActive2,
-                R.id.checkBoxKeepActive3, R.id.checkBoxKeepActive4};
-        int[] fullIds = {
-                R.id.checkBoxFullVideo1,
-                R.id.checkBoxFullVideo2,
-                R.id.checkBoxFullVideo3,
-                R.id.checkBoxFullVideo4
-        };
-        int[] rfIds = {R.id.btnRefresh1, R.id.btnRefresh2, R.id.btnRefresh3, R.id.btnRefresh4};
-        int[] ziIds = {R.id.btnZoomIn1, R.id.btnZoomIn2, R.id.btnZoomIn3, R.id.btnZoomIn4};
-        int[] zoIds = {R.id.btnZoomOut1, R.id.btnZoomOut2, R.id.btnZoomOut3, R.id.btnZoomOut4};
-        int[] pvIds = {R.id.btnPrevious1, R.id.btnPrevious2, R.id.btnPrevious3, R.id.btnPrevious4};
-        int[] nxIds = {R.id.btnNext1, R.id.btnNext2, R.id.btnNext3, R.id.btnNext4};
+        int[] cbIds = {R.id.checkBox1, R.id.checkBox2, R.id.checkBox3, R.id.checkBox4, R.id.checkBox5, R.id.checkBox6};
+        int[] kaIds = {R.id.checkBoxKeepActive1, R.id.checkBoxKeepActive2, R.id.checkBoxKeepActive3,
+                R.id.checkBoxKeepActive4, R.id.checkBoxKeepActive5, R.id.checkBoxKeepActive6};
+        int[] fullIds = {R.id.checkBoxFullVideo1, R.id.checkBoxFullVideo2, R.id.checkBoxFullVideo3,
+                R.id.checkBoxFullVideo4, R.id.checkBoxFullVideo5, R.id.checkBoxFullVideo6};
+        int[] rfIds = {R.id.btnRefresh1, R.id.btnRefresh2, R.id.btnRefresh3,
+                R.id.btnRefresh4, R.id.btnRefresh5, R.id.btnRefresh6};
+        int[] ziIds = {R.id.btnZoomIn1, R.id.btnZoomIn2, R.id.btnZoomIn3,
+                R.id.btnZoomIn4, R.id.btnZoomIn5, R.id.btnZoomIn6};
+        int[] zoIds = {R.id.btnZoomOut1, R.id.btnZoomOut2, R.id.btnZoomOut3,
+                R.id.btnZoomOut4, R.id.btnZoomOut5, R.id.btnZoomOut6};
+        int[] pvIds = {R.id.btnPrevious1, R.id.btnPrevious2, R.id.btnPrevious3,
+                R.id.btnPrevious4, R.id.btnPrevious5, R.id.btnPrevious6};
+        int[] nxIds = {R.id.btnNext1, R.id.btnNext2, R.id.btnNext3,
+                R.id.btnNext4, R.id.btnNext5, R.id.btnNext6};
+        int[] usbIds = {R.id.urlInputSidebar1, R.id.urlInputSidebar2, R.id.urlInputSidebar3,
+                R.id.urlInputSidebar4, R.id.urlInputSidebar5, R.id.urlInputSidebar6};
+        int[] gsbIds = {R.id.btnLoadUrlSidebar1, R.id.btnLoadUrlSidebar2, R.id.btnLoadUrlSidebar3,
+                R.id.btnLoadUrlSidebar4, R.id.btnLoadUrlSidebar5, R.id.btnLoadUrlSidebar6};
 
-        int[] usbIds = {R.id.urlInputSidebar1, R.id.urlInputSidebar2,
-                R.id.urlInputSidebar3, R.id.urlInputSidebar4};
-        int[] gsbIds = {R.id.btnLoadUrlSidebar1, R.id.btnLoadUrlSidebar2,
-                R.id.btnLoadUrlSidebar3, R.id.btnLoadUrlSidebar4};
-
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < MAX; i++) {
             checkBoxes[i] = findViewById(cbIds[i]);
             checkBoxesKeepActive[i] = findViewById(kaIds[i]);
             checkBoxFullVideo[i] = findViewById(fullIds[i]);
@@ -288,7 +423,7 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint("SetJavaScriptEnabled")
     private void initWebViewsOnce() {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < MAX; i++) {
             final int idx = i;
 
             boxContainers[i] = new FrameLayout(this);
@@ -335,6 +470,7 @@ public class MainActivity extends AppCompatActivity {
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        s.setJavaScriptCanOpenWindowsAutomatically(cbAllowPopups != null && cbAllowPopups.isChecked());
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
             s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setUserAgentString(buildUserAgent());
@@ -363,6 +499,16 @@ public class MainActivity extends AppCompatActivity {
                 }
                 if (cbBlockAds != null && cbBlockAds.isChecked() && isAdUrl(url)) return true;
                 return false;
+            }
+
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest request) {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return null;
+                if (cbBlockAds != null && cbBlockAds.isChecked() && isAdUrl(request.getUrl().toString())) {
+                    return new WebResourceResponse("text/plain", "utf-8",
+                            new ByteArrayInputStream(new byte[0]));
+                }
+                return null;
             }
 
             @Override
@@ -459,16 +605,19 @@ public class MainActivity extends AppCompatActivity {
                 : "Mozilla/5.0 (Linux; Android 11; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36";
     }
 
-    // ================== UPDATE LAYOUT (com divisores) ==================
+    // ================== UPDATE LAYOUT ==================
+    private final Runnable applyGridRunnable = this::applyGridSize;
+
     private void updateLayout() {
-        // Post ensures mainLayout is measured before applyGridSize reads its dimensions
-        if (mainLayout != null) mainLayout.post(this::applyGridSize);
+        // Coalesce: múltiplos toggles → uma única reconstrução
+        if (mainLayout == null) return;
+        mainLayout.removeCallbacks(applyGridRunnable);
+        mainLayout.postDelayed(applyGridRunnable, 120);
     }
 
-    // rebuildGrid() — called only from applyGridSize() with known W and H
-    private void rebuildGrid(int W, int H) {
+    private void rebuildGrid() {
         List<Integer> enabledIdx = new ArrayList<>();
-        for (int i = 0; i < 4; i++) if (boxEnabled[i]) enabledIdx.add(i);
+        for (int i = 0; i < MAX; i++) if (boxEnabled[i]) enabledIdx.add(i);
 
         if (enabledIdx.isEmpty()) {
             boxEnabled[0] = true;
@@ -476,20 +625,16 @@ public class MainActivity extends AppCompatActivity {
             enabledIdx.add(0);
         }
 
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < MAX; i++) {
             if (boxContainers[i] == null) continue;
             if      (boxEnabled[i])    boxContainers[i].setVisibility(View.VISIBLE);
             else if (boxKeepActive[i]) boxContainers[i].setVisibility(View.INVISIBLE);
             else                       boxContainers[i].setVisibility(View.GONE);
         }
 
-        final boolean portrait = (currentOrientation == Configuration.ORIENTATION_PORTRAIT);
         final List<Integer> idx = new ArrayList<>(enabledIdx);
-        final int fW = W, fH = H;
-
         gridLayout.post(() -> {
-            // Detach containers from any previous parent
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < MAX; i++) {
                 if (boxContainers[i] != null && boxContainers[i].getParent() != null
                         && boxContainers[i].getParent() != gridLayout) {
                     ((ViewGroup) boxContainers[i].getParent()).removeView(boxContainers[i]);
@@ -497,189 +642,18 @@ public class MainActivity extends AppCompatActivity {
             }
             gridLayout.removeAllViews();
 
-            if (fW <= 0 || fH <= 0) return;  // safety — should not happen
-
-            View root = buildGrid(portrait, idx, fW, fH);
+            List<View> visible = new ArrayList<>();
+            for (int i : idx) visible.add(boxContainers[i]);
+            GridLayoutEngine.Preset preset = currentPreset(idx.size());
+            View root = engine.build(preset, visible, weightsStore);
             if (root != null) {
                 gridLayout.addView(root, new FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT));
             }
-            Log.d(TAG, "rebuildGrid " + idx.size() + "boxes "
-                    + (portrait ? "P" : "L") + " " + fW + "x" + fH);
+            updateLayoutNameLabel();
+            Log.d(TAG, "rebuildGrid " + idx.size() + "boxes preset=" + (preset == null ? "-" : preset.id));
         });
-    }
-
-    private View buildGrid(boolean portrait, List<Integer> idx, int W, int H) {
-        float dp   = getResources().getDisplayMetrics().density;
-        int divPx  = (int)(8  * dp);
-        int minPx  = (int)(60 * dp);
-        int n      = idx.size();
-
-        if (n == 1) return boxContainers[idx.get(0)];
-
-        if (!portrait) {
-            if (n == 2) return buildLandscape2(idx, W, H);
-            if (n == 3) return buildLandscape3(idx, W, H, divPx, minPx);
-            return buildLandscape4(idx, W, H);
-        } else {
-            return buildPortraitStack(idx, W, H, divPx, minPx);
-        }
-    }
-
-    private View buildLandscape2(List<Integer> idx, int W, int H) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        int half = W / 2;
-        row.addView(boxContainers[idx.get(0)], new LinearLayout.LayoutParams(half, H));
-        row.addView(boxContainers[idx.get(1)], new LinearLayout.LayoutParams(W - half, H));
-        return row;
-    }
-
-    private View buildLandscape3(List<Integer> idx, int W, int H, int divPx, int minPx) {
-        int leftW  = W / 2 - divPx / 2;
-        int rightW = W - leftW - divPx;
-        int topH   = H / 2 - divPx / 2;
-        int botH   = H - topH - divPx;
-
-        LinearLayout leftCol = new LinearLayout(this);
-        leftCol.setOrientation(LinearLayout.VERTICAL);
-
-        leftCol.addView(boxContainers[idx.get(0)],
-                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, topH));
-
-        View hDiv = makeDivider(true, divPx);
-        hDiv.setOnTouchListener(makeHorizResizeListener(
-                boxContainers[idx.get(0)], boxContainers[idx.get(1)], minPx));
-        leftCol.addView(hDiv);
-
-        leftCol.addView(boxContainers[idx.get(1)],
-                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, botH));
-
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.HORIZONTAL);
-        root.addView(leftCol,
-                new LinearLayout.LayoutParams(leftW, LinearLayout.LayoutParams.MATCH_PARENT));
-
-        View vDiv = makeDivider(false, divPx);
-        vDiv.setOnTouchListener(makeVertResizeListener(leftCol, boxContainers[idx.get(2)], minPx));
-        root.addView(vDiv);
-
-        root.addView(boxContainers[idx.get(2)],
-                new LinearLayout.LayoutParams(rightW, LinearLayout.LayoutParams.MATCH_PARENT));
-
-        return root;
-    }
-
-    private View buildLandscape4(List<Integer> idx, int W, int H) {
-        int hw = W / 2, rw = W - hw;
-        int hh = H / 2, rh = H - hh;
-
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.addView(boxContainers[idx.get(0)], new LinearLayout.LayoutParams(hw, hh));
-        top.addView(boxContainers[idx.get(1)], new LinearLayout.LayoutParams(rw, hh));
-
-        LinearLayout bot = new LinearLayout(this);
-        bot.setOrientation(LinearLayout.HORIZONTAL);
-        bot.addView(boxContainers[idx.get(2)], new LinearLayout.LayoutParams(hw, rh));
-        bot.addView(boxContainers[idx.get(3)], new LinearLayout.LayoutParams(rw, rh));
-
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        col.addView(top, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, hh));
-        col.addView(bot, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, rh));
-        return col;
-    }
-
-    private View buildPortraitStack(List<Integer> idx, int W, int H, int divPx, int minPx) {
-        int n         = idx.size();
-        int totalDiv  = divPx * (n - 1);
-        int usable    = H - totalDiv;
-        int baseH     = usable / n;
-        int extra     = usable - baseH * n;
-
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-
-        for (int i = 0; i < n; i++) {
-            int cellH = baseH + (i == n - 1 ? extra : 0);
-            col.addView(boxContainers[idx.get(i)],
-                    new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
-                            Math.max(cellH, 1)));
-            if (i < n - 1) {
-                View div = makeDivider(true, divPx);
-                div.setOnTouchListener(makeHorizResizeListener(
-                        boxContainers[idx.get(i)],
-                        boxContainers[idx.get(i + 1)],
-                        minPx));
-                col.addView(div);
-            }
-        }
-        return col;
-    }
-
-    private View makeDivider(boolean horizontal, int sizePx) {
-        View v = new View(this);
-        v.setLayoutParams(horizontal
-                ? new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, sizePx)
-                : new LinearLayout.LayoutParams(sizePx, LinearLayout.LayoutParams.MATCH_PARENT));
-        v.setBackgroundColor(Color.parseColor("#555555"));
-        return v;
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    private View.OnTouchListener makeHorizResizeListener(View top, View bot, int minPx) {
-        final float[] startY  = {0};
-        final int[]   startTH = {0}, startBH = {0};
-        return (v, ev) -> {
-            if (ev.getAction() == MotionEvent.ACTION_DOWN) {
-                startY[0]  = ev.getRawY();
-                startTH[0] = top.getHeight();
-                startBH[0] = bot.getHeight();
-                return true;
-            }
-            if (ev.getAction() == MotionEvent.ACTION_MOVE) {
-                int dy    = (int)(ev.getRawY() - startY[0]);
-                int total = startTH[0] + startBH[0];
-                int newT  = Math.max(minPx, Math.min(total - minPx, startTH[0] + dy));
-                LinearLayout.LayoutParams pT = (LinearLayout.LayoutParams) top.getLayoutParams();
-                LinearLayout.LayoutParams pB = (LinearLayout.LayoutParams) bot.getLayoutParams();
-                pT.height = newT; pT.weight = 0;
-                pB.height = total - newT; pB.weight = 0;
-                top.setLayoutParams(pT);
-                bot.setLayoutParams(pB);
-                return true;
-            }
-            return false;
-        };
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    private View.OnTouchListener makeVertResizeListener(View left, View right, int minPx) {
-        final float[] startX  = {0};
-        final int[]   startLW = {0}, startRW = {0};
-        return (v, ev) -> {
-            if (ev.getAction() == MotionEvent.ACTION_DOWN) {
-                startX[0]  = ev.getRawX();
-                startLW[0] = left.getWidth();
-                startRW[0] = right.getWidth();
-                return true;
-            }
-            if (ev.getAction() == MotionEvent.ACTION_MOVE) {
-                int dx    = (int)(ev.getRawX() - startX[0]);
-                int total = startLW[0] + startRW[0];
-                int newL  = Math.max(minPx, Math.min(total - minPx, startLW[0] + dx));
-                LinearLayout.LayoutParams pL = (LinearLayout.LayoutParams) left.getLayoutParams();
-                LinearLayout.LayoutParams pR = (LinearLayout.LayoutParams) right.getLayoutParams();
-                pL.width = newL; pL.weight = 0;
-                pR.width = total - newL; pR.weight = 0;
-                left.setLayoutParams(pL);
-                right.setLayoutParams(pR);
-                return true;
-            }
-            return false;
-        };
     }
     // ================== FIM DO LAYOUT ==================
 
@@ -694,7 +668,7 @@ public class MainActivity extends AppCompatActivity {
                     isBottomControlsVisible = true;
                 }
                 Log.d(TAG, "bottomControls visibility changed to: " + (isBottomControlsVisible ? "VISIBLE" : "GONE"));
-                applyGridSize(); // Aplica a margem imediatamente
+                applyGridSize();
             });
         }
         if (btnToggleSidebar != null)
@@ -705,22 +679,28 @@ public class MainActivity extends AppCompatActivity {
         if (btnSetPortrait != null) btnSetPortrait.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT));
         if (btnSetLandscape != null) btnSetLandscape.setOnClickListener(v -> setOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE));
         if (btnCloseSidebar != null) btnCloseSidebar.setOnClickListener(v -> closeSidebar());
+        if (btnCycleLayout != null) btnCycleLayout.setOnClickListener(v -> cycleLayout());
 
         // Sidebar global buttons
         if (btnLoadAllSidebar != null) btnLoadAllSidebar.setOnClickListener(v -> loadAllURLs());
         if (btnReloadAllSidebar != null) btnReloadAllSidebar.setOnClickListener(v -> reloadAll());
         if (btnClearAllSidebar != null) btnClearAllSidebar.setOnClickListener(v -> clearAll());
-        if (btnSaveStateSidebar != null) btnSaveStateSidebar.setOnClickListener(v -> saveCurrentState());
+        if (btnSaveStateSidebar != null) btnSaveStateSidebar.setOnClickListener(v -> saveCurrentState(true));
         if (btnLoadStateSidebar != null) btnLoadStateSidebar.setOnClickListener(v -> loadSavedState(false));
         if (btnSaveFavoritesSidebar != null) btnSaveFavoritesSidebar.setOnClickListener(v -> showSaveFavoriteDialog());
         if (btnLoadFavoritesSidebar != null) btnLoadFavoritesSidebar.setOnClickListener(v -> showLoadFavoritesDialog());
+        if (btnExportSidebar != null) btnExportSidebar.setOnClickListener(v -> exportLauncher.launch(exportFileName()));
+        if (btnImportSidebar != null) btnImportSidebar.setOnClickListener(v -> importLauncher.launch(new String[]{"*/*"}));
+        if (btnClearCacheSidebar != null) btnClearCacheSidebar.setOnClickListener(v -> {
+            clearAppCache();
+            Toast.makeText(this, "🧹 Cache limpo", Toast.LENGTH_SHORT).show();
+        });
 
         // Per-box controls
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < MAX; i++) {
             final int idx = i;
             if (btnLoadUrlSidebar[i] != null)
                 btnLoadUrlSidebar[i].setOnClickListener(v -> {
-                    // Ensure any active input focus is committed and keyboard hidden
                     if (urlInputsSidebar[idx] != null) {
                         urlInputsSidebar[idx].clearFocus();
                         hideKeyboard();
@@ -764,11 +744,8 @@ public class MainActivity extends AppCompatActivity {
             if (checkBoxFullVideo[i] != null) {
                 checkBoxFullVideo[i].setOnCheckedChangeListener((buttonView, isChecked) -> {
                     if (webViews[idx] != null) {
-                        if (isChecked) {
-                            enableFullBox(webViews[idx]);
-                        } else {
-                            disableFullBox(webViews[idx]);
-                        }
+                        if (isChecked) enableFullBox(webViews[idx]);
+                        else disableFullBox(webViews[idx]);
                     }
                 });
             }
@@ -779,13 +756,18 @@ public class MainActivity extends AppCompatActivity {
                 for (WebView wv : webViews) if (wv != null) wv.getSettings().setJavaScriptEnabled(c);
                 Log.w(TAG, "User toggled WebView JavaScript: " + c);
             });
+        if (cbAllowPopups != null)
+            cbAllowPopups.setOnCheckedChangeListener((b, c) -> {
+                for (WebView wv : webViews) if (wv != null) wv.getSettings().setJavaScriptCanOpenWindowsAutomatically(c);
+            });
         if (cbBlockAds != null)
             cbBlockAds.setOnCheckedChangeListener((b, c) -> {
-                for (WebView wv : webViews) if (wv != null) {
-                    wv.getSettings().setBlockNetworkLoads(c);
-                    wv.getSettings().setBlockNetworkImage(c);
-                }
+                // O bloqueio é feito por shouldInterceptRequest (apenas domínios de
+                // anúncios); setBlockNetworkLoads está removido — bloqueava o vídeo todo.
+                for (WebView wv : webViews) if (wv != null && c) injectAdBlocker(wv);
             });
+        if (cbKeepScreenOn != null)
+            cbKeepScreenOn.setOnCheckedChangeListener((b, c) -> applyKeepScreenOn(c));
     }
 
     private void loadURL(int idx, String url) {
@@ -799,7 +781,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadAllURLs() {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < MAX; i++) {
             if (!boxEnabled[i] && !boxKeepActive[i]) continue;
             String url = urlInputsSidebar[i] != null ? urlInputsSidebar[i].getText().toString().trim() : "";
             if (url.isEmpty()) {
@@ -812,7 +794,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadInitialURLs() {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < MAX; i++) {
             if (!boxEnabled[i] && !boxKeepActive[i]) continue;
             String url = urlInputsSidebar[i] != null ? urlInputsSidebar[i].getText().toString().trim() : "";
             if (url.isEmpty()) {
@@ -824,12 +806,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void reloadAll() {
-        for (int i = 0; i < 4; i++) if (webViews[i] != null) webViews[i].reload();
+        for (int i = 0; i < MAX; i++) if (webViews[i] != null) webViews[i].reload();
         Toast.makeText(this, "Recarregando todas", Toast.LENGTH_SHORT).show();
     }
 
     private void clearAll() {
-        for (int i = 0; i < 4; i++) if (webViews[i] != null) webViews[i].loadUrl("about:blank");
+        for (int i = 0; i < MAX; i++) if (webViews[i] != null) webViews[i].loadUrl("about:blank");
         Toast.makeText(this, "Limpando todas", Toast.LENGTH_SHORT).show();
     }
 
@@ -861,10 +843,10 @@ public class MainActivity extends AppCompatActivity {
         return preferences.contains("url_0") || preferences.contains("box_enabled_0");
     }
 
-    private void saveCurrentState() {
+    private void saveCurrentState(boolean withToast) {
         try {
             SharedPreferences.Editor ed = preferences.edit();
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < MAX; i++) {
                 String url = urlInputsSidebar[i] != null ? urlInputsSidebar[i].getText().toString().trim() : "";
                 ed.putString("url_" + i, url.isEmpty() ? defaultUrl() : url);
                 ed.putBoolean("box_enabled_" + i, boxEnabled[i]);
@@ -877,31 +859,30 @@ public class MainActivity extends AppCompatActivity {
             if (cbAllowPopups != null) ed.putBoolean("allow_popups", cbAllowPopups.isChecked());
             if (cbBlockRedirects != null) ed.putBoolean("block_redirects", cbBlockRedirects.isChecked());
             if (cbBlockAds != null) ed.putBoolean("block_ads", cbBlockAds.isChecked());
+            if (cbKeepScreenOn != null) ed.putBoolean("keep_screen_on", cbKeepScreenOn.isChecked());
             ed.apply();
-            Toast.makeText(this, "✅ Estado guardado!", Toast.LENGTH_SHORT).show();
+            if (withToast) Toast.makeText(this, "✅ Estado guardado!", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            Toast.makeText(this, "❌ Erro ao guardar estado", Toast.LENGTH_SHORT).show();
+            if (withToast) Toast.makeText(this, "❌ Erro ao guardar estado", Toast.LENGTH_SHORT).show();
         }
     }
 
     private void loadSavedState(boolean silent) {
         try {
             isSyncingUI = true;
-            for (int i = 0; i < 4; i++) {
-                boxEnabled[i] = preferences.getBoolean("box_enabled_" + i, true);
-                boxKeepActive[i] = preferences.getBoolean("box_keep_active_" + i, true);
+            for (int i = 0; i < MAX; i++) {
+                boxEnabled[i] = preferences.getBoolean("box_enabled_" + i, i < 4);
+                boxKeepActive[i] = preferences.getBoolean("box_keep_active_" + i, false);
                 zoomLevels[i] = preferences.getFloat("zoom_level_" + i, 1.0f);
                 boolean fullboxChecked = preferences.getBoolean("fullbox_" + i, false);
 
                 if (checkBoxes[i] != null) checkBoxes[i].setChecked(boxEnabled[i]);
                 if (checkBoxesKeepActive[i] != null) checkBoxesKeepActive[i].setChecked(boxKeepActive[i]);
-                if (checkBoxFullVideo[i] != null) {
-                    checkBoxFullVideo[i].setChecked(fullboxChecked);
-                }
+                if (checkBoxFullVideo[i] != null) checkBoxFullVideo[i].setChecked(fullboxChecked);
                 applyZoom(i);
             }
             boolean hasUrls = false;
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < MAX; i++) {
                 String url = preferences.getString("url_" + i, "");
                 if (!url.isEmpty()) {
                     hasUrls = true;
@@ -917,7 +898,7 @@ public class MainActivity extends AppCompatActivity {
             }
             if (!hasUrls) {
                 String d = defaultUrl();
-                for (int i = 0; i < 4; i++) {
+                for (int i = 0; i < MAX; i++) {
                     if (urlInputsSidebar[i] != null) urlInputsSidebar[i].setText(d);
                 }
             }
@@ -926,6 +907,7 @@ public class MainActivity extends AppCompatActivity {
             if (cbAllowPopups != null) cbAllowPopups.setChecked(preferences.getBoolean("allow_popups", true));
             if (cbBlockRedirects != null) cbBlockRedirects.setChecked(preferences.getBoolean("block_redirects", false));
             if (cbBlockAds != null) cbBlockAds.setChecked(preferences.getBoolean("block_ads", false));
+            if (cbKeepScreenOn != null) cbKeepScreenOn.setChecked(preferences.getBoolean("keep_screen_on", true));
             if (!silent) Toast.makeText(this, "✅ Estado carregado!", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             if (!silent) Toast.makeText(this, "❌ Erro ao carregar", Toast.LENGTH_SHORT).show();
@@ -935,6 +917,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // ── favoritos ─────────────────────────────────────────────────────────────
     private void loadFavoritesList() {
         try {
             JSONArray a = new JSONArray(preferences.getString("favorites_list", "[]"));
@@ -959,7 +942,7 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             JSONArray urls = new JSONArray();
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < MAX; i++) {
                 String u = urlInputsSidebar[i] != null ? urlInputsSidebar[i].getText().toString().trim() : "";
                 urls.put(u.isEmpty() ? defaultUrl() : u);
             }
@@ -986,24 +969,18 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "Carregando favorito: " + name + ", target=" + target + ", urls=" + urls);
 
             if (target == -1) {
-                for (int i = 0; i < 4 && i < urls.length(); i++) {
+                for (int i = 0; i < MAX && i < urls.length(); i++) {
                     String u = urls.getString(i);
-                    if (urlInputsSidebar[i] != null) {
-                        urlInputsSidebar[i].setText(u);
-                    }
+                    if (urlInputsSidebar[i] != null) urlInputsSidebar[i].setText(u);
                     if ((boxEnabled[i] || boxKeepActive[i]) && webViews[i] != null) {
                         loadURL(i, u);
                     }
                 }
                 Toast.makeText(this, "✅ Carregado em todas!", Toast.LENGTH_SHORT).show();
-            } else if (target >= 0 && target < urls.length()) {
+            } else if (target >= 0 && target < urls.length() && target < MAX) {
                 String u = urls.getString(target);
-                if (urlInputsSidebar[target] != null) {
-                    urlInputsSidebar[target].setText(u);
-                }
-                if (webViews[target] != null) {
-                    loadURL(target, u);
-                }
+                if (urlInputsSidebar[target] != null) urlInputsSidebar[target].setText(u);
+                if (webViews[target] != null) loadURL(target, u);
                 Toast.makeText(this, "✅ Box " + (target + 1), Toast.LENGTH_SHORT).show();
             }
         } catch (Exception e) {
@@ -1050,12 +1027,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showFavoriteOptionsDialog(String name) {
-        String[] opts = {"Carregar em Todas", "Box 1", "Box 2", "Box 3", "Box 4", "Eliminar", "Cancelar"};
+        String[] opts = new String[MAX + 3];
+        opts[0] = "Carregar em Todas";
+        for (int i = 0; i < MAX; i++) opts[i + 1] = "Box " + (i + 1);
+        opts[MAX + 1] = "Eliminar";
+        opts[MAX + 2] = "Cancelar";
         new AlertDialog.Builder(this)
                 .setTitle("Favorito: " + name)
                 .setItems(opts, (d, w) -> {
-                    if (w < 5) loadFavorite(name, w == 0 ? -1 : w - 1);
-                    else if (w == 5) showDeleteConfirmDialog(name);
+                    if (w == 0) loadFavorite(name, -1);
+                    else if (w <= MAX) loadFavorite(name, w - 1);
+                    else if (w == MAX + 1) showDeleteConfirmDialog(name);
                 })
                 .show();
     }
@@ -1068,6 +1050,138 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
+    // ── export / import JSON ──────────────────────────────────────────────────
+    private String exportFileName() {
+        return "multistream_viewer_config_" + System.currentTimeMillis() + ".json";
+    }
+
+    private JSONObject buildConfigJson() throws Exception {
+        JSONObject cfg = new JSONObject();
+        cfg.put("version", 1);
+
+        JSONObject settings = new JSONObject();
+        settings.put("allowScripts", cbAllowScripts != null && cbAllowScripts.isChecked());
+        settings.put("allowForms", cbAllowForms != null && cbAllowForms.isChecked());
+        settings.put("allowPopups", cbAllowPopups != null && cbAllowPopups.isChecked());
+        settings.put("blockRedirects", cbBlockRedirects != null && cbBlockRedirects.isChecked());
+        settings.put("blockAds", cbBlockAds != null && cbBlockAds.isChecked());
+        settings.put("keepScreenOn", cbKeepScreenOn == null || cbKeepScreenOn.isChecked());
+        settings.put("orientation", currentOrientation);
+        cfg.put("settings", settings);
+
+        JSONObject presets = new JSONObject();
+        for (Map.Entry<String, ?> e : preferences.getAll().entrySet()) {
+            if (e.getKey().startsWith(KEY_PRESET_PREFIX)) presets.put(e.getKey(), String.valueOf(e.getValue()));
+        }
+        cfg.put("layoutPresets", presets);
+        cfg.put("layoutWeights", new JSONObject(preferences.getString(KEY_WEIGHTS, "{}")));
+
+        JSONArray boxes = new JSONArray();
+        for (int i = 0; i < MAX; i++) {
+            JSONObject b = new JSONObject();
+            b.put("url", urlInputsSidebar[i] != null ? urlInputsSidebar[i].getText().toString().trim() : "");
+            b.put("enabled", boxEnabled[i]);
+            b.put("keepActive", boxKeepActive[i]);
+            b.put("zoom", zoomLevels[i]);
+            b.put("fullbox", checkBoxFullVideo[i] != null && checkBoxFullVideo[i].isChecked());
+            boxes.put(b);
+        }
+        cfg.put("boxes", boxes);
+
+        JSONArray favs = new JSONArray();
+        for (String name : favoritesList) {
+            String raw = preferences.getString("favorite_" + name, null);
+            if (raw != null) favs.put(new JSONObject(raw));
+        }
+        cfg.put("favorites", favs);
+        return cfg;
+    }
+
+    private void writeConfigTo(Uri uri) {
+        try (OutputStream os = getContentResolver().openOutputStream(uri, "wt")) {
+            if (os == null) throw new IllegalStateException("sem stream");
+            os.write(buildConfigJson().toString(2).getBytes("UTF-8"));
+            Toast.makeText(this, "📤 Config exportada", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Log.e(TAG, "export", e);
+            Toast.makeText(this, "❌ Erro ao exportar", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void readConfigFrom(Uri uri) {
+        try (InputStream is = getContentResolver().openInputStream(uri)) {
+            if (is == null) throw new IllegalStateException("sem stream");
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int r;
+            while ((r = is.read(buf)) > 0) bos.write(buf, 0, r);
+            applyConfigJson(new JSONObject(bos.toString("UTF-8")));
+        } catch (Exception e) {
+            Log.e(TAG, "import", e);
+            Toast.makeText(this, "❌ Ficheiro inválido", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void applyConfigJson(JSONObject cfg) throws Exception {
+        SharedPreferences.Editor ed = preferences.edit();
+
+        JSONObject settings = cfg.optJSONObject("settings");
+        if (settings != null) {
+            ed.putBoolean("allow_scripts", settings.optBoolean("allowScripts", true));
+            ed.putBoolean("allow_forms", settings.optBoolean("allowForms", true));
+            ed.putBoolean("allow_popups", settings.optBoolean("allowPopups", true));
+            ed.putBoolean("block_redirects", settings.optBoolean("blockRedirects", false));
+            ed.putBoolean("block_ads", settings.optBoolean("blockAds", false));
+            ed.putBoolean("keep_screen_on", settings.optBoolean("keepScreenOn", true));
+        }
+
+        JSONObject presets = cfg.optJSONObject("layoutPresets");
+        if (presets != null) {
+            for (int n = 1; n <= MAX; n++) {
+                String v = presets.optString(KEY_PRESET_PREFIX + n, null);
+                if (v != null) ed.putString(KEY_PRESET_PREFIX + n, v);
+            }
+        }
+        JSONObject weights = cfg.optJSONObject("layoutWeights");
+        ed.putString(KEY_WEIGHTS, weights != null ? weights.toString() : "{}");
+
+        JSONArray boxes = cfg.optJSONArray("boxes");
+        if (boxes != null) {
+            for (int i = 0; i < MAX && i < boxes.length(); i++) {
+                JSONObject b = boxes.getJSONObject(i);
+                ed.putString("url_" + i, b.optString("url", defaultUrl()));
+                ed.putBoolean("box_enabled_" + i, b.optBoolean("enabled", i < 4));
+                ed.putBoolean("box_keep_active_" + i, b.optBoolean("keepActive", false));
+                ed.putFloat("zoom_level_" + i, (float) b.optDouble("zoom", 1.0));
+                ed.putBoolean("fullbox_" + i, b.optBoolean("fullbox", false));
+            }
+        }
+
+        // favoritos: substituir todos os atuais
+        for (String key : new ArrayList<>(preferences.getAll().keySet())) {
+            if (key.startsWith("favorite_")) ed.remove(key);
+        }
+        JSONArray favs = cfg.optJSONArray("favorites");
+        JSONArray names = new JSONArray();
+        if (favs != null) {
+            for (int i = 0; i < favs.length(); i++) {
+                JSONObject f = favs.getJSONObject(i);
+                String name = f.optString("name", "");
+                if (name.isEmpty() || !f.has("urls")) continue;
+                names.put(name);
+                ed.putString("favorite_" + name, f.toString());
+            }
+        }
+        ed.putString("favorites_list", names.toString());
+        ed.apply();
+
+        loadFavoritesList();
+        loadSavedState(false);
+        if (cbKeepScreenOn != null) applyKeepScreenOn(cbKeepScreenOn.isChecked());
+        Toast.makeText(this, "📥 Config importada", Toast.LENGTH_SHORT).show();
+    }
+
+    // ── sidebar ───────────────────────────────────────────────────────────────
     public void closeSidebarFromOverlay(View v) {
         closeSidebar();
     }
@@ -1080,7 +1194,7 @@ public class MainActivity extends AppCompatActivity {
             public void onAnimationEnd(android.animation.Animator an) {
                 sidebarContainer.setVisibility(View.GONE);
                 isSidebarVisible = false;
-                applyGridSize(); // Aplica a margem
+                applyGridSize();
                 hideKeyboard();
                 if (btnToggleSidebar != null) btnToggleSidebar.requestFocus();
             }
@@ -1092,13 +1206,13 @@ public class MainActivity extends AppCompatActivity {
         sidebarContainer.setVisibility(View.VISIBLE);
         sidebarContainer.setAlpha(0f);
         isSidebarVisible = true;
-        applyGridSize(); // Aplica a margem
+        applyGridSize();
         android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(sidebarContainer, "alpha", 0f, 1f);
         a.setDuration(250);
         a.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(android.animation.Animator an) {
-                for (int i = 0; i < 4; i++)
+                for (int i = 0; i < MAX; i++)
                     if (urlInputsSidebar[i] != null)
                         urlInputsSidebar[i].setText(urlInputsSidebar[i].getText());
                 if (btnCloseSidebar != null) btnCloseSidebar.requestFocus();
@@ -1112,9 +1226,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setFocusBorder(int idx, boolean focused) {
-        if (idx < 0 || idx >= 4 || boxContainers[idx] == null) return;
+        if (idx < 0 || idx >= MAX || boxContainers[idx] == null) return;
         if (focused) {
-            GradientDrawable gd = new GradientDrawable();
+            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
             gd.setColor(Color.BLACK);
             gd.setStroke(4, Color.YELLOW);
             boxContainers[idx].setBackground(gd);
@@ -1149,7 +1263,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private boolean isAdUrl(String url) {
-        for (String d : adDomains) if (url.toLowerCase().contains(d)) return true;
+        String u = url.toLowerCase();
+        for (String d : adDomains) if (u.contains(d)) return true;
         return false;
     }
 
@@ -1192,12 +1307,16 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        saveCurrentState();
+        saveCurrentState(false);
+        for (WebView wv : webViews) if (wv != null) wv.onPause();
+        WebView.pauseTimers();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        WebView.resumeTimers();
+        for (WebView wv : webViews) if (wv != null) wv.onResume();
         loadFavoritesList();
         if (btnToggleSidebar != null) btnToggleSidebar.requestFocus();
     }
@@ -1205,12 +1324,17 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        clearAppCache();
-        for (WebView wv : webViews) if (wv != null) {
+        // O clearAppCache() foi removido daqui: apagar o cache em cada fecho
+        // obrigava a recarregar tudo do zero no arranque seguinte.
+        for (int i = 0; i < MAX; i++) {
+            WebView wv = webViews[i];
+            if (wv == null) continue;
+            if (wv.getParent() != null) ((ViewGroup) wv.getParent()).removeView(wv);
             wv.stopLoading();
             wv.setWebViewClient(null);
             wv.setWebChromeClient(null);
             wv.destroy();
+            webViews[i] = null;
         }
     }
 
@@ -1223,7 +1347,8 @@ public class MainActivity extends AppCompatActivity {
                         closeSidebar();
                         return true;
                     }
-                    if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
+                    if (focusedBoxIndex >= 0 && focusedBoxIndex < MAX
+                            && webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
                         webViews[focusedBoxIndex].goBack();
                         return true;
                     }
@@ -1277,7 +1402,8 @@ public class MainActivity extends AppCompatActivity {
             closeSidebar();
             return;
         }
-        if (webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
+        if (focusedBoxIndex >= 0 && focusedBoxIndex < MAX
+                && webViews[focusedBoxIndex] != null && webViews[focusedBoxIndex].canGoBack()) {
             webViews[focusedBoxIndex].goBack();
             return;
         }
