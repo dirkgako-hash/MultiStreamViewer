@@ -148,6 +148,9 @@ public class MainActivity extends AppCompatActivity {
 
         float dp = getResources().getDisplayMetrics().density;
         engine = new GridLayoutEngine(this, (int) (8 * dp), (int) (60 * dp));
+        // No Fire TV o remote só emite KeyEvent: sem arraste de separadoras,
+        // o layout faz-se só com os presets (botão 🗂).
+        engine.resizable = !isFireTv();
 
         initViews();
         initWebViewsOnce();

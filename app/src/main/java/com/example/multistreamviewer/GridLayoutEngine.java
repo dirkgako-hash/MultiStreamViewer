@@ -152,6 +152,9 @@ public class GridLayoutEngine {
     private final int divPx;
     private final int minPx;
 
+    /** false = sem resize por arraste (Fire TV): as separadoras desenham-se mas não arrastam. */
+    public boolean resizable = true;
+
     public GridLayoutEngine(Context ctx, int dividerPx, int minCellPx) {
         this.ctx = ctx;
         this.divPx = dividerPx;
@@ -183,7 +186,7 @@ public class GridLayoutEngine {
         for (int i = 0; i < k; i++) {
             if (i > 0) {
                 View div = makeDivider(horiz);
-                div.setOnTouchListener(dividerTouch(ll, i, path, preset.id, store));
+                if (resizable) div.setOnTouchListener(dividerTouch(ll, i, path, preset.id, store));
                 ll.addView(div);
             }
             View child = walk(preset, node.kids.get(i), visible, path + "." + i, store);
