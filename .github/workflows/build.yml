@@ -21,6 +21,10 @@ jobs:
         
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # O default do v3 ainda pede o pacote "tools", que o Google deixou de
+          # distribuir -> "Failed to find package 'tools'" e exit 1. Lista explícita.
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
       
       - name: Install required packages
         run: |
@@ -132,7 +136,7 @@ jobs:
       - name: Verify Release APK
         run: |
           echo "=== Generated Release APK ==="
-          find app/build -name "*MULTIBOX-DIROSKY*.apk" -type f | xargs -I {} sh -c 'echo "{} - $(du -h {} | cut -f1)"'
+          find app/build -name "*MULTIBOXDIROSKY*.apk" -type f | xargs -I {} sh -c 'echo "{} - $(du -h {} | cut -f1)"'
           
           echo ""
           echo "=== Verifying signature ==="
