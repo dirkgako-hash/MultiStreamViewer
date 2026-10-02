@@ -19,8 +19,11 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.MultiStreamViewer.NoActionBar.FullScreen"
-        android:usesCleartextTraffic="false"
+        android:usesCleartextTraffic="true"
         tools:targetApi="31">
+        <!-- usesCleartextTraffic=true: sem isto o WebView não consegue carregar
+             NADA em http://. O "Permitir http" da sidebar é aplicado em runtime
+             (shouldOverrideUrlLoading + shouldInterceptRequest + mixed content). -->
 
         <activity
             android:name=".MainActivity"

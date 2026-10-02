@@ -111,7 +111,7 @@
                 android:paddingEnd="4dp">
 
                 <!-- BOX 1 -->
-                <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                <LinearLayout android:id="@+id/boxGroup1" android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:orientation="horizontal" android:layout_marginEnd="2dp">
                     <CheckBox android:id="@+id/checkBox1" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="1" android:textColor="#64B5F6"
@@ -142,7 +142,7 @@
                 </LinearLayout>
 
                 <!-- BOX 2 -->
-                <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                <LinearLayout android:id="@+id/boxGroup2" android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:orientation="horizontal" android:layout_marginEnd="2dp">
                     <CheckBox android:id="@+id/checkBox2" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="2" android:textColor="#CE93D8"
@@ -173,7 +173,7 @@
                 </LinearLayout>
 
                 <!-- BOX 3 -->
-                <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                <LinearLayout android:id="@+id/boxGroup3" android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:orientation="horizontal" android:layout_marginEnd="2dp">
                     <CheckBox android:id="@+id/checkBox3" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="3" android:textColor="#64B5F6"
@@ -204,7 +204,7 @@
                 </LinearLayout>
 
                 <!-- BOX 4 -->
-                <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                <LinearLayout android:id="@+id/boxGroup4" android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:orientation="horizontal" android:layout_marginEnd="2dp">
                     <CheckBox android:id="@+id/checkBox4" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="4" android:textColor="#CE93D8"
@@ -235,7 +235,7 @@
                 </LinearLayout>
 
                 <!-- BOX 5 -->
-                <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                <LinearLayout android:id="@+id/boxGroup5" android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:orientation="horizontal" android:layout_marginEnd="2dp">
                     <CheckBox android:id="@+id/checkBox5" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="5" android:textColor="#64B5F6"
@@ -266,7 +266,7 @@
                 </LinearLayout>
 
                 <!-- BOX 6 -->
-                <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                <LinearLayout android:id="@+id/boxGroup6" android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:orientation="horizontal" android:layout_marginEnd="2dp">
                     <CheckBox android:id="@+id/checkBox6" android:layout_width="wrap_content"
                         android:layout_height="wrap_content" android:text="6" android:textColor="#CE93D8"
@@ -488,6 +488,16 @@
                         android:textSize="8sp"
                         android:focusable="true"
                         android:focusableInTouchMode="true" />
+                    <CheckBox
+                        android:id="@+id/cbAllowHttp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:checked="true"
+                        android:text="Permitir http"
+                        android:textColor="#FFFFFF"
+                        android:textSize="8sp"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true" />
                 </LinearLayout>
                 <LinearLayout
                     android:layout_width="0dp"
@@ -521,6 +531,16 @@
                         android:layout_height="wrap_content"
                         android:checked="true"
                         android:text="Ecra ON"
+                        android:textColor="#FFFFFF"
+                        android:textSize="8sp"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true" />
+                    <CheckBox
+                        android:id="@+id/cbBoxCap"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:checked="true"
+                        android:text="BOX 5-6"
                         android:textColor="#FFFFFF"
                         android:textSize="8sp"
                         android:focusable="true"

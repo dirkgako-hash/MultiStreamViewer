@@ -93,7 +93,9 @@ public class MainActivity extends AppCompatActivity {
     private Button btnSaveFavoritesSidebar, btnLoadFavoritesSidebar;
 
     private CheckBox cbAllowScripts, cbAllowForms, cbAllowPopups, cbBlockRedirects, cbBlockAds;
-    private CheckBox cbKeepScreenOn;
+    private CheckBox cbKeepScreenOn, cbAllowHttp, cbBoxCap;
+    private View[] boxGroups = new View[MAX];
+    private int maxBoxes = MAX;
 
     private boolean[] boxEnabled = {true, true, true, true, false, false};
     private boolean[] boxKeepActive = {false, false, false, false, false, false};
@@ -113,6 +115,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String PREFS = "MultiStreamViewer";
     private static final String KEY_WEIGHTS = "layout_weights";
     private static final String KEY_PRESET_PREFIX = "layout_";
+    private static final String KEY_BOX_CAP = "box_cap";
 
     private final List<String> adDomains = Arrays.asList(
             "doubleclick.net", "googleadservices.com", "googlesyndication.com",
@@ -291,14 +294,62 @@ public class MainActivity extends AppCompatActivity {
         applyGridSizeRunning = false;
     }
 
-    private boolean isFireTVorTablet() {
+    /** Fire TV / Stick: sem touchscreen nem ponteiro fiável, e com pouca RAM. */
+    private boolean isFireTv() {
         try {
             if (getPackageManager().hasSystemFeature("amazon.hardware.fire_tv")) return true;
         } catch (Exception ignored) {
         }
         String model = Build.MODEL != null ? Build.MODEL.toUpperCase() : "";
         String device = Build.DEVICE != null ? Build.DEVICE.toUpperCase() : "";
-        if (model.startsWith("AFT") || device.contains("MONTOYA")) return true;
+        return model.startsWith("AFT") || device.contains("MONTOYA");
+    }
+
+    private int configuredBoxCap() {
+        return preferences.getInt(KEY_BOX_CAP, isFireTv() ? 4 : MAX);
+    }
+
+    /** Esconde as boxes acima do teto e desliga-as (com aviso de quantas caíram). */
+    private void applyBoxCap() {
+        maxBoxes = configuredBoxCap();
+        int dropped = 0;
+        for (int i = 0; i < MAX; i++) {
+            boolean overCap = i >= maxBoxes;
+            if (boxGroups[i] != null) boxGroups[i].setVisibility(overCap ? View.GONE : View.VISIBLE);
+            if (!overCap || (!boxEnabled[i] && !boxKeepActive[i])) continue;
+            boxEnabled[i] = false;
+            boxKeepActive[i] = false;
+            if (checkBoxes[i] != null) checkBoxes[i].setChecked(false);
+            if (checkBoxesKeepActive[i] != null) checkBoxesKeepActive[i].setChecked(false);
+            if (webViews[i] != null) webViews[i].loadUrl("about:blank");
+            dropped++;
+        }
+        if (dropped > 0)
+            Toast.makeText(this, "⚠️ " + dropped + " box(es) desligadas: limite de " + maxBoxes,
+                    Toast.LENGTH_LONG).show();
+    }
+
+    private boolean httpAllowed() {
+        return cbAllowHttp == null || cbAllowHttp.isChecked();
+    }
+
+    private boolean isPlainHttp(String url) {
+        return url != null && url.toLowerCase().startsWith("http://");
+    }
+
+    private void applyMixedContent() {
+        int mode = httpAllowed() ? WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                : WebSettings.MIXED_CONTENT_NEVER_ALLOW;
+        for (WebView wv : webViews) if (wv != null) wv.getSettings().setMixedContentMode(mode);
+    }
+
+    /** Resposta vazia: o pedido é recusado sem partir o resto da página. */
+    private static WebResourceResponse emptyResource() {
+        return new WebResourceResponse("text/plain", "utf-8", new ByteArrayInputStream(new byte[0]));
+    }
+
+    private boolean isFireTVorTablet() {
+        if (isFireTv()) return true;
         android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(dm);
         double diag = Math.sqrt(Math.pow(dm.widthPixels / dm.xdpi, 2)
@@ -359,6 +410,12 @@ public class MainActivity extends AppCompatActivity {
         cbBlockRedirects = findViewById(R.id.cbBlockRedirects);
         cbBlockAds = findViewById(R.id.cbBlockAds);
         cbKeepScreenOn = findViewById(R.id.cbKeepScreenOn);
+        cbAllowHttp = findViewById(R.id.cbAllowHttp);
+        cbBoxCap = findViewById(R.id.cbBoxCap);
+
+        int[] grpIds = {R.id.boxGroup1, R.id.boxGroup2, R.id.boxGroup3,
+                R.id.boxGroup4, R.id.boxGroup5, R.id.boxGroup6};
+        for (int i = 0; i < MAX; i++) boxGroups[i] = findViewById(grpIds[i]);
 
         int[] cbIds = {R.id.checkBox1, R.id.checkBox2, R.id.checkBox3, R.id.checkBox4, R.id.checkBox5, R.id.checkBox6};
         int[] kaIds = {R.id.checkBoxKeepActive1, R.id.checkBoxKeepActive2, R.id.checkBoxKeepActive3,
@@ -472,7 +529,8 @@ public class MainActivity extends AppCompatActivity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setJavaScriptCanOpenWindowsAutomatically(cbAllowPopups != null && cbAllowPopups.isChecked());
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
-            s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+            s.setMixedContentMode(httpAllowed() ? WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                    : WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setUserAgentString(buildUserAgent());
         s.setTextZoom((int) (zoomLevels[idx] * 100));
         wv.setInitialScale(0);
@@ -493,6 +551,11 @@ public class MainActivity extends AppCompatActivity {
             }
 
             private boolean handleUrl(WebView v, String url) {
+                if (!httpAllowed() && isPlainHttp(url)) {
+                    Toast.makeText(MainActivity.this, "🚫 http:// bloqueado (sidebar → Permitir http)",
+                            Toast.LENGTH_SHORT).show();
+                    return true;
+                }
                 if (cbBlockRedirects != null && cbBlockRedirects.isChecked()) {
                     String cur = v.getUrl();
                     if (cur != null && !isSameDomain(cur, url)) return true;
@@ -504,10 +567,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest request) {
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return null;
-                if (cbBlockAds != null && cbBlockAds.isChecked() && isAdUrl(request.getUrl().toString())) {
-                    return new WebResourceResponse("text/plain", "utf-8",
-                            new ByteArrayInputStream(new byte[0]));
-                }
+                String url = request.getUrl().toString();
+                if (!httpAllowed() && isPlainHttp(url)) return emptyResource();
+                if (cbBlockAds != null && cbBlockAds.isChecked() && isAdUrl(url)) return emptyResource();
                 return null;
             }
 
@@ -768,12 +830,44 @@ public class MainActivity extends AppCompatActivity {
             });
         if (cbKeepScreenOn != null)
             cbKeepScreenOn.setOnCheckedChangeListener((b, c) -> applyKeepScreenOn(c));
+
+        if (cbAllowHttp != null)
+            cbAllowHttp.setOnCheckedChangeListener((b, c) -> {
+                if (isSyncingUI) return;
+                preferences.edit().putBoolean("allow_http", c).apply();
+                applyMixedContent();
+                reloadActiveBoxes();
+                Toast.makeText(this, c ? "🌐 http:// permitido" : "🚫 http:// bloqueado",
+                        Toast.LENGTH_SHORT).show();
+            });
+
+        if (cbBoxCap != null)
+            cbBoxCap.setOnCheckedChangeListener((b, c) -> {
+                if (isSyncingUI) return;
+                preferences.edit().putInt(KEY_BOX_CAP, c ? MAX : 4).apply();
+                applyBoxCap();
+                updateLayout();
+            });
+    }
+
+    /** Recarrega só as boxes visíveis — as desligadas não têm página para recarregar. */
+    private void reloadActiveBoxes() {
+        for (int i = 0; i < MAX; i++)
+            if (webViews[i] != null && (boxEnabled[i] || boxKeepActive[i]) && webViews[i].getUrl() != null)
+                webViews[i].reload();
     }
 
     private void loadURL(int idx, String url) {
         try {
             if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("file://"))
                 url = "https://" + url;
+            if (!httpAllowed() && isPlainHttp(url)) {
+                // Sem toast durante a reposição de estado: 6 caixas = 6 toasts em fila.
+                if (isSyncingUI) Log.w(TAG, "http:// ignorado no arranque: " + url);
+                else Toast.makeText(this, "🚫 http:// bloqueado (sidebar → Permitir http)",
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
             if (webViews[idx] != null) webViews[idx].loadUrl(url);
         } catch (Exception e) {
             Log.e(TAG, "loadURL " + idx, e);
@@ -860,6 +954,8 @@ public class MainActivity extends AppCompatActivity {
             if (cbBlockRedirects != null) ed.putBoolean("block_redirects", cbBlockRedirects.isChecked());
             if (cbBlockAds != null) ed.putBoolean("block_ads", cbBlockAds.isChecked());
             if (cbKeepScreenOn != null) ed.putBoolean("keep_screen_on", cbKeepScreenOn.isChecked());
+            if (cbAllowHttp != null) ed.putBoolean("allow_http", cbAllowHttp.isChecked());
+            ed.putInt(KEY_BOX_CAP, maxBoxes);
             ed.apply();
             if (withToast) Toast.makeText(this, "✅ Estado guardado!", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
@@ -881,6 +977,12 @@ public class MainActivity extends AppCompatActivity {
                 if (checkBoxFullVideo[i] != null) checkBoxFullVideo[i].setChecked(fullboxChecked);
                 applyZoom(i);
             }
+            // "Permitir http" e o teto de boxes repõem-se antes de carregar URLs:
+            // assim as boxes fora do limite e os URLs http:// nem chegam a navegar.
+            if (cbAllowHttp != null) cbAllowHttp.setChecked(preferences.getBoolean("allow_http", true));
+            applyMixedContent();
+            if (cbBoxCap != null) cbBoxCap.setChecked(configuredBoxCap() >= MAX);
+            applyBoxCap();
             boolean hasUrls = false;
             for (int i = 0; i < MAX; i++) {
                 String url = preferences.getString("url_" + i, "");
@@ -1066,6 +1168,8 @@ public class MainActivity extends AppCompatActivity {
         settings.put("blockRedirects", cbBlockRedirects != null && cbBlockRedirects.isChecked());
         settings.put("blockAds", cbBlockAds != null && cbBlockAds.isChecked());
         settings.put("keepScreenOn", cbKeepScreenOn == null || cbKeepScreenOn.isChecked());
+        settings.put("allowHttp", cbAllowHttp == null || cbAllowHttp.isChecked());
+        settings.put("boxCap", configuredBoxCap());
         settings.put("orientation", currentOrientation);
         cfg.put("settings", settings);
 
@@ -1133,6 +1237,11 @@ public class MainActivity extends AppCompatActivity {
             ed.putBoolean("block_redirects", settings.optBoolean("blockRedirects", false));
             ed.putBoolean("block_ads", settings.optBoolean("blockAds", false));
             ed.putBoolean("keep_screen_on", settings.optBoolean("keepScreenOn", true));
+            ed.putBoolean("allow_http", settings.optBoolean("allowHttp", true));
+            // Um Fire TV tem RAM para ~4 WebViews: um teto 6 vindo de um telemóvel
+            // é travado aqui; o utilizador levanta-o na checkbox da sidebar.
+            int cap = settings.optInt("boxCap", isFireTv() ? 4 : MAX);
+            ed.putInt(KEY_BOX_CAP, isFireTv() ? Math.min(cap, 4) : cap);
         }
 
         JSONObject presets = cfg.optJSONObject("layoutPresets");
