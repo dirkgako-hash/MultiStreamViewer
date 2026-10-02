@@ -79,6 +79,9 @@ androidComponents {
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
+    // registerForActivityResult (export/import JSON via SAF) — explícito, não
+    // depende de vir transitivamente do appcompat.
+    implementation 'androidx.activity:activity:1.6.0'
     implementation 'com.google.android.material:material:1.10.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.gridlayout:gridlayout:1.0.0'
