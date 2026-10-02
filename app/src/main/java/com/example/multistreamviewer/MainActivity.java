@@ -1420,15 +1420,16 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         saveCurrentState(false);
-        for (WebView wv : webViews) if (wv != null) wv.onPause();
-        WebView.pauseTimers();
+        // pauseTimers/resumeTimers são estáticos em alguns SDKs e de instância
+        // noutros (o compileSdk 34 rejeita WebView.pauseTimers()); por instância
+        // compila nos dois.
+        for (WebView wv : webViews) if (wv != null) { wv.onPause(); wv.pauseTimers(); }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        WebView.resumeTimers();
-        for (WebView wv : webViews) if (wv != null) wv.onResume();
+        for (WebView wv : webViews) if (wv != null) { wv.resumeTimers(); wv.onResume(); }
         loadFavoritesList();
         if (btnToggleSidebar != null) btnToggleSidebar.requestFocus();
     }
