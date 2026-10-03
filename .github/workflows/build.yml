@@ -63,6 +63,38 @@ jobs:
       
       - name: Make gradlew executable
         run: chmod +x ./gradlew
+
+      - name: Run unit tests
+        run: ./gradlew testReleaseUnitTest --stacktrace
+
+      - name: Create debug keystore
+        run: |
+          # signingConfigs.debug aponta para ../debug.keystore, que não está no repo
+          # (*.keystore é gitignored); sem ele o APK de instrumentação não empacota.
+          [ -f debug.keystore ] || keytool -genkeypair \
+            -keystore debug.keystore -alias androiddebugkey \
+            -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US" -noprompt
+
+      - name: Compile instrumentation tests
+        run: ./gradlew assembleDebugAndroidTest --stacktrace
+
+      - name: Upload instrumentation APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: androidTest-apk
+          path: app/build/outputs/apk/androidTest/debug/*.apk
+          if-no-files-found: error
+
+      - name: Set version
+        run: |
+          # $GITHUB_ENV só vale para os passos SEGUINTES: escrito aqui dentro do
+          # passo do Gradle, VERSION_CODE/VERSION_NAME chegavam null ao build.gradle
+          # e todos os APK saíam como v1.0/versionCode 1 (instalações não subiam
+          # de versão no Fire TV).
+          echo "VERSION_CODE=${{ github.run_number }}" >> $GITHUB_ENV
+          echo "VERSION_NAME=1.0.${{ github.run_number }}" >> $GITHUB_ENV
+          echo "a versionar: 1.0.${{ github.run_number }} (code ${{ github.run_number }})"
       
       - name: Create Release Keystore
         run: |
@@ -140,9 +172,12 @@ jobs:
           
           echo ""
           echo "=== Verifying signature ==="
+          # Sem o `|| echo ⚠️`: um APK mal assinado tem de partir o build, não avisá-lo.
+          APKSIGNER="$(ls -1 "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | tail -1)"
+          if [ -z "$APKSIGNER" ]; then echo "apksigner não encontrado em $ANDROID_HOME"; exit 1; fi
           for apk in app/build/outputs/apk/release/*.apk; do
             echo "Verifying $apk..."
-            apksigner verify --verbose "$apk" 2>/dev/null || jarsigner -verify -verbose "$apk" 2>/dev/null || echo "⚠️ Could not verify signature for $apk"
+            "$APKSIGNER" verify --verbose --print-certs "$apk"
           done
       
       - name: Upload Release APK Artifact
