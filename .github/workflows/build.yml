@@ -13,6 +13,9 @@ jobs:
   instrumented-tests:
     name: Instrumented tests (emulator)
     runs-on: ubuntu-latest
+    # Sem isto, um pendurão do emulador come o tempo todo do runner (aconteceu:
+    # 17 minutos até a corrida ser cancelada).
+    timeout-minutes: 25
     continue-on-error: true
     steps:
       - name: Checkout code
@@ -44,19 +47,20 @@ jobs:
             -dname "CN=Android Debug,O=Android,C=US" -noprompt
 
       - name: Run instrumented tests on emulator
-        run: |
-          set -e
-          echo "y" | sdkmanager "system-images;android-34;google_apis;x86_64" > /dev/null
-          echo "no" | avdmanager create avd -n api34 -k "system-images;android-34;google_apis;x86_64" -d pixel_5
-          "$ANDROID_HOME/emulator/emulator" -avd api34 -no-window -no-audio -no-boot-anim \
-            -gpu swiftshader_indirect -camera-back none -camera-front none -no-snapshot &
-          adb wait-for-device
-          for i in $(seq 1 60); do
-            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then break; fi
-            sleep 5
-          done
-          adb devices
-          ./gradlew connectedDebugAndroidTest --stacktrace
+        # O boot à mão (avdmanager + emulator + adb wait-for-device) pendurou-se:
+        # o AVD não era criado, o emulator abortava com "Unknown AVD name" e o
+        # wait-for-device ficava à espera de um dispositivo que nunca existia.
+        # Este action cria o AVD, espera pelo boot e corre o script dentro do
+        # mesmo job, com diagnósticos próprios.
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          disableAnimations: true
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none
+          script: ./gradlew connectedDebugAndroidTest --stacktrace
 
       - name: Upload test report
         if: always()
