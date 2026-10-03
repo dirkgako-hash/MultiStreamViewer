@@ -79,7 +79,12 @@ public class GridLayoutEngineInstrumentedTest {
         return ((LinearLayout.LayoutParams) v.getLayoutParams()).weight;
     }
 
-    /** Prensar uma separadora e arrastá-la `dist` px ao longo do eixo do nó. */
+    /**
+     * Prensar uma separadora e arrastá-la `dist` px ao longo do eixo do nó, depois
+     * relayoutar o nó: `setLayoutParams` faz `requestLayout`, mas um view tree sem
+     * janela (o teste monta o root à mão) não agendamento nenhum traversal, por isso
+     * os pixels só se movem quando o teste força a passagem de layout.
+     */
     private static void drag(View divider, boolean horizontal, float dist) {
         long t = SystemClock.uptimeMillis();
         float x = 200f, y = 200f;
@@ -89,6 +94,15 @@ public class GridLayoutEngineInstrumentedTest {
                 horizontal ? moved : x, horizontal ? y : y + dist, 0));
         divider.dispatchTouchEvent(MotionEvent.obtain(t, t + 20, MotionEvent.ACTION_UP,
                 horizontal ? moved : x, horizontal ? y : y + dist, 0));
+        relayout((View) divider.getParent());
+    }
+
+    /** Re-mele e re-arranja um nó no mesmo sítio e tamanho, como faria a janela. */
+    private static void relayout(View node) {
+        node.measure(View.MeasureSpec.makeMeasureSpec(node.getWidth(), View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(node.getHeight(), View.MeasureSpec.EXACTLY));
+        node.layout(node.getLeft(), node.getTop(),
+                node.getLeft() + node.getWidth(), node.getTop() + node.getHeight());
     }
 
     private static void assertSomaUm(float[] w) {
@@ -127,8 +141,12 @@ public class GridLayoutEngineInstrumentedTest {
         assertTrue("a célula à direita não encolheu", cell1.getWidth() < w1);
         assertEquals("a separadora ganhou peso — o bug do resize", 0f, weight(divider), EPS);
         assertEquals("a separadora mudou de largura", DIV_PX, divider.getWidth());
-        assertEquals("só as duas células da fronteira mudam", w0 + w1,
-                cell0.getWidth() + cell1.getWidth());
+        // O LinearLayout reparte pixels inteiros: a fronteira pode render ±1 px às
+        // células vizinhas ao arredondar, mas o par da fronteira não ganha nem perde espaço.
+        int antes = w0 + w1;
+        int depois = cell0.getWidth() + cell1.getWidth();
+        assertTrue("as duas células da fronteira mudaram de total (" + antes + " → " + depois + ")",
+                Math.abs(antes - depois) <= 1);
     }
 
     /** O que fica no store tem de ter exactamente k entradas, senão get(…, k) rejeita. */

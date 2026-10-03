@@ -58,7 +58,7 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_5
-          disableAnimations: true
+          disable-animations: true
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none
           script: ./gradlew connectedDebugAndroidTest --stacktrace
 
