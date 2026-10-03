@@ -210,13 +210,15 @@ public class GridLayoutEngine {
     /**
      * Arraste da fronteira `boundary` (entre os filhos i-1 e i do nó): só os
      * dois pesos adjacentes mudam; em UP/CANCEL os pesos do nó são persistidos.
+     * Em `parent`, as células estão nos índices pares (2*i) e as separadoras nos
+     * ímpares (2*i-1) — é a ordem de adição de walk().
      */
     @SuppressLint("ClickableViewAccessibility")
     private View.OnTouchListener dividerTouch(final LinearLayout parent, final int boundary,
                                               final String path, final String presetId,
                                               final WeightsStore store) {
         final int cellA = 2 * (boundary - 1);
-        final int cellB = 2 * boundary - 1;
+        final int cellB = 2 * boundary;
         final float[] startYX = new float[1];
         final float[] startW = new float[2];
         final int[] startPx = new int[2];
@@ -255,16 +257,19 @@ public class GridLayoutEngine {
                 }
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL: {
-                    List<Float> ws = new ArrayList<>();
+                    // Só as células (índices pares) entram no array: uma separadora
+                    // com peso espúrio corromperia o store (get() rejeita length != k).
+                    int cells = (parent.getChildCount() + 1) / 2;
+                    float[] norm = new float[cells];
                     float sum = 0;
-                    for (int i = 0; i < parent.getChildCount(); i++) {
+                    for (int i = 0; i < cells; i++) {
                         LinearLayout.LayoutParams p =
-                                (LinearLayout.LayoutParams) parent.getChildAt(i).getLayoutParams();
-                        if (p.weight > 0) { ws.add(p.weight); sum += p.weight; }
+                                (LinearLayout.LayoutParams) parent.getChildAt(2 * i).getLayoutParams();
+                        norm[i] = Math.max(0f, p.weight);
+                        sum += norm[i];
                     }
                     if (sum > 0) {
-                        float[] norm = new float[ws.size()];
-                        for (int i = 0; i < norm.length; i++) norm[i] = ws.get(i) / sum;
+                        for (int i = 0; i < cells; i++) norm[i] /= sum;
                         store.save(presetId, path, norm);
                     }
                     return true;

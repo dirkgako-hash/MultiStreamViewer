@@ -208,7 +208,15 @@ public class MainActivity extends AppCompatActivity {
                 JSONObject perPreset = all.optJSONObject(presetId);
                 if (perPreset == null) return null;
                 JSONArray arr = perPreset.optJSONArray(path);
-                if (arr == null || arr.length() != count) return null;
+                if (arr == null) return null;
+                if (arr.length() != count) {
+                    // Comprimento errado = pesos gravados por um arraste com o
+                    // índice trocado. Sem este rasto o nó simplesmente voltava
+                    // à divisão igual e não se percebia porquê.
+                    Log.w(TAG, "weights descartadas " + presetId + "/" + path
+                            + ": gravadas=" + arr.length() + " esperadas=" + count);
+                    return null;
+                }
                 float[] w = new float[count];
                 for (int i = 0; i < count; i++) w[i] = (float) arr.getDouble(i);
                 return w;
