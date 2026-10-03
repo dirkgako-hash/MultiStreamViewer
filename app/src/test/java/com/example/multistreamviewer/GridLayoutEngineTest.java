@@ -188,13 +188,10 @@ public class GridLayoutEngineTest {
     /** O cap de boxes do modo TV (4) e o máx. do telemóvel (6) têm de ter presets. */
     @Test
     public void presetsExistemParaOCapDeBoxes() {
-        for (int n : new int[]{4, 6}) {
-            assertFalse(presetsFor(n + 1).isEmpty());
-            assertTrue(presetsFor(n).size() >= 2);
+        for (int n = 1; n <= 6; n++) {
+            assertFalse("sem presets para " + n + " boxes", GridLayoutEngine.presetsFor(n).isEmpty());
         }
-    }
-
-    private List<GridLayoutEngine.Preset> presetsFor(int n) {
-        return GridLayoutEngine.presetsFor(n);
+        assertTrue(GridLayoutEngine.presetsFor(4).size() >= 2);
+        assertTrue(GridLayoutEngine.presetsFor(6).size() >= 2);
     }
 }
