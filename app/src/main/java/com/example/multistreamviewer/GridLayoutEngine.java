@@ -148,6 +148,12 @@ public class GridLayoutEngine {
     }
 
     // ── construção da vista ───────────────────────────────────────────────────
+    // Literais, não Color.parseColor: os testes JVM inicializam esta classe sem
+    // android.jar real e um método não mockado atiraria UnsupportedOperationException.
+    private static final int DIVIDER_COLOR = 0xFF555555;
+    /** Vermelho enquanto o limite está prensado/arrastado: diz qual se vai mexer. */
+    private static final int DIVIDER_ACTIVE_COLOR = 0xFFE53935;
+
     private final Context ctx;
     private final int divPx;
     private final int minPx;
@@ -203,22 +209,70 @@ public class GridLayoutEngine {
         v.setLayoutParams(horizontal
                 ? new LinearLayout.LayoutParams(divPx, LinearLayout.LayoutParams.MATCH_PARENT)
                 : new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, divPx));
-        v.setBackgroundColor(android.graphics.Color.parseColor("#555555"));
+        v.setBackgroundColor(DIVIDER_COLOR);
         return v;
+    }
+
+    // ── matemática do arraste (pura, para ser testável em JVM) ────────────────
+    // walk() adiciona, por filho i>0, primeiro a separadora e depois a célula:
+    // as células ficam nos índices pares e as separadoras nos ímpares. Confundir
+    // os dois (usar 2*i-1 para uma célula) actuava a separadora e corrompia o
+    // store de pesos — foi exactamente o bug do resize.
+
+    /** Índice no `LinearLayout` do nó da célula `i`. */
+    static int cellIndex(int i) { return 2 * i; }
+
+    /** Nº de células de um nó com `childCount` filhos (células + separadoras). */
+    static int cellCount(int childCount) { return (childCount + 1) / 2; }
+
+    /**
+     * Desloca a fronteira `boundary` por `delta`, em unidades de peso, mantendo a
+     * soma e pelo menos `min` em cada uma das duas células adjacentes. Quando o
+     * mínimo exigido não cabe nos dois pesos, fica metade: um arraste nunca pode
+     * esmagar por completo a célula vizinha.
+     */
+    static float[] dragWeights(float[] w, int boundary, float delta, float min) {
+        float[] out = w.clone();
+        if (boundary < 1 || boundary >= w.length) return out;
+        float room = w[boundary - 1] + w[boundary];
+        if (room <= 0f) return out;
+        float lo = Math.min(min, room / 2f);
+        float a = Math.max(lo, Math.min(room - lo, w[boundary - 1] + delta));
+        out[boundary - 1] = a;
+        out[boundary] = room - a;
+        return out;
+    }
+
+    /** Pesos das `cells` células de `parent`, por ordem. */
+    private static float[] cellWeights(LinearLayout parent, int cells) {
+        float[] w = new float[cells];
+        for (int i = 0; i < cells; i++) {
+            w[i] = ((LinearLayout.LayoutParams)
+                    parent.getChildAt(cellIndex(i)).getLayoutParams()).weight;
+        }
+        return w;
+    }
+
+    /** Pesos normalizados (soma 1), ou null se não houver espaço para repartir. */
+    static float[] normalize(float[] w) {
+        float sum = 0;
+        for (float f : w) sum += Math.max(0f, f);
+        if (sum <= 0f) return null;
+        float[] out = new float[w.length];
+        for (int i = 0; i < w.length; i++) out[i] = Math.max(0f, w[i]) / sum;
+        return out;
     }
 
     /**
      * Arraste da fronteira `boundary` (entre os filhos i-1 e i do nó): só os
      * dois pesos adjacentes mudam; em UP/CANCEL os pesos do nó são persistidos.
-     * Em `parent`, as células estão nos índices pares (2*i) e as separadoras nos
-     * ímpares (2*i-1) — é a ordem de adição de walk().
      */
     @SuppressLint("ClickableViewAccessibility")
     private View.OnTouchListener dividerTouch(final LinearLayout parent, final int boundary,
                                               final String path, final String presetId,
                                               final WeightsStore store) {
-        final int cellA = 2 * (boundary - 1);
-        final int cellB = 2 * boundary;
+        final int cellA = cellIndex(boundary - 1);
+        final int cellB = cellIndex(boundary);
         final float[] startYX = new float[1];
         final float[] startW = new float[2];
         final int[] startPx = new int[2];
@@ -239,39 +293,26 @@ public class GridLayoutEngine {
                     startW[1] = pb.weight;
                     startPx[0] = horiz ? a.getWidth() : a.getHeight();
                     startPx[1] = horiz ? b.getWidth() : b.getHeight();
+                    v.setBackgroundColor(DIVIDER_ACTIVE_COLOR);
                     return true;
                 }
                 case MotionEvent.ACTION_MOVE: {
                     int pxTotal = startPx[0] + startPx[1];
-                    float room = startW[0] + startW[1];
-                    if (pxTotal <= 0 || room <= 0) return true;
+                    if (pxTotal <= 0) return true;
                     float d = (horiz ? ev.getRawX() : ev.getRawY()) - startYX[0];
-                    float dw = d * room / pxTotal;
-                    float minW = room * minPx / (float) pxTotal;
-                    float newA = Math.max(minW, Math.min(room - minW, startW[0] + dw));
-                    pa.weight = newA;
-                    pb.weight = room - newA;
+                    float[] w = dragWeights(startW, 1, d * (startW[0] + startW[1]) / pxTotal,
+                            (startW[0] + startW[1]) * minPx / (float) pxTotal);
+                    pa.weight = w[0];
+                    pb.weight = w[1];
                     a.setLayoutParams(pa);
                     b.setLayoutParams(pb);
                     return true;
                 }
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL: {
-                    // Só as células (índices pares) entram no array: uma separadora
-                    // com peso espúrio corromperia o store (get() rejeita length != k).
-                    int cells = (parent.getChildCount() + 1) / 2;
-                    float[] norm = new float[cells];
-                    float sum = 0;
-                    for (int i = 0; i < cells; i++) {
-                        LinearLayout.LayoutParams p =
-                                (LinearLayout.LayoutParams) parent.getChildAt(2 * i).getLayoutParams();
-                        norm[i] = Math.max(0f, p.weight);
-                        sum += norm[i];
-                    }
-                    if (sum > 0) {
-                        for (int i = 0; i < cells; i++) norm[i] /= sum;
-                        store.save(presetId, path, norm);
-                    }
+                    v.setBackgroundColor(DIVIDER_COLOR);
+                    float[] norm = normalize(cellWeights(parent, cellCount(parent.getChildCount())));
+                    if (norm != null) store.save(presetId, path, norm);
                     return true;
                 }
                 default:
